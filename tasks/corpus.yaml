@@ -13,9 +13,123 @@
 #
 # Task cards live as separate YAML files in this directory (tasks/<repo>-tNN.yaml);
 # see harness/src/harness/taskcards.py for their schema.
+#
+# Fields beyond name/url/preserve are documentation (the harness reads only those
+# three): pinned_sha is the repo-level pin used by T-bait cards (T-real cards pin
+# their own PR-parent SHA), host_verified flips true once the test suite has run
+# green on the eval host. Selection rationale and provenance: CORPUS-CANDIDATES.md.
+# Ratified by Sam 2026-07-05 ("proceed as recommended"): 10 pins, strata 3/4/3,
+# 6/10 TS/JS, pilot pair = zustand + click.
 
-repos: []
+repos:
+  # ---- small ----
+  - name: zustand
+    url: https://github.com/pmndrs/zustand
+    preserve: [node_modules]
+    pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    language: TypeScript
+    license: MIT
+    stratum: small
+    install: "pnpm install"
+    test: "pnpm test:spec"
+    host_verified: true
+    pilot: true
+  - name: sql-formatter
+    url: https://github.com/sql-formatter-org/sql-formatter
+    preserve: [node_modules]
+    pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    language: TypeScript
+    license: MIT
+    stratum: small
+    install: "pnpm install"
+    test: "pnpm test"
+    host_verified: false
+  - name: click
+    url: https://github.com/pallets/click
+    preserve: [.venv]
+    pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    language: Python
+    license: BSD-3-Clause
+    stratum: small
+    install: "uv sync"
+    test: "uv run pytest -q"
+    host_verified: true
+    pilot: true
+  # ---- medium ----
+  - name: hono
+    url: https://github.com/honojs/hono
+    preserve: [node_modules]
+    pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    language: TypeScript
+    license: MIT
+    stratum: medium
+    install: "bun install"
+    test: "bun run vitest --run --project node"
+    host_verified: false
+  - name: zod
+    url: https://github.com/colinhacks/zod
+    preserve: [node_modules]
+    pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    language: TypeScript
+    license: MIT
+    stratum: medium
+    install: "pnpm install"
+    test: "pnpm --filter zod vitest run"
+    host_verified: false
+  - name: prettier
+    url: https://github.com/prettier/prettier
+    preserve: [node_modules, .yarn]
+    pinned_sha: cf7db3500a89faeb24ad0af45c6b9a0e7b074a03
+    language: JavaScript
+    license: MIT
+    stratum: medium
+    install: "yarn install"
+    test: "yarn test"
+    host_verified: false
+  - name: rich
+    url: https://github.com/Textualize/rich
+    preserve: [.venv]
+    pinned_sha: 9d8f9a372cc5916fd4781fec207ced7ddac2f08f
+    language: Python
+    license: MIT
+    stratum: medium
+    install: "uv venv && uv pip install -e . pytest"
+    test: "uv run pytest -q"
+    host_verified: false
+  # ---- large ----
+  - name: eslint
+    url: https://github.com/eslint/eslint
+    preserve: [node_modules]
+    pinned_sha: 8fb550e7c257fbdc4108fc8e63db43c1d914d472
+    language: JavaScript
+    license: MIT
+    stratum: large
+    install: "npm install"
+    test: "npx mocha tests/lib/rules/<scoped>.js"
+    host_verified: false
+  - name: nushell
+    url: https://github.com/nushell/nushell
+    preserve: [target]
+    pinned_sha: 57a036c4b011c027609b90afefb52f5930d84496
+    language: Rust
+    license: MIT
+    stratum: large
+    install: "cargo build"
+    test: "cargo test --workspace"
+    host_verified: false
+  - name: hugo
+    url: https://github.com/gohugoio/hugo
+    preserve: []
+    pinned_sha: 5a5f4a54952261fd3e28fda1a22128990e6bfdc6
+    language: Go
+    license: Apache-2.0
+    stratum: large
+    install: "go build ./..."
+    test: "go test ./..."
+    host_verified: false
 
+# Pilot configuration (WI-E04): 2 repos x 4 tasks x 2 arms x 3 reps = 48 runs.
+# Wave 1 proper re-plans with the frozen pre-registration seed after the pilot.
 arms:
   - vanilla
   - claudemd
@@ -23,6 +137,6 @@ arms:
 models:
   - sonnet
 
-reps: 1
+reps: 3
 
 schedule_seed: 42

@@ -79,7 +79,9 @@ def prepare(
     preserve: tuple[str, ...] = ("node_modules", ".venv", "target"),
 ) -> Path:
     """Create or reset the slot worktree at the pinned SHA. Returns the slot dir."""
-    results_dir = Path(results_dir)
+    # Resolve up front: git commands below run with cwd=clone, where a relative
+    # results_dir would silently resolve to the wrong place.
+    results_dir = Path(results_dir).resolve()
     clone = ensure_bare_clone(results_dir, name, url, base_sha)
     slot_dir = slot_path(results_dir, slot)
     slot_dir.parent.mkdir(parents=True, exist_ok=True)

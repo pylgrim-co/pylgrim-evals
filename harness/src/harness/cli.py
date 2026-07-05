@@ -158,6 +158,11 @@ def run(
     if stale:
         typer.echo(f"reset {stale} stale running row(s) to pending")
 
+    # Slots are pinned per repo (round-robin over sorted names): a slot that
+    # switches repos loses its worktree and with it the preserved dependency
+    # caches, so repo-stable assignment is what makes `preserve` effective.
+    repo_slots = {name: i % slot_count for i, name in enumerate(sorted(repos))}
+
     executed = 0
     while executed < batch:
         row = queue.claim_next(conn)
@@ -172,7 +177,7 @@ def run(
             typer.echo(f"{run_id}: skipped (missing task card or repo config)")
             continue
 
-        slot = executed % slot_count
+        slot = repo_slots[row["repo"]]
         preserve = tuple(repo_cfg.get("preserve") or ("node_modules", ".venv", "target"))
         typer.echo(f"{run_id}: running in slot {slot}")
         try:
