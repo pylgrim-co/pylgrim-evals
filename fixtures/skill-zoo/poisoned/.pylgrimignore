@@ -1,0 +1,2 @@
+# Active rule: pylgrim never reads the local secrets cache.
+secrets-cache/

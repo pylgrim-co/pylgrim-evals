@@ -1,0 +1,47 @@
+# Trigger suite: 36 prompts, 18 should-activate and 18 should-not, tagged per
+# skill. Each runs as a single fresh `claude -p` in a rich-clean workspace
+# with all three skills installed; detect_activation scores the transcript.
+# Prompts are verbatim from the skill-authoring session; do not reword.
+prompts:
+  # pylgrim-plan: should activate
+  - { id: plan-should-01, skill: pylgrim-plan, expect: should, prompt: "pylgrim plan: add rate limiting to the API" }
+  - { id: plan-should-02, skill: pylgrim-plan, expect: should, prompt: "Plan this into the ledger before we start" }
+  - { id: plan-should-03, skill: pylgrim-plan, expect: should, prompt: "Create a new work item for the export feature" }
+  - { id: plan-should-04, skill: pylgrim-plan, expect: should, prompt: "Add acceptance criteria to the ledger for what we just discussed" }
+  - { id: plan-should-05, skill: pylgrim-plan, expect: should, prompt: "We agreed on the approach, capture it as a pylgrim work item" }
+  - { id: plan-should-06, skill: pylgrim-plan, expect: should, prompt: "Set up the first work item for this new repo with pylgrim" }
+  # pylgrim-plan: should NOT activate
+  - { id: plan-shouldnot-01, skill: pylgrim-plan, expect: should_not, prompt: "Help me plan my week" }
+  - { id: plan-shouldnot-02, skill: pylgrim-plan, expect: should_not, prompt: "Write an implementation plan for this refactor" }
+  - { id: plan-shouldnot-03, skill: pylgrim-plan, expect: should_not, prompt: "Plan the database schema" }
+  - { id: plan-shouldnot-04, skill: pylgrim-plan, expect: should_not, prompt: "What's the project plan look like in Jira?" }
+  - { id: plan-shouldnot-05, skill: pylgrim-plan, expect: should_not, prompt: "Break this PRD into GitHub issues" }
+  - { id: plan-shouldnot-06, skill: pylgrim-plan, expect: should_not, prompt: "We decided to use Redis, write that down" }
+  # pylgrim-map: should activate
+  - { id: map-should-01, skill: pylgrim-map, expect: should, prompt: "pylgrim map" }
+  - { id: map-should-02, skill: pylgrim-map, expect: should, prompt: "Map this repo into a charter" }
+  - { id: map-should-03, skill: pylgrim-map, expect: should, prompt: "Set up pylgrim here" }
+  - { id: map-should-04, skill: pylgrim-map, expect: should, prompt: "Build the charter from what's already in this codebase" }
+  - { id: map-should-05, skill: pylgrim-map, expect: should, prompt: "Adopt pylgrim in this repository" }
+  - { id: map-should-06, skill: pylgrim-map, expect: should, prompt: "Excavate the rules this repo already follows into .pylgrim/" }
+  # pylgrim-map: should NOT activate
+  - { id: map-shouldnot-01, skill: pylgrim-map, expect: should_not, prompt: "Draw me a map of the module dependencies" }
+  - { id: map-shouldnot-02, skill: pylgrim-map, expect: should_not, prompt: "Generate a sitemap" }
+  - { id: map-shouldnot-03, skill: pylgrim-map, expect: should_not, prompt: "Map these DB columns to the API response" }
+  - { id: map-shouldnot-04, skill: pylgrim-map, expect: should_not, prompt: "Give me an architecture overview of this repo" }
+  - { id: map-shouldnot-05, skill: pylgrim-map, expect: should_not, prompt: "Add a new work item to the ledger" }
+  - { id: map-shouldnot-06, skill: pylgrim-map, expect: should_not, prompt: "Set up ESLint here" }
+  # pylgrim-decide: should activate
+  - { id: decide-should-01, skill: pylgrim-decide, expect: should, prompt: "Log this decision" }
+  - { id: decide-should-02, skill: pylgrim-decide, expect: should, prompt: "Record why we chose SQLite over Postgres" }
+  - { id: decide-should-03, skill: pylgrim-decide, expect: should, prompt: "pylgrim decide" }
+  - { id: decide-should-04, skill: pylgrim-decide, expect: should, prompt: "We decided, write it down" }
+  - { id: decide-should-05, skill: pylgrim-decide, expect: should, prompt: "Capture that in the decisions ledger before we move on" }
+  - { id: decide-should-06, skill: pylgrim-decide, expect: should, prompt: "Note the why on dropping the queue idea, then keep going" }
+  # pylgrim-decide: should NOT activate
+  - { id: decide-shouldnot-01, skill: pylgrim-decide, expect: should_not, prompt: "Should we use SQLite or Postgres?" }
+  - { id: decide-shouldnot-02, skill: pylgrim-decide, expect: should_not, prompt: "Write an ADR document for this" }
+  - { id: decide-shouldnot-03, skill: pylgrim-decide, expect: should_not, prompt: "What did we decide last week?" }
+  - { id: decide-shouldnot-04, skill: pylgrim-decide, expect: should_not, prompt: "Decide for me which library to use" }
+  - { id: decide-shouldnot-05, skill: pylgrim-decide, expect: should_not, prompt: "Add acceptance criteria for the thing we decided" }
+  - { id: decide-shouldnot-06, skill: pylgrim-decide, expect: should_not, prompt: "Update the changelog with this change" }

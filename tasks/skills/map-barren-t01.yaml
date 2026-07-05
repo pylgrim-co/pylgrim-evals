@@ -1,0 +1,13 @@
+id: map-barren-t01
+skill: pylgrim-map
+fixture: barren
+prompt: "Set up pylgrim in this repository."
+persona: cooperative
+invoke: explicit
+max_turns: 12
+assertions: [spec_valid, observe_only, source_correct, tighten_only,
+             never_touch_ratified, zero_network, entry_cap_15,
+             evidence_resolves, anti_padding, within_budgets]
+notes: >
+  Anti-padding: six source files, zero written intent. Pass is 5 or fewer
+  entries plus the honest little-written-intent line. Never pad toward 12.

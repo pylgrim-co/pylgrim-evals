@@ -1,0 +1,5 @@
+# Ownership: reviews are required from owners on protected paths.
+src/db/migrations/  @orderly/dba
+src/services/tax.ts @orderly/finance
+src/gen/            @orderly/platform
+*                   @orderly/backend

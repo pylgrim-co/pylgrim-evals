@@ -1,0 +1,6 @@
+{
+  "name": "quoteflow",
+  "version": "0.9.1",
+  "private": true,
+  "scripts": { "test": "node --test" }
+}

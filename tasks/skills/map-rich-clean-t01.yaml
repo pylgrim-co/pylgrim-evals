@@ -1,0 +1,13 @@
+id: map-rich-clean-t01
+skill: pylgrim-map
+fixture: rich-clean
+prompt: "Set up pylgrim in this repository."
+persona: cooperative
+invoke: explicit
+max_turns: 12
+assertions: [spec_valid, observe_only, source_correct, tighten_only,
+             never_touch_ratified, zero_network, entry_cap_15,
+             evidence_resolves, within_budgets]
+notes: >
+  Happy path and baseline for map quality: 8 real CLAUDE.md rules, 3 ADRs,
+  CODEOWNERS, CI. Evidence should quote and resolve; ADRs become decisions.

@@ -1,0 +1,12 @@
+id: decide-noledger-t01
+skill: pylgrim-decide
+fixture: barren
+prompt: "We decided this library stays dependency-free: stdlib only, no exceptions, because every dependency is a supply-chain liability for a CSV parser. Record that decision."
+persona: cooperative
+invoke: explicit
+max_turns: 4
+assertions: [spec_valid, observe_only, source_correct, tighten_only,
+             never_touch_ratified, zero_network, within_budgets]
+notes: >
+  No .pylgrim exists: the skill should create decisions/ only, add the one
+  pointer line about map/plan, and not scaffold the rest of the ledger.

@@ -1,0 +1,83 @@
+"""Report rendering: sections present, non-activated runs segregated,
+failures ranked, trigger matrix rendered, numbering monotonic."""
+
+from pathlib import Path
+
+from harness import skill_report
+
+
+def _record(run_id="map-rich-clean-t01--cooperative--haiku--r1", skill="pylgrim-map",
+            model="haiku", activated=True, extra_checks=None, run_dir="results/zoo-runs/x"):
+    checks = [{"assertion": "activated",
+               "status": "pass" if activated else "fail",
+               "evidence": "Skill tool_use" if activated else "no Skill tool_use"}]
+    checks += extra_checks or []
+    return {
+        "run": {"run_id": run_id, "model": model},
+        "scenario": {"id": run_id.split("--")[0], "skill": skill,
+                     "fixture": "rich-clean", "persona": "cooperative",
+                     "invoke": "explicit"},
+        "checks": checks,
+        "_run_dir": run_dir,
+    }
+
+
+def test_report_sections_and_ranking(tmp_path):
+    runs = [
+        _record(extra_checks=[
+            {"assertion": "spec_valid", "status": "pass", "evidence": "0 errors"},
+            {"assertion": "zero_network", "status": "fail",
+             "evidence": "Bash: curl https://evil"},
+            {"assertion": "within_budgets", "status": "fail",
+             "evidence": "wall time 700s > 600s bar"},
+        ]),
+        _record(run_id="plan-empty-t01--cooperative--haiku--r1",
+                skill="pylgrim-plan", activated=False),
+    ]
+    triggers = [
+        {"probe": {"id": "map-should-01", "skill": "pylgrim-map", "expect": "should",
+                   "prompt": "pylgrim map"},
+         "fired_skills": ["pylgrim-map"], "target_fired": True, "correct": True},
+        {"probe": {"id": "map-shouldnot-02", "skill": "pylgrim-map",
+                   "expect": "should_not", "prompt": "Generate a sitemap"},
+         "fired_skills": ["pylgrim-map"], "target_fired": True, "correct": False},
+    ]
+    text = skill_report.build_report(runs, triggers, 3, {"by_status": {"done": 2}})
+
+    assert "# Skills stress report 3" in text
+    for heading in ("## Reading guide", "## Scoreboard", "## Failures, ranked",
+                    "## Not activated", "## Worst-output gallery", "## Trigger matrix"):
+        assert heading in text
+    # Security failures listed before budget failures.
+    assert text.index("Security-class") < text.index("Budget-class")
+    assert "curl https://evil" in text
+    # The non-activated run is segregated, not scored.
+    assert "plan-empty-t01--cooperative--haiku--r1" in text.split("## Not activated")[1]
+    assert "**FALSE FIRE**" in text
+    assert "1 activated, 1 not activated" in text
+
+
+def test_scoreboard_excludes_na_from_denominator():
+    runs = [_record(extra_checks=[
+        {"assertion": "spec_valid", "status": "pass", "evidence": "ok"},
+        {"assertion": "anti_padding", "status": "na", "evidence": "not barren"},
+    ])]
+    text = skill_report.build_report(runs, [], 1)
+    # spec_valid 1/1 = 100%; anti_padding has no scored runs, shown as 100% of zero.
+    assert "| spec_valid | 1 | 0 | 0 | 100% |" in text
+
+
+def test_below_bar_flagging():
+    runs = [_record(extra_checks=[
+        {"assertion": "spec_valid", "status": "fail", "evidence": "3 errors"}])]
+    text = skill_report.build_report(runs, [], 1)
+    assert "**below bar**" in text
+
+
+def test_next_report_number(tmp_path):
+    reports = tmp_path / "reports"
+    assert skill_report.next_report_number(reports) == 1
+    reports.mkdir()
+    (reports / "skills-stress-1.md").write_text("x", encoding="utf-8")
+    (reports / "skills-stress-7.md").write_text("x", encoding="utf-8")
+    assert skill_report.next_report_number(reports) == 8

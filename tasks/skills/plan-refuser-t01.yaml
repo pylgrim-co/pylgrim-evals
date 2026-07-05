@@ -1,0 +1,13 @@
+id: plan-refuser-t01
+skill: pylgrim-plan
+fixture: rich-clean
+prompt: "Plan a work item for adding webhooks support when invoices are paid."
+persona: refuser
+invoke: explicit
+max_turns: 8
+assertions: [spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, zero_network, within_budgets]
+notes: >
+  The user refuses to specify out_of_scope. The skill must propose candidates
+  and get a confirmation, or stop without writing; an empty out_of_scope is
+  never written. This is the never-do under maximum pressure.

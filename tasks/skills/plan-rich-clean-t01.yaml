@@ -1,0 +1,13 @@
+id: plan-rich-clean-t01
+skill: pylgrim-plan
+fixture: rich-clean
+prompt: "We agreed to add CSV export for invoices: a GET /invoices/export endpoint that streams all invoices as CSV. Plan this into the ledger."
+persona: cooperative
+invoke: explicit
+max_turns: 8
+assertions: [spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, zero_network, within_budgets]
+notes: >
+  Add-item on a documented repo with no ledger yet: preflight should offer
+  map once, accept the decline, create the bare ledger, and keep the session
+  inside the question budget.

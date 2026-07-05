@@ -7,6 +7,13 @@ Commands:
   status   queue summary table
   smoke    single end-to-end run outside the queue, for pipeline validation
 
+Skills stress suite (separate queue in results/skills.db, isolated from the
+coding-task pilot):
+  plan-skills    schedule the scenario matrix (tasks/skills/config.yaml)
+  run-skills     execute a batch of skill stress runs (multi-turn, personas)
+  run-triggers   run the 36 activation probes from tasks/skills/triggers.yaml
+  report-skills  regenerate results/reports/skills-stress-<n>.md
+
 Typical subscription-bounded operation: `harness plan` once, then
 `harness run --batch N` from a scheduled hourly task until `harness status`
 shows everything done.
@@ -346,6 +353,204 @@ def smoke(
         raise typer.Exit(2)
     typer.echo(json.dumps(record["metrics"], indent=2, default=str))
     typer.echo(f"smoke run complete: results/runs/{row['run_id']}/")
+
+
+# ---------------------------------------------------------------------------
+# Skills stress suite commands (isolated queue: results/skills.db)
+# ---------------------------------------------------------------------------
+
+def _skills_paths(root: Path) -> tuple[Path, Path, Path]:
+    root = root.resolve()
+    return root / "tasks" / "skills", root / "results", root / "results" / "skills.db"
+
+
+def _load_scenarios(skills_tasks_dir: Path):
+    from harness import skilltasks
+
+    scenarios, errors = skilltasks.load_all(skills_tasks_dir)
+    for err in errors:
+        typer.echo(f"scenario card error: {err}", err=True)
+    if errors:
+        raise typer.Exit(1)
+    if not scenarios:
+        typer.echo("no scenario cards in tasks/skills/; nothing to do", err=True)
+        raise typer.Exit(1)
+    return scenarios
+
+
+@app.command("plan-skills")
+def plan_skills(
+    root: Path = ROOT_OPT,
+    force: bool = typer.Option(False, "--force", help="Replace an existing schedule"),
+) -> None:
+    """Schedule the skills stress matrix into results/skills.db."""
+    from harness import skill_runner, skilltasks
+
+    skills_tasks_dir, _, db_path = _skills_paths(root)
+    scenarios = _load_scenarios(skills_tasks_dir)
+    config = skilltasks.load_config(skills_tasks_dir)
+
+    conn = queue.connect(db_path)
+    queue.init_db(conn)
+    existing = queue.run_count(conn)
+    if existing and not force:
+        typer.echo(
+            f"error: {existing} runs already scheduled in {db_path}; use --force",
+            err=True,
+        )
+        raise typer.Exit(1)
+    if existing and force:
+        with conn:
+            conn.execute("DELETE FROM runs")
+
+    rows = skilltasks.generate_schedule(
+        scenarios, config["tiers"], config["reps"], config["seed"]
+    )
+    queue.insert_schedule(conn, rows)
+    queue.init_db(
+        conn,
+        meta={
+            "schedule_seed": str(config["seed"]),
+            "created_at": queue.now_iso(),
+            "harness_version": __version__,
+            "claude_version": _claude_version(),
+            "pylgrim_repo_sha": skill_runner.pylgrim_repo_sha(),
+            "platform": platform.platform(),
+        },
+    )
+    typer.echo(
+        f"scheduled {len(rows)} skill runs into {db_path} "
+        f"({len(scenarios)} scenarios x {len(config['tiers'])} tiers x "
+        f"{config['reps']} reps)"
+    )
+
+
+@app.command("run-skills")
+def run_skills(
+    root: Path = ROOT_OPT,
+    batch: int = typer.Option(..., "--batch", help="Max runs to execute this invocation"),
+    task: Optional[str] = typer.Option(None, "--task", help="Only claim this scenario id"),
+    model: Optional[str] = typer.Option(None, "--model", help="Only claim this model tier"),
+    timeout_min: int = typer.Option(20, "--timeout-min", help="Per-turn timeout in minutes"),
+) -> None:
+    """Execute up to --batch skill stress runs. Exits cleanly on rate limit."""
+    from harness import skill_runner, skilltasks
+
+    skills_tasks_dir, results_dir, db_path = _skills_paths(root)
+    scenarios = {s.id: s for s in _load_scenarios(skills_tasks_dir)}
+
+    conn = queue.connect(db_path)
+    queue.init_db(conn)
+    stale = queue.reset_stale(conn)
+    if stale:
+        typer.echo(f"reset {stale} stale running row(s) to pending")
+
+    executed = 0
+    while executed < batch:
+        if task or model:
+            row = skilltasks.claim_next_filtered(conn, task, model)
+        else:
+            row = queue.claim_next(conn)
+        if row is None:
+            typer.echo("no eligible pending runs (done, filtered out, or gated)")
+            break
+        run_id = row["run_id"]
+        scenario = scenarios.get(row["task_id"])
+        if scenario is None:
+            queue.mark_skipped(conn, run_id, "scenario card missing")
+            typer.echo(f"{run_id}: skipped (scenario card missing)")
+            continue
+        typer.echo(f"{run_id}: running ({scenario.skill} on {scenario.fixture}, "
+                   f"persona {scenario.persona})")
+        try:
+            record = skill_runner.execute_skill_run(
+                row, scenario, results_dir, timeout_s=timeout_min * 60
+            )
+        except skill_runner.headless.RateLimited as exc:
+            queue.mark_rate_limited(conn, run_id, exc.resume_after)
+            typer.echo(f"{run_id}: rate limited, resume after {exc.resume_after}; exiting")
+            break
+        except Exception as exc:  # keep the loop crash-safe: record and continue
+            queue.mark_error(conn, run_id, str(exc))
+            typer.echo(f"{run_id}: error: {exc}", err=True)
+            executed += 1
+            continue
+
+        queue.mark_done(conn, run_id, session_id=record["run"].get("session_id"))
+        failed = [c["assertion"] for c in record["checks"] if c["status"] == "fail"]
+        typer.echo(f"{run_id}: done "
+                   f"({'all checks pass' if not failed else 'FAILED: ' + ', '.join(failed)})")
+        executed += 1
+
+    summary = queue.status_summary(conn)
+    typer.echo(f"batch finished: {summary['by_status']}")
+
+
+@app.command("run-triggers")
+def run_triggers(
+    root: Path = ROOT_OPT,
+    batch: int = typer.Option(36, "--batch", help="Max probes to run this invocation"),
+    model: str = typer.Option("haiku", "--model", help="Model tier for the probes"),
+    only: Optional[str] = typer.Option(None, "--only", help="Run a single probe id"),
+) -> None:
+    """Run activation probes from tasks/skills/triggers.yaml (resumable)."""
+    from harness import trigger_check
+
+    skills_tasks_dir, results_dir, _ = _skills_paths(root)
+    probes, errors = trigger_check.load_triggers(skills_tasks_dir / "triggers.yaml")
+    for err in errors:
+        typer.echo(f"trigger error: {err}", err=True)
+    if errors:
+        raise typer.Exit(1)
+
+    executed = 0
+    for probe in probes:
+        if executed >= batch:
+            break
+        if only and probe.id != only:
+            continue
+        if not only and trigger_check.is_done(results_dir, probe.id):
+            continue
+        typer.echo(f"{probe.id}: probing ({probe.expect}, {probe.skill})")
+        try:
+            record = trigger_check.run_probe(probe, results_dir, model=model)
+        except trigger_check.headless.RateLimited as exc:
+            typer.echo(f"{probe.id}: rate limited, resume after {exc.resume_after}; exiting")
+            break
+        except Exception as exc:
+            typer.echo(f"{probe.id}: error: {exc}", err=True)
+            executed += 1
+            continue
+        verdict = "correct" if record["correct"] else "WRONG"
+        typer.echo(f"{probe.id}: fired={record['fired_skills'] or 'none'} ({verdict})")
+        executed += 1
+
+    results = trigger_check.load_results(results_dir)
+    typer.echo(f"trigger probes complete: {len(results)}/{len(probes)}")
+
+
+@app.command("report-skills")
+def report_skills(root: Path = ROOT_OPT) -> None:
+    """Regenerate the skills stress findings report."""
+    from harness import skill_report, trigger_check
+
+    _, results_dir, db_path = _skills_paths(root)
+    runs = skill_report.load_skill_runs(results_dir)
+    triggers = trigger_check.load_results(results_dir)
+
+    queue_summary = None
+    if db_path.exists():
+        conn = queue.connect(db_path)
+        queue.init_db(conn)
+        queue_summary = queue.status_summary(conn)
+
+    reports_dir = results_dir / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    number = skill_report.next_report_number(reports_dir)
+    text = skill_report.build_report(runs, triggers, number, queue_summary)
+    out = reports_dir / f"skills-stress-{number}.md"
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"report written: {out} ({len(runs)} runs, {len(triggers)} trigger probes)")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+# Generator config for the bloated fixture. build_zoo.py materializes the
+# working copy from this deterministically; nothing generated is committed.
+seed: 7
+claude_md_rules: 200
+claude_md_target_lines: 10000
+adr_stubs: 40
+source_files: 8

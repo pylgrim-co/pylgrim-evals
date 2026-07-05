@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Nordwind Logistics GmbH",
+    "contact": "anna.keller@nordwindlogistics.com",
+    "tier": "enterprise"
+  },
+  {
+    "name": "Bergsee Insurance AG",
+    "contact": "tomas.ruiz@bergsee-insurance.com",
+    "tier": "growth"
+  },
+  {
+    "name": "Cascadia Freight Partners",
+    "contact": "m.okafor@cascadiafreight.com",
+    "tier": "growth"
+  }
+]

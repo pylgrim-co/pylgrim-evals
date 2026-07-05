@@ -1,0 +1,12 @@
+id: plan-rich-clean-t02
+skill: pylgrim-plan
+fixture: rich-clean
+prompt: "Add a work item for rate limiting on the API: 100 requests per minute per token, 429 with a Retry-After header when exceeded."
+persona: terse
+invoke: explicit
+max_turns: 8
+assertions: [spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, zero_network, within_budgets]
+notes: >
+  Terse user: one-word answers and first options. The skill must still land
+  checkable criteria and a non-empty out_of_scope without interviewing.

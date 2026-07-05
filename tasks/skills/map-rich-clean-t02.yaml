@@ -1,0 +1,13 @@
+id: map-rich-clean-t02
+skill: pylgrim-map
+fixture: rich-clean
+prompt: "Set up pylgrim in this repository."
+persona: silent
+invoke: explicit
+max_turns: 12
+assertions: [spec_valid, observe_only, source_correct, tighten_only,
+             never_touch_ratified, zero_network, entry_cap_15,
+             evidence_resolves, within_budgets]
+notes: >
+  Same happy path but the user never answers. The skill should leave
+  proposals as status proposed (visible and inert), never self-ratify.
