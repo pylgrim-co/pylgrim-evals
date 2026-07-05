@@ -1,0 +1,11 @@
+# Run artifacts: everything under results/ except the directory marker.
+results/*
+!results/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+uv.lock

@@ -1,0 +1,27 @@
+diff --git a/src/app/feature.py b/src/app/feature.py
+index 1111111..2222222 100644
+--- a/src/app/feature.py
++++ b/src/app/feature.py
+@@ -1,4 +1,6 @@
+ def existing():
+-    return None
++    return 1
++
++def greet(name):
++    return f"hello {name}"
+diff --git a/README.md b/README.md
+index 3333333..4444444 100644
+--- a/README.md
++++ b/README.md
+@@ -1,2 +1,4 @@
+ # Demo
++
++Now with greetings.
+diff --git a/src/app/legacy_util.py b/src/app/legacy_util.py
+index 5555555..6666666 100644
+--- a/src/app/legacy_util.py
++++ b/src/app/legacy_util.py
+@@ -1,3 +1,3 @@
+ def old():
+-    return "old"
++    return "refreshed"

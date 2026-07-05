@@ -1,0 +1,13 @@
+# Deliberately broken task card: validation must collect all of these
+# errors without crashing.
+id: 42
+kind: sneaky
+base_sha: not-a-sha
+intent:
+  constraints: not-a-list
+  work_item:
+    criteria:
+      - ok
+rules:
+  - id: made-up-rule
+source: {}

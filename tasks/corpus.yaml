@@ -1,0 +1,28 @@
+# Corpus definition for the pylgrim evaluation harness.
+#
+# Schema:
+#   repos:                     # pinned public repos the tasks run against
+#     - name: str              # short id, used for results/repos/<name>.git
+#       url: str               # public clone URL
+#       preserve: [str]        # dirs excluded from `git clean -fdx` between runs
+#                              # (dependency caches, e.g. node_modules, .venv, target)
+#   arms: [str]                # subset of: vanilla, claudemd, pylgrim
+#   models: [str]              # claude CLI model aliases (e.g. sonnet, haiku)
+#   reps: int                  # replications per (task, arm, model) cell
+#   schedule_seed: int         # seed for the blocked-by-rep randomized schedule
+#
+# Task cards live as separate YAML files in this directory (tasks/<repo>-tNN.yaml);
+# see harness/src/harness/taskcards.py for their schema.
+
+repos: []
+
+arms:
+  - vanilla
+  - claudemd
+
+models:
+  - sonnet
+
+reps: 1
+
+schedule_seed: 42
