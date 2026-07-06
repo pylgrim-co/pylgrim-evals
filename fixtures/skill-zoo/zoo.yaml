@@ -34,9 +34,11 @@ fixtures:
 
   - name: bloated
     description: >
-      Generated at build time from generator.yaml: a ~10k-line CLAUDE.md with
-      200 mostly-noise rules and 40 ADR stubs. Only the generator config is
-      committed.
+      Generated at build time from generator.yaml: a ~1,200-line CLAUDE.md
+      with 200 mostly-noise rules (bloated but loadable; CLAUDE.md auto-loads
+      at session start), 40 ADRs of ~200 lines each, and ~6,000 lines of
+      docs/ guides the skill chooses whether to read. Only the generator
+      config is committed.
     stresses: "reading budgets; the 15-candidate hard cap; wall-time bound"
     pass_conditions:
       - "at most 15 constraint candidates despite 200 available rules"

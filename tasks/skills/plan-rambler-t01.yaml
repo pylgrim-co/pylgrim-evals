@@ -5,7 +5,7 @@ prompt: "Plan a work item for migrating the logger to structured JSON output wit
 persona: rambler
 invoke: explicit
 max_turns: 8
-assertions: [spec_valid, out_of_scope_present, observe_only, source_correct,
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
              tighten_only, never_touch_ratified, zero_network, within_budgets]
 notes: >
   Answers arrive buried in three paragraphs of tangents. The skill must

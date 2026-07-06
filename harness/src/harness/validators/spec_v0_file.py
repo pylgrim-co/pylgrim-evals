@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Vendored copy of C:\Dev\pylgrim-repo\spec\scripts\validate.py (sync manually).
-# Source commit: 082a163e4f63b9add837c8a941d69fb8afe79c66
+# Source commit: ef61f653357a70bac6075d134242fca52ef4c591
 """validate.py is the executable form of the pylgrim v0 spec (spec/README.md).
 
 It checks .pylgrim/ ledgers: filename grammar, the v0 frontmatter subset,
@@ -570,7 +570,8 @@ def check_entry(path, expected_kind, repo_root, report):
                     epath = item.get("path")
                     if not epath:
                         continue
-                    bare = re.sub(r"(:\d+)+$", "", epath)
+                    # Strip :line or :start-end suffixes before resolving.
+                    bare = re.sub(r"(:\d+(?:-\d+)?)+$", "", epath)
                     target = os.path.normpath(os.path.join(repo_root, bare))
                     if not os.path.exists(target):
                         report.warn(path, "evidence[%d].path" % idx,

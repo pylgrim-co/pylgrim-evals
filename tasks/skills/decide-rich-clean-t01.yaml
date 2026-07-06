@@ -5,7 +5,7 @@ prompt: "We just decided to use SQLite for the export job queue instead of Postg
 persona: cooperative
 invoke: explicit
 max_turns: 4
-assertions: [spec_valid, observe_only, source_correct, tighten_only,
+assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
              never_touch_ratified, zero_network, within_budgets]
 notes: >
   Mid-work capture: decision and why are both already stated, so zero

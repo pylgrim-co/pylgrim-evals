@@ -62,11 +62,22 @@ def read_generator_config(path: Path) -> dict[str, int]:
 
 
 def generate_bloated(dest: Path, config: dict[str, int]) -> None:
-    """Write the bloated tree: a huge CLAUDE.md, ADR stubs, and filler source."""
+    """Write the bloated tree: a bloated-but-loadable CLAUDE.md plus the bulk
+    spread across long ADRs and docs/ guides.
+
+    CLAUDE.md is capped around 1,200 lines: it auto-loads at session start,
+    and the earlier ~10k-line version blew past standard context before the
+    skill ever ran (429 on every tier). The reading-budget stress moved into
+    40 ADRs of ~200 lines each and docs/ guides (~6,000 lines total), files
+    the skill decides whether to open.
+    """
     rng = random.Random(config.get("seed", 7))
     n_rules = config.get("claude_md_rules", 200)
-    target_lines = config.get("claude_md_target_lines", 10000)
+    target_lines = config.get("claude_md_target_lines", 1200)
     n_adrs = config.get("adr_stubs", 40)
+    adr_target = config.get("adr_target_lines", 200)
+    n_docs = config.get("docs_files", 12)
+    docs_target = config.get("docs_target_lines", 6000)
     n_src = config.get("source_files", 8)
 
     lines = ["# megalith: everything platform", "", "## Rules", ""]
@@ -92,10 +103,44 @@ def generate_bloated(dest: Path, config: dict[str, int]) -> None:
     adr_dir.mkdir(parents=True, exist_ok=True)
     for i in range(1, n_adrs + 1):
         area = rng.choice(AREAS)
+        adr_lines = [
+            f"# ADR {i:04d}: placeholder decision about {area}",
+            "",
+            "Status: draft",
+            "",
+            "## Decision",
+            "",
+            "TBD.",
+            "",
+            "## Why",
+            "",
+            "TBD.",
+            "",
+            "## Discussion notes",
+            "",
+        ]
+        for j in range(1, max(0, adr_target - len(adr_lines) - 1) + 1):
+            adr_lines.append(
+                f"Note {j}: the working group revisited {area} during review "
+                f"round {j} and deferred a final call pending more data from "
+                f"the neighboring modules."
+            )
         (adr_dir / f"{i:04d}-stub.md").write_text(
-            f"# ADR {i:04d}: placeholder decision about {area}\n\n"
-            "Status: draft\n\n## Decision\n\nTBD.\n\n## Why\n\nTBD.\n",
-            encoding="utf-8",
+            "\n".join(adr_lines) + "\n", encoding="utf-8"
+        )
+
+    per_doc = max(1, docs_target // max(1, n_docs))
+    for i in range(1, n_docs + 1):
+        area = rng.choice(AREAS)
+        doc_lines = [f"# Guide {i:02d}: working in {area}", ""]
+        for j in range(1, max(0, per_doc - len(doc_lines) - 1) + 1):
+            doc_lines.append(
+                f"Paragraph {j}: general onboarding notes about {area}; keep "
+                f"changes small, run the checks, and ask the module owners "
+                f"when in doubt."
+            )
+        (dest / "docs" / f"guide-{i:02d}.md").write_text(
+            "\n".join(doc_lines) + "\n", encoding="utf-8"
         )
 
     src_dir = dest / "src"

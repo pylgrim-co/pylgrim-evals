@@ -112,7 +112,49 @@ def test_activated_requires_matching_skill(tmp_path):
     assert sc.check_activated(ctx)["status"] == "fail"
 
 
+# ------------------------------------------------------------ write_discipline
+
+def test_write_discipline_fails_when_nothing_written_under_always(tmp_path):
+    ctx = _ctx(tmp_path)  # expect_write defaults to always
+    result = sc.check_write_discipline(ctx)
+    assert result["status"] == "fail"
+    assert "wrote nothing" in result["evidence"]
+
+
+def test_write_discipline_fails_when_writing_under_never(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-plan", expect_write="never")
+    _write(ctx.workspace, f".pylgrim/work/{ULIDS[0]}-refused.md",
+           WORK_TMPL.format(oos='["no schema changes"]'))
+    result = sc.check_write_discipline(ctx)
+    assert result["status"] == "fail"
+    assert "no-write scenario" in result["evidence"]
+
+
+def test_write_discipline_passes_both_ways_under_maybe(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-plan", expect_write="maybe")
+    assert sc.check_write_discipline(ctx)["status"] == "pass"
+    _write(ctx.workspace, f".pylgrim/work/{ULIDS[0]}-add-export.md",
+           WORK_TMPL.format(oos='["no schema changes"]'))
+    assert sc.check_write_discipline(ctx)["status"] == "pass"
+
+
+def test_write_discipline_passes_on_expected_outcomes(tmp_path):
+    ctx = _ctx(tmp_path)  # always + wrote something
+    _write(ctx.workspace, f".pylgrim/decisions/{ULIDS[0]}-ok.md", DECISION_OK)
+    assert sc.check_write_discipline(ctx)["status"] == "pass"
+    (tmp_path / "silent").mkdir()
+    silent = _ctx(tmp_path / "silent", expect_write="never")  # never + wrote nothing
+    assert sc.check_write_discipline(silent)["status"] == "pass"
+
+
 # ------------------------------------------------------------------ spec_valid
+
+def test_spec_valid_na_when_nothing_written(tmp_path):
+    ctx = _ctx(tmp_path)
+    result = sc.check_spec_valid(ctx)
+    assert result["status"] == "na"
+    assert "no new entries" in result["evidence"]
+
 
 def test_spec_valid_pass_and_fail(tmp_path):
     ctx = _ctx(tmp_path)
@@ -316,7 +358,9 @@ def test_evidence_resolves_pass_fail_na(tmp_path):
     assert sc.check_evidence_resolves(ctx)["status"] == "na"
 
     _write(ctx.workspace, "CLAUDE.md", "# rules\n")
-    extra = 'evidence:\n  - { path: "CLAUDE.md:3", note: "quoted rule" }\n'
+    extra = ('evidence:\n'
+             '  - { path: "CLAUDE.md:3", note: "quoted rule" }\n'
+             '  - { path: "CLAUDE.md:5-6", note: "line-range form resolves too" }\n')
     _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-resolves.md",
            CONSTRAINT_TMPL.format(mode="observe", source="map", extra=extra))
     assert sc.check_evidence_resolves(ctx)["status"] == "pass"
@@ -331,9 +375,13 @@ def test_evidence_resolves_pass_fail_na(tmp_path):
 
 # ---------------------------------------------------------------- anti_padding
 
+HONEST_LINE = ("This repo carries little written intent; proposing from "
+               "structure and history only, expect 5 or fewer entries.")
+
+
 def test_anti_padding_pass_and_fail(tmp_path):
     ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="barren")
-    ctx.final_texts = ["This repo carries little written intent; proposing 2 entries."]
+    ctx.final_texts = [HONEST_LINE + " Two candidates follow."]
     for i in range(2):
         _write(ctx.workspace, f".pylgrim/charter/entry-{i}.md",
                CONSTRAINT_TMPL.format(mode="observe", source="map", extra=""))
@@ -345,12 +393,21 @@ def test_anti_padding_pass_and_fail(tmp_path):
     assert sc.check_anti_padding(ctx)["status"] == "fail"
 
 
-def test_anti_padding_fails_without_honest_line(tmp_path):
+def test_anti_padding_requires_the_verbatim_sentence(tmp_path):
     ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="barren")
-    ctx.final_texts = ["Proposed 2 solid constraints."]
+    # A paraphrase of the honesty line is not the mandated sentence.
+    ctx.final_texts = ["There is little written intent here; proposing 2 entries."]
+    _write(ctx.workspace, ".pylgrim/charter/entry-0.md",
+           CONSTRAINT_TMPL.format(mode="observe", source="map", extra=""))
     result = sc.check_anti_padding(ctx)
     assert result["status"] == "fail"
     assert "little written intent" in result["evidence"]
+
+
+def test_anti_padding_na_when_nothing_written(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="barren")
+    ctx.final_texts = ["Proposed nothing."]
+    assert sc.check_anti_padding(ctx)["status"] == "na"
 
 
 # -------------------------------------------------------------- within_budgets

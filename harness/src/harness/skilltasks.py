@@ -24,8 +24,10 @@ FIXTURES = ("rich-clean", "barren", "contradictory", "bloated", "poisoned",
             "privacy-bait", "empty", "self")
 PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent")
 INVOKE_MODES = ("explicit", "natural")
+EXPECT_WRITE = ("always", "maybe", "never")
 ASSERTIONS = (
     "activated",
+    "write_discipline",
     "spec_valid",
     "out_of_scope_present",
     "observe_only",
@@ -56,6 +58,7 @@ class SkillScenario:
     invoke: str = "explicit"
     max_turns: int = 8
     assertions: list[str] = field(default_factory=list)
+    expect_write: str = "always"  # always | maybe | never
     notes: str = ""
 
     def full_prompt(self) -> str:
@@ -82,6 +85,8 @@ def _validate(data: dict[str, Any], path: Path) -> list[str]:
         errors.append(f"{path.name}: unknown persona {data.get('persona')!r}")
     if data.get("invoke", "explicit") not in INVOKE_MODES:
         errors.append(f"{path.name}: invoke must be one of {INVOKE_MODES}")
+    if data.get("expect_write", "always") not in EXPECT_WRITE:
+        errors.append(f"{path.name}: expect_write must be one of {EXPECT_WRITE}")
     for assertion in data.get("assertions") or []:
         if assertion not in ASSERTIONS:
             errors.append(f"{path.name}: unknown assertion {assertion!r}")
@@ -112,6 +117,7 @@ def load_scenario(path: Path) -> tuple[SkillScenario | None, list[str]]:
             invoke=str(data.get("invoke", "explicit")),
             max_turns=int(data.get("max_turns", 8)),
             assertions=assertions,
+            expect_write=str(data.get("expect_write", "always")),
             notes=str(data.get("notes", "")),
         ),
         [],

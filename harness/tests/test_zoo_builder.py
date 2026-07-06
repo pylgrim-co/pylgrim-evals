@@ -24,7 +24,11 @@ def test_generator_config_parses():
     config = build_zoo.read_generator_config(ZOO_DIR / "bloated" / "generator.yaml")
     assert config["seed"] == 7
     assert config["claude_md_rules"] == 200
+    assert config["claude_md_target_lines"] == 1200
     assert config["adr_stubs"] == 40
+    assert config["adr_target_lines"] == 200
+    assert config["docs_files"] == 12
+    assert config["docs_target_lines"] == 6000
 
 
 def test_bloated_generation_deterministic_and_sized(tmp_path):
@@ -35,8 +39,21 @@ def test_bloated_generation_deterministic_and_sized(tmp_path):
     build_zoo.generate_bloated(b, config)
     text_a = (a / "CLAUDE.md").read_text(encoding="utf-8")
     assert text_a == (b / "CLAUDE.md").read_text(encoding="utf-8")
-    assert len(text_a.splitlines()) >= 9500  # ~10k-line CLAUDE.md
-    assert len(list((a / "docs" / "adr").glob("*.md"))) == 40
+    # Bloated but loadable: CLAUDE.md auto-loads at session start, so it
+    # must stay around 1,200 lines (the ~10k version 429'd every tier).
+    n_lines = len(text_a.splitlines())
+    assert 1000 <= n_lines <= 1500, n_lines
+    # The bulk lives in files the skill chooses to read: 40 long ADRs
+    # plus docs/ guides totaling ~6,000 lines.
+    adrs = sorted((a / "docs" / "adr").glob("*.md"))
+    assert len(adrs) == 40
+    for adr in adrs:
+        adr_lines = len(adr.read_text(encoding="utf-8").splitlines())
+        assert 150 <= adr_lines <= 250, (adr.name, adr_lines)
+    guides = sorted((a / "docs").glob("guide-*.md"))
+    assert len(guides) == 12
+    guide_total = sum(len(g.read_text(encoding="utf-8").splitlines()) for g in guides)
+    assert 5000 <= guide_total <= 7000, guide_total
 
 
 def test_poisoned_source_tree_has_all_markers():

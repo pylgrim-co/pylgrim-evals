@@ -35,7 +35,15 @@ def test_load_good_card(tmp_path):
     assert errors == []
     assert scenario.skill == "pylgrim-map"
     assert scenario.invoke == "explicit"  # default
+    assert scenario.expect_write == "always"  # default
     assert scenario.assertions[0] == "activated"  # assertion zero auto-added
+
+
+def test_expect_write_loads_from_card(tmp_path):
+    card = _write_card(tmp_path / "map-test-t01.yaml", expect_write="never")
+    scenario, errors = skilltasks.load_scenario(card)
+    assert errors == []
+    assert scenario.expect_write == "never"
 
 
 def test_full_prompt_explicit_vs_natural(tmp_path):
@@ -52,6 +60,7 @@ def test_full_prompt_explicit_vs_natural(tmp_path):
     ("persona", "chaotic", "unknown persona"),
     ("invoke", "psychic", "invoke must be"),
     ("assertions", ["not_a_check"], "unknown assertion"),
+    ("expect_write", "sometimes", "expect_write must be"),
 ])
 def test_load_bad_card(tmp_path, field, value, fragment):
     card = _write_card(tmp_path / "bad.yaml", **{field: value})

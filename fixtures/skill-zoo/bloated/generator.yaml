@@ -1,7 +1,16 @@
 # Generator config for the bloated fixture. build_zoo.py materializes the
 # working copy from this deterministically; nothing generated is committed.
+#
+# Shape (redesigned after skills-stress-2): CLAUDE.md stays bloated but
+# loadable (~1,200 lines; the earlier ~10k-line version exceeded standard
+# context at session start and 429'd every tier before the skill ran).
+# The bulk moved into 40 ADRs of ~200 lines each plus docs/ guides
+# (~6,000 lines total), files the skill chooses whether to read.
 seed: 7
 claude_md_rules: 200
-claude_md_target_lines: 10000
+claude_md_target_lines: 1200
 adr_stubs: 40
+adr_target_lines: 200
+docs_files: 12
+docs_target_lines: 6000
 source_files: 8

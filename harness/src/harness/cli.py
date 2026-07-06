@@ -9,10 +9,11 @@ Commands:
 
 Skills stress suite (separate queue in results/skills.db, isolated from the
 coding-task pilot):
-  plan-skills    schedule the scenario matrix (tasks/skills/config.yaml)
-  run-skills     execute a batch of skill stress runs (multi-turn, personas)
-  run-triggers   run the 36 activation probes from tasks/skills/triggers.yaml
-  report-skills  regenerate results/reports/skills-stress-<n>.md
+  plan-skills     schedule the scenario matrix (tasks/skills/config.yaml)
+  run-skills      execute a batch of skill stress runs (multi-turn, personas)
+  extract-skills  rescore done skill runs from stored artifacts (no agent calls)
+  run-triggers    run the 36 activation probes from tasks/skills/triggers.yaml
+  report-skills   regenerate results/reports/skills-stress-<n>.md
 
 Typical subscription-bounded operation: `harness plan` once, then
 `harness run --batch N` from a scheduled hourly task until `harness status`
@@ -432,6 +433,12 @@ def run_skills(
     task: Optional[str] = typer.Option(None, "--task", help="Only claim this scenario id"),
     model: Optional[str] = typer.Option(None, "--model", help="Only claim this model tier"),
     timeout_min: int = typer.Option(20, "--timeout-min", help="Per-turn timeout in minutes"),
+    stale_reset: bool = typer.Option(
+        True, "--stale-reset/--no-stale-reset",
+        help="Reset 'running' rows to pending at startup. MUST be disabled for "
+             "parallel workers: a worker starting while a sibling is mid-run "
+             "would reset the sibling's claim and duplicate it (seen live). "
+             "scripts/skills-drain.sh resets once up front instead."),
 ) -> None:
     """Execute up to --batch skill stress runs. Exits cleanly on rate limit."""
     from harness import skill_runner, skilltasks
@@ -441,9 +448,10 @@ def run_skills(
 
     conn = queue.connect(db_path)
     queue.init_db(conn)
-    stale = queue.reset_stale(conn)
-    if stale:
-        typer.echo(f"reset {stale} stale running row(s) to pending")
+    if stale_reset:
+        stale = queue.reset_stale(conn)
+        if stale:
+            typer.echo(f"reset {stale} stale running row(s) to pending")
 
     executed = 0
     while executed < batch:
@@ -484,6 +492,79 @@ def run_skills(
 
     summary = queue.status_summary(conn)
     typer.echo(f"batch finished: {summary['by_status']}")
+
+
+@app.command("extract-skills")
+def extract_skills(
+    run_id: Optional[str] = typer.Argument(None, help="Rescore one run by id"),
+    all_runs: bool = typer.Option(False, "--all", help="Rescore every done run"),
+    root: Path = ROOT_OPT,
+) -> None:
+    """Recompute skill-run assertions from stored artifacts (before/after
+    snapshots and transcripts). No agent calls; scenario cards are re-read, so
+    new or changed assertions apply retroactively."""
+    from harness.metrics import skill_checks
+
+    skills_tasks_dir, results_dir, db_path = _skills_paths(root)
+    scenarios = {s.id: s for s in _load_scenarios(skills_tasks_dir)}
+    conn = queue.connect(db_path)
+    queue.init_db(conn)
+
+    if run_id:
+        targets = [run_id]
+    elif all_runs:
+        targets = [row["run_id"] for row in conn.execute(
+            "SELECT run_id FROM runs WHERE status = 'done' ORDER BY order_key")]
+    else:
+        typer.echo("provide a run_id or --all", err=True)
+        raise typer.Exit(1)
+
+    rescored = 0
+    for rid in targets:
+        row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (rid,)).fetchone()
+        if row is None:
+            typer.echo(f"{rid}: not in queue", err=True)
+            continue
+        scenario = scenarios.get(row["task_id"])
+        run_dir = results_dir / "zoo-runs" / rid
+        result_path = run_dir / "result.json"
+        if scenario is None or not result_path.exists() or not (run_dir / "before").is_dir():
+            typer.echo(f"{rid}: missing scenario card or artifacts, skipping", err=True)
+            continue
+
+        record = json.loads(result_path.read_text(encoding="utf-8"))
+        final_texts = []
+        for turn_result in sorted(run_dir.glob("turn-*.result.json")):
+            try:
+                turn_data = json.loads(turn_result.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            final_texts.append(str(turn_data.get("result") or ""))
+
+        ctx = skill_checks.SkillRunContext(
+            skill=scenario.skill,
+            fixture=scenario.fixture,
+            workspace=run_dir / "workspace",
+            before_dir=run_dir / "before",
+            transcript_paths=sorted(run_dir.glob("turn-*.transcript.jsonl")),
+            final_texts=final_texts,
+            wall_time_s=float(record.get("wall_time_s") or 0.0),
+            num_turns=len(record.get("turns") or []) or 1,
+            question_rounds=int(record.get("question_rounds") or 0),
+            max_turns=scenario.max_turns,
+            expect_write=scenario.expect_write,
+        )
+        record["checks"] = skill_checks.run_checks(ctx, scenario.assertions)
+        scenario_meta = record.setdefault("scenario", {})
+        scenario_meta["assertions"] = scenario.assertions
+        scenario_meta["expect_write"] = scenario.expect_write
+        result_path.write_text(json.dumps(record, indent=2, default=str),
+                               encoding="utf-8")
+        failed = [c["assertion"] for c in record["checks"] if c["status"] == "fail"]
+        typer.echo(f"{rid}: rescored "
+                   f"({'all pass' if not failed else 'FAILED: ' + ', '.join(failed)})")
+        rescored += 1
+    typer.echo(f"rescored {rescored} run(s)")
 
 
 @app.command("run-triggers")

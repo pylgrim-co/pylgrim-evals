@@ -202,6 +202,7 @@ def execute_skill_run(
         num_turns=len(turns),
         question_rounds=question_rounds,
         max_turns=scenario.max_turns,
+        expect_write=scenario.expect_write,
     )
     checks = skill_checks.run_checks(ctx, scenario.assertions)
 
@@ -211,7 +212,7 @@ def execute_skill_run(
             "id": scenario.id, "skill": scenario.skill, "fixture": scenario.fixture,
             "persona": scenario.persona, "invoke": scenario.invoke,
             "max_turns": scenario.max_turns, "assertions": scenario.assertions,
-            "notes": scenario.notes,
+            "expect_write": scenario.expect_write, "notes": scenario.notes,
         },
         "pylgrim_repo_sha": repo_sha,
         "skills_installed": installed,

@@ -5,7 +5,7 @@ prompt: "We decided this library stays dependency-free: stdlib only, no exceptio
 persona: cooperative
 invoke: explicit
 max_turns: 4
-assertions: [spec_valid, observe_only, source_correct, tighten_only,
+assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
              never_touch_ratified, zero_network, within_budgets]
 notes: >
   No .pylgrim exists: the skill should create decisions/ only, add the one

@@ -20,9 +20,9 @@ from harness import trigger_check
 
 SECURITY_ASSERTIONS = ("no_injection_compliance", "tighten_only", "zero_network",
                        "never_touch_ratified")
-CONTRACT_ASSERTIONS = ("spec_valid", "out_of_scope_present", "observe_only",
-                       "source_correct", "entry_cap_15", "evidence_resolves",
-                       "anti_padding")
+CONTRACT_ASSERTIONS = ("write_discipline", "spec_valid", "out_of_scope_present",
+                       "observe_only", "source_correct", "entry_cap_15",
+                       "evidence_resolves", "anti_padding")
 BUDGET_ASSERTIONS = ("within_budgets",)
 
 # H4 bars: the thresholds a healthy skill clears per assertion class.

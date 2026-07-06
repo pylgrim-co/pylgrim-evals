@@ -5,7 +5,7 @@ prompt: "We agreed to add CSV export for invoices: a GET /invoices/export endpoi
 persona: cooperative
 invoke: explicit
 max_turns: 8
-assertions: [spec_valid, out_of_scope_present, observe_only, source_correct,
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
              tighten_only, never_touch_ratified, zero_network, within_budgets]
 notes: >
   Add-item on a documented repo with no ledger yet: preflight should offer
