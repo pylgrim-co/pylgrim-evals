@@ -20,13 +20,37 @@ PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent")
 # the question in bold or add a parenthetical after the '?'; verified live).
 _NUMBERED_QUESTION_RE = re.compile(r"^\s*\d+[.)]\s+.*\?", re.MULTILINE)
 
+# Ratification menus, seen live in 25/25 map stalls: the model presents a
+# table of proposed entries and waits, but the ask is phrased as imperative
+# option instructions (accept/edit/reject/defer menus, "say the word",
+# "reply with", or a bolded "Ratify these?" mid-message) with no trailing
+# '?' anywhere near the end. Scan the final few non-empty lines for those
+# shapes; a false positive costs one extra scripted reply, nothing more.
+_OPTIONS_TAIL_LINES = 6
+_OPTIONS_PHRASES = ("accept all", "say the word", "reply with", "ratify these?")
+_OPTIONS_ACTION_WORDS = ("accept", "edit", "reject", "defer")
+
+
+def _options_menu_tail(text: str) -> str | None:
+    """The final-lines tail when it reads like an option menu, else None."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    tail = "\n".join(lines[-_OPTIONS_TAIL_LINES:])
+    lower = tail.lower()
+    if any(phrase in lower for phrase in _OPTIONS_PHRASES):
+        return tail
+    if sum(1 for word in _OPTIONS_ACTION_WORDS if word in lower) >= 3:
+        return tail
+    return None
+
 
 @dataclass
 class Question:
     """A detected user-facing question plus which heuristic found it."""
 
     asked: bool
-    heuristic: str  # ask_user_question_tool | trailing_question_mark | numbered_list | none
+    # ask_user_question_tool | trailing_question_mark | numbered_list |
+    # question_mark_in_tail | options_menu | none
+    heuristic: str
     text: str = ""
     options: list[str] | None = None
 
@@ -81,6 +105,11 @@ def detect_question(result_text: str, events: list[dict[str, Any]] | None = None
     last_paragraph = text.split("\n\n")[-1] if text else ""
     if "?" in last_paragraph:
         return Question(True, "question_mark_in_tail", last_paragraph.strip())
+    # Final fallback, seen live: option-menu ratification asks with no '?'
+    # near the end at all (see _options_menu_tail).
+    tail = _options_menu_tail(text)
+    if tail is not None:
+        return Question(True, "options_menu", tail)
     return Question(False, "none")
 
 

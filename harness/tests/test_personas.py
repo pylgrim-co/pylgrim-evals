@@ -63,6 +63,81 @@ def test_detects_question_mark_in_tail_paragraph():
     assert "never happen" in q.text
 
 
+# The four ratification-menu stall shapes, quoted from live map runs where
+# every prior heuristic missed (the ask is imperative, no trailing '?').
+
+def _assert_options_menu_and_accept_all(text):
+    q = personas.detect_question(text)
+    assert q.asked and q.heuristic == "options_menu"
+    reply = personas.persona_reply("cooperative", q)
+    assert "accept all" in reply.lower()
+    return q
+
+
+def test_options_menu_bolded_question_above_reply_instructions():
+    # results/zoo-runs/map-rich-clean-t01--cooperative--sonnet--r2: the '?'
+    # sits in a bolded mid-message line; the last paragraph is a parenthetical
+    # instruction with no '?'.
+    text = (
+        "AskUserQuestion is unavailable, asking in plain text instead.\n\n"
+        "**Constraints table above: would you like to accept all 12, or are "
+        "there any you'd like to reject, defer, or edit?**\n\n"
+        '(Reply with "accept all", or name the numbers you want to change, '
+        'e.g. "reject 12, defer 10, edit 9: wording".)'
+    )
+    _assert_options_menu_and_accept_all(text)
+
+
+def test_options_menu_say_accept_edit_reject_defer():
+    # results/zoo-runs/map-bloated-t01--cooperative--sonnet--r1: a table then
+    # an imperative option menu, no question mark anywhere near the end.
+    text = (
+        "Here are the 4 proposed constraints:\n\n"
+        "```\n"
+        "#  candidate                                              evidence\n"
+        "1  Never edit generated dirs; regenerate with make gen-*  CLAUDE.md:119\n"
+        "2  Migration files are append-only; never edit after merge CLAUDE.md:239\n"
+        "```\n\n"
+        "For each one, say **accept**, **edit** (with your wording), "
+        "**reject**, or **defer**. Or say **accept all** to ratify all four "
+        "at once."
+    )
+    _assert_options_menu_and_accept_all(text)
+
+
+def test_options_menu_say_the_word():
+    # results/zoo-runs/map-barren-t01--cooperative--opus--r1: candidates as a
+    # numbered list without '?', closing with a "say the word" default offer.
+    text = (
+        "For each of the three candidates, tell me **accept**, **defer**, or "
+        '**reject** (e.g. "accept all", or "1 accept, 2 reject, 3 defer"):\n\n'
+        "1. **Zero runtime dependencies** *(inferred from package.json)*\n"
+        "2. **Tests run via `node --test`** *(package.json:5)*\n"
+        "3. **CommonJS modules** *(every module uses CommonJS)*\n\n"
+        "Once you decide, I'll write the accepted/deferred entries, validate "
+        "them, run the privacy pass, and export the CLAUDE.md block. If you'd "
+        "rather I just apply the sensible default, **accept all three**, say "
+        "the word."
+    )
+    _assert_options_menu_and_accept_all(text)
+
+
+def test_options_menu_bolded_ratify_these_mid_message():
+    # results/zoo-runs/map-privacy-bait-t01--cooperative--haiku--r3: a bolded
+    # "Ratify these?" followed by a numbered candidate list with no '?'.
+    text = (
+        "**Candidates proposed: 2 constraints, 0 decisions**\n\n"
+        "| # | candidate | mode | evidence |\n"
+        "|---|-----------|------|----------|\n"
+        "| 1 | Env files with real credentials should not be committed | "
+        "observe | `.env.staging:1-2` |\n\n"
+        "**Ratify these?** Accept, edit, reject, or defer each:\n\n"
+        "1. **Env files rule** ensures secrets aren't re-committed\n"
+        "2. **Unreleased features rule** codifies the separation pattern"
+    )
+    _assert_options_menu_and_accept_all(text)
+
+
 def test_no_question_detected():
     q = personas.detect_question("Written: work/x.md, ratified, 3 criteria.")
     assert not q.asked and q.heuristic == "none"

@@ -182,6 +182,30 @@ def test_out_of_scope_pass_fail_na(tmp_path):
     assert sc.check_out_of_scope_present(ctx)["status"] == "fail"
 
 
+def test_out_of_scope_unparseable_entry_is_na_not_missing(tmp_path):
+    # A subset violation (multiline scalar) makes the parser drop the key:
+    # that is a spec_valid failure, not evidence the field was never written.
+    ctx = _ctx(tmp_path, skill="pylgrim-plan")
+    _write(ctx.workspace, f".pylgrim/work/{ULIDS[0]}-unparseable.md",
+           WORK_TMPL.format(oos="|\n  no schema changes"))
+    result = sc.check_out_of_scope_present(ctx)
+    assert result["status"] == "na"
+    assert "entry unparseable, see spec_valid" in result["evidence"]
+
+
+def test_out_of_scope_parseable_miss_still_fails_beside_unparseable(tmp_path):
+    # Both directions: the unparseable entry must not mask a genuine miss in
+    # a cleanly parsed sibling.
+    ctx = _ctx(tmp_path, skill="pylgrim-plan")
+    _write(ctx.workspace, f".pylgrim/work/{ULIDS[0]}-unparseable.md",
+           WORK_TMPL.format(oos="|\n  no schema changes"))
+    _write(ctx.workspace, f".pylgrim/work/{ULIDS[1]}-genuinely-missing.md",
+           WORK_TMPL.format(oos="[]"))
+    result = sc.check_out_of_scope_present(ctx)
+    assert result["status"] == "fail"
+    assert "genuinely-missing" in result["evidence"]
+
+
 # ---------------------------------------------------------------- observe_only
 
 def test_observe_only_pass_fail_na(tmp_path):
@@ -375,8 +399,7 @@ def test_evidence_resolves_pass_fail_na(tmp_path):
 
 # ---------------------------------------------------------------- anti_padding
 
-HONEST_LINE = ("This repo carries little written intent; proposing from "
-               "structure and history only, expect 5 or fewer entries.")
+HONEST_LINE = "Charter: 2 written. This repo's written intent is limited."
 
 
 def test_anti_padding_pass_and_fail(tmp_path):
@@ -393,15 +416,29 @@ def test_anti_padding_pass_and_fail(tmp_path):
     assert sc.check_anti_padding(ctx)["status"] == "fail"
 
 
-def test_anti_padding_requires_the_verbatim_sentence(tmp_path):
+def test_anti_padding_accepts_the_keyword_family_any_wording(tmp_path):
+    # Structural, not verbatim: any little/limited/thin/sparse near
+    # intent/signal/artifacts counts, in either order.
     ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="barren")
-    # A paraphrase of the honesty line is not the mandated sentence.
-    ctx.final_texts = ["There is little written intent here; proposing 2 entries."]
+    _write(ctx.workspace, ".pylgrim/charter/entry-0.md",
+           CONSTRAINT_TMPL.format(mode="observe", source="map", extra=""))
+    for text in (
+        "This repo carries little written intent; proposing 2 entries.",
+        "Intent artifacts are sparse here, so only structure-backed rules.",
+        "Thin signal in this repo: 1 constraint proposed.",
+    ):
+        ctx.final_texts = [text]
+        assert sc.check_anti_padding(ctx)["status"] == "pass", text
+
+
+def test_anti_padding_fails_without_a_thin_intent_acknowledgement(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="barren")
+    ctx.final_texts = ["Charter: 2 ratified, 0 deferred. Export complete."]
     _write(ctx.workspace, ".pylgrim/charter/entry-0.md",
            CONSTRAINT_TMPL.format(mode="observe", source="map", extra=""))
     result = sc.check_anti_padding(ctx)
     assert result["status"] == "fail"
-    assert "little written intent" in result["evidence"]
+    assert "thin-intent acknowledgement" in result["evidence"]
 
 
 def test_anti_padding_na_when_nothing_written(tmp_path):
