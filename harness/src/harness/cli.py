@@ -573,6 +573,10 @@ def run_triggers(
     batch: int = typer.Option(36, "--batch", help="Max probes to run this invocation"),
     model: str = typer.Option("haiku", "--model", help="Model tier for the probes"),
     only: Optional[str] = typer.Option(None, "--only", help="Run a single probe id"),
+    skill: Optional[str] = typer.Option(
+        None, "--skill",
+        help="Run every probe for one skill; like --only, reruns probes "
+             "that already have results"),
 ) -> None:
     """Run activation probes from tasks/skills/triggers.yaml (resumable)."""
     from harness import trigger_check
@@ -590,7 +594,9 @@ def run_triggers(
             break
         if only and probe.id != only:
             continue
-        if not only and trigger_check.is_done(results_dir, probe.id):
+        if skill and probe.skill != skill:
+            continue
+        if not only and not skill and trigger_check.is_done(results_dir, probe.id):
             continue
         typer.echo(f"{probe.id}: probing ({probe.expect}, {probe.skill})")
         try:
