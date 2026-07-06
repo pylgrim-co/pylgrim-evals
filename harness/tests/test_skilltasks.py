@@ -79,7 +79,7 @@ def test_committed_cards_all_load():
 
 def test_committed_config():
     config = skilltasks.load_config(TASKS_SKILLS)
-    assert config == {"tiers": ["haiku", "sonnet", "opus"], "reps": 3, "seed": 7}
+    assert config == {"tiers": ["haiku", "sonnet", "opus"], "reps": 1, "seed": 7}
 
 
 def test_schedule_deterministic_and_rep_blocked(tmp_path):
