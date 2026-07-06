@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # Vendored copy of C:\Dev\pylgrim-repo\spec\scripts\validate.py (sync manually).
-# Source commit: ef61f653357a70bac6075d134242fca52ef4c591
+# Source commit: aef5d42c79a1f178887056abc63bd327c4757833
 """validate.py is the executable form of the pylgrim v0 spec (spec/README.md).
 
 It checks .pylgrim/ ledgers: filename grammar, the v0 frontmatter subset,
 per-kind required fields and enums, criteria and evidence shapes, dates, and
 redaction.toml. Where the spec prose and this script disagree, this script is
-the v0 behavior. It never modifies files. Exit code 0 means zero errors.
+the v0 behavior. It never modifies file contents; the one repair it performs,
+opt-in via --fix-names, renames invalidly named entry files to a fresh
+'<ulid>-<slug>.md'. Exit code 0 means zero errors.
 """
 
 import argparse
@@ -14,7 +16,9 @@ import datetime
 import json
 import os
 import re
+import secrets
 import sys
+import time
 
 try:
     import tomllib
@@ -290,6 +294,38 @@ def parse_inline_map(text, lineno, key, err):
     return result
 
 
+def parse_block_item(text, lineno, key, err):
+    """Parse one '- ...' block list item: an inline map ('- { ... }') or a
+    plain/quoted scalar ('- item' / '- "item"'). Returns dict, str, or None."""
+    if text.startswith("{"):
+        return parse_inline_map(text, lineno, key, err)
+    if text.startswith('"'):
+        value, after = read_quoted(text, 0)
+        if after < 0:
+            err(key, "line %d: unterminated double-quoted scalar" % lineno)
+            return None
+        trailing = strip_comment(text[after:]).strip()
+        if trailing:
+            err(key, "line %d: unexpected text %r after closing quote" % (lineno, trailing))
+            return None
+        return value
+    if text.startswith("["):
+        err(key, "line %d: nested lists are not in the v0 subset" % lineno)
+        return None
+    if text.startswith("'"):
+        err(key, "line %d: single-quoted scalars are not in the v0 subset; "
+                 "use double quotes" % lineno)
+        return None
+    if text.startswith(("|", ">")):
+        err(key, "line %d: multiline scalars ('|', '>') are not in the v0 subset" % lineno)
+        return None
+    plain = strip_comment(text).strip()
+    if plain == "":
+        err(key, "line %d: empty block list item under %r" % (lineno, key))
+        return None
+    return check_plain(plain, lineno, key, err)
+
+
 def parse_frontmatter(text, path, report):
     """Parse an entry file. Returns (fields, body) where fields maps key to
     (value, lineno); value is str, list[str], or list[dict]. Returns
@@ -325,7 +361,7 @@ def parse_frontmatter(text, path, report):
         if raw[0] in " \t":
             err("frontmatter",
                 "line %d: unexpected indented line %r; nested mappings are not in the "
-                "v0 subset (only '- { ... }' items under a bare 'key:' line)" % (lineno, stripped))
+                "v0 subset (only '- ...' items under a bare 'key:' line)" % (lineno, stripped))
             n += 1
             continue
         colon = raw.find(":")
@@ -341,7 +377,9 @@ def parse_frontmatter(text, path, report):
         rest = raw[colon + 1:]
         rest_stripped = strip_comment(rest).strip()
         if rest_stripped == "":
-            # Bare 'key:' introduces a block list of inline maps.
+            # Bare 'key:' introduces a block list: inline-map items
+            # ('- { ... }', criteria and evidence) or plain-scalar items
+            # ('- item' / '- "item"', string-list fields).
             items = []
             m = n + 1
             bad = False
@@ -354,20 +392,20 @@ def parse_frontmatter(text, path, report):
                 if sub[0] not in " \t":
                     break
                 if sub_stripped.startswith("- "):
-                    item = parse_inline_map(sub_stripped[2:].strip(), m + 1, key, err)
+                    item = parse_block_item(sub_stripped[2:].strip(), m + 1, key, err)
                     if item is None:
                         bad = True
                     else:
                         items.append(item)
                 else:
                     err(key,
-                        "line %d: expected a '- { ... }' block list item under %r; "
+                        "line %d: expected a '- ...' block list item under %r; "
                         "nested mappings are not in the v0 subset" % (m + 1, key))
                     bad = True
                 m += 1
             if not items and not bad:
                 err(key, "line %d: %r has no value (bare 'key:' must be followed by "
-                         "'- { ... }' block list items)" % (lineno, key))
+                         "'- item' or '- { ... }' block list items)" % (lineno, key))
             elif not bad:
                 if key in fields:
                     err("frontmatter", "line %d: duplicate key %r" % (lineno, key))
@@ -441,7 +479,7 @@ def type_name(value):
     if isinstance(value, list) and (not value or isinstance(value[0], dict)):
         return "a block list of inline maps"
     if isinstance(value, list):
-        return "an inline list"
+        return "a list of scalars"
     return repr(type(value))
 
 
@@ -531,7 +569,8 @@ def check_entry(path, expected_kind, repo_root, report):
             value = values[key]
             if not isinstance(value, list) or any(isinstance(i, dict) for i in value):
                 report.error(path, key,
-                             "expected an inline list like [a, \"b\"], got %s" % type_name(value))
+                             "expected a list of strings (inline [a, \"b\"] or block "
+                             "'- item' form), got %s" % type_name(value))
     oos = values.get("out_of_scope")
     if effective_kind == "work_item" and isinstance(oos, list) and \
             not any(isinstance(i, dict) for i in oos) and len(oos) == 0:
@@ -659,6 +698,69 @@ def check_redaction(path, report):
 
 
 # ---------------------------------------------------------------------------
+# Filename repair (--fix-names)
+# ---------------------------------------------------------------------------
+
+def mint_ulid(ts_ms=None):
+    """26-character ULID: 48-bit millisecond timestamp then 80 random bits,
+    Crockford base32 (kept in sync with new_entry.py; duplicated so this
+    script stays standalone when vendored)."""
+    if ts_ms is None:
+        ts_ms = int(time.time() * 1000)
+    value = ((ts_ms & ((1 << 48) - 1)) << 80) | secrets.randbits(80)
+    return "".join(CROCKFORD[(value >> (5 * (25 - i))) & 31] for i in range(26))
+
+
+def sanitize_slug(text):
+    """Force text into the slug grammar: lowercase, invalid characters become
+    hyphens, at most 48 characters, no leading or trailing hyphen."""
+    slug = "".join(
+        ch if ch in "abcdefghijklmnopqrstuvwxyz0123456789-" else "-"
+        for ch in text.lower()
+    )[:48].strip("-")
+    return slug or "entry"
+
+
+def filename_valid(path):
+    """Does the basename pass the filename grammar? (check_filename, quietly)"""
+    probe = Report()
+    check_filename(path, probe)
+    return probe.error_count == 0
+
+
+def fix_names(paths, stream=None):
+    """Rename every discovered entry file whose name fails the filename
+    grammar to '<fresh ULID>-<sanitized existing slug>.md'. Content is never
+    touched, so the repair is always safe; valid names are never renamed, so
+    the pass is idempotent. Prints each rename. Returns the paths list with
+    explicitly named files replaced by their new locations."""
+    stream = stream or sys.stdout
+    discovery = Report()  # discovery-time findings re-surface in the validate pass
+    jobs = []
+    for path in paths:
+        jobs.extend(expand_target(path, discovery))
+    renames = {}
+    for job in jobs:
+        if job[0] != "entry" or filename_valid(job[1]):
+            continue
+        entry = job[1]
+        name = os.path.basename(entry)
+        stem = name[:-3] if name.endswith(".md") else name
+        # Keep the human half: the slug after a ULID-shaped prefix, else the
+        # whole stem, sanitized either way.
+        slug_source = stem[27:] if len(stem) >= 28 and stem[26] == "-" else stem
+        parent = os.path.dirname(entry)
+        target = os.path.join(parent, "%s-%s.md" % (mint_ulid(), sanitize_slug(slug_source)))
+        while os.path.exists(target):
+            target = os.path.join(parent, "%s-%s.md" % (mint_ulid(), sanitize_slug(slug_source)))
+        os.replace(entry, target)
+        renames[os.path.abspath(entry)] = target
+        print("renamed %s -> %s" % (display_path(entry), display_path(target)),
+              file=stream)
+    return [renames.get(os.path.abspath(p), p) for p in paths]
+
+
+# ---------------------------------------------------------------------------
 # Target discovery and CLI
 # ---------------------------------------------------------------------------
 
@@ -738,9 +840,15 @@ def main(argv=None):
                              "(default: current directory)")
     parser.add_argument("--json", action="store_true", dest="as_json",
                         help="emit findings as a JSON list")
+    parser.add_argument("--fix-names", action="store_true", dest="fix_names",
+                        help="rename entry files whose names fail the filename "
+                             "grammar to '<fresh ULID>-<sanitized slug>.md' "
+                             "(content untouched), then validate")
     args = parser.parse_args(argv)
     paths = args.paths or ["."]
 
+    if args.fix_names:
+        paths = fix_names(paths, stream=sys.stderr if args.as_json else sys.stdout)
     report, files_checked = run(paths)
     if args.as_json:
         print(json.dumps(report.findings, indent=2))
