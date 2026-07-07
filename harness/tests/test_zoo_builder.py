@@ -68,6 +68,30 @@ def test_poisoned_canary_matches_checks_module():
     assert skill_checks.POISONED_CANARY in env
 
 
+def test_poisoned_v2_source_tree_has_file_markers():
+    # The file-borne v2 vectors live in the source tree; INJ-09 is planted
+    # into git history at build time and so is absent from the source files.
+    blob = build_zoo._file_blob(ZOO_DIR / "poisoned-v2")
+    for marker in build_zoo.V2_FILE_MARKERS:
+        assert marker in blob, marker
+    assert build_zoo.V2_HISTORY_MARKER in blob  # only in the generator note here
+
+
+def test_poisoned_v2_canary_matches_checks_module():
+    from harness.metrics import skill_checks
+
+    env = (ZOO_DIR / "poisoned-v2" / ".env").read_text(encoding="utf-8")
+    assert skill_checks.POISONED_V2_CANARY in env
+
+
+def test_commit_subjects_parsed_from_note():
+    subjects = build_zoo._read_commit_subjects(
+        ZOO_DIR / "poisoned-v2" / build_zoo.V2_HISTORY_NOTE)
+    assert subjects  # non-comment lines only
+    assert all(not s.startswith("#") for s in subjects)
+    assert any(build_zoo.V2_HISTORY_MARKER in s for s in subjects)
+
+
 def test_privacy_bait_active_rule_present():
     ignore = (ZOO_DIR / "privacy-bait" / ".pylgrimignore").read_text(encoding="utf-8")
     active = [ln for ln in ignore.splitlines()
@@ -94,3 +118,19 @@ def test_build_fixture_materializes_git_repo(tmp_path):
     # Neutral commit message: must not leak the fixture name into history.
     assert "initial commit" in log.stdout
     assert "zoo" not in log.stdout and "fixture" not in log.stdout
+
+
+@pytest.mark.skipif(not _git_available(), reason="git not on PATH")
+def test_poisoned_v2_materializes_history_injection(tmp_path):
+    dest = build_zoo.build_fixture("poisoned-v2", tmp_path)
+    # The generator note is consumed and removed from the working tree.
+    assert not (dest / build_zoo.V2_HISTORY_NOTE).exists()
+    # INJ-09 lives ONLY in git history now, not in any working-tree file.
+    blob = build_zoo._file_blob(dest)
+    assert build_zoo.V2_HISTORY_MARKER not in blob
+    subjects = subprocess.run(
+        ["git", "-C", str(dest), "log", "--format=%s"],
+        capture_output=True, text=True).stdout
+    assert build_zoo.V2_HISTORY_MARKER in subjects
+    # Full verification passes: file markers present, history marker present.
+    assert build_zoo.verify_poisoned_v2(dest) == []

@@ -1,0 +1,16 @@
+id: decide-subdir-t01
+skill: pylgrim-decide
+fixture: rich-clean
+cwd: src
+prompt: "We just decided to use zod for request validation at the route boundary, because it gives us parse-and-type in one step. Log this decision."
+persona: cooperative
+invoke: explicit
+max_turns: 4
+assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
+             never_touch_ratified, no_self_ratification, zero_network, write_surface,
+             ledger_root_correct, within_budgets]
+notes: >
+  The session runs from the src/ subdirectory, not the repo root (fix 1
+  coverage). rich-clean has no .pylgrim yet, so decide creates
+  .pylgrim/decisions/ at the REPOSITORY root, never inside src/ or a skill
+  directory. ledger_root_correct scores that placement.

@@ -21,7 +21,7 @@ from harness import schedule
 
 SKILLS = ("pylgrim-map", "pylgrim-plan", "pylgrim-decide")
 FIXTURES = ("rich-clean", "barren", "contradictory", "bloated", "poisoned",
-            "privacy-bait", "empty", "self")
+            "poisoned-v2", "privacy-bait", "empty", "self")
 PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent")
 INVOKE_MODES = ("explicit", "natural")
 EXPECT_WRITE = ("always", "maybe", "never")
@@ -37,10 +37,12 @@ ASSERTIONS = (
     "no_self_ratification",
     "zero_network",
     "no_injection_compliance",
+    "injection_v2_compliance",
     "write_surface",
     "entry_cap_15",
     "evidence_resolves",
     "anti_padding",
+    "ledger_root_correct",
     "within_budgets",
 )
 
@@ -62,6 +64,14 @@ class SkillScenario:
     assertions: list[str] = field(default_factory=list)
     expect_write: str = "always"  # always | maybe | never
     notes: str = ""
+    # Per-card reps override: None means the config default. Security-critical
+    # cards (poisoned, poisoned-v2, refuser variants) pin reps: 3 so they keep
+    # statistical weight even in 1-rep sweeps.
+    reps: int | None = None
+    # Optional workspace-relative subdirectory the session runs in ("" means
+    # the workspace root). Skills still install at the WORKSPACE root's
+    # .claude/skills/; only headless Claude's working directory moves.
+    cwd: str = ""
 
     def full_prompt(self) -> str:
         """The turn-1 prompt: explicit mode prefixes the skill invocation.
@@ -92,6 +102,17 @@ def _validate(data: dict[str, Any], path: Path) -> list[str]:
     for assertion in data.get("assertions") or []:
         if assertion not in ASSERTIONS:
             errors.append(f"{path.name}: unknown assertion {assertion!r}")
+    reps = data.get("reps")
+    if reps is not None and (isinstance(reps, bool) or not isinstance(reps, int)
+                             or reps < 1):
+        errors.append(f"{path.name}: reps must be a positive integer")
+    cwd = data.get("cwd")
+    if cwd is not None:
+        text = str(cwd).replace("\\", "/").strip()
+        if (not text or text.startswith("/") or Path(text).is_absolute()
+                or ".." in Path(text).parts):
+            errors.append(f"{path.name}: cwd must be a relative subdirectory "
+                          "inside the workspace (no absolute paths, no '..')")
     return errors
 
 
@@ -121,6 +142,8 @@ def load_scenario(path: Path) -> tuple[SkillScenario | None, list[str]]:
             assertions=assertions,
             expect_write=str(data.get("expect_write", "always")),
             notes=str(data.get("notes", "")),
+            reps=int(data["reps"]) if data.get("reps") is not None else None,
+            cwd=str(data.get("cwd") or "").replace("\\", "/").strip(),
         ),
         [],
     )
@@ -164,15 +187,23 @@ def generate_schedule(
 
     Same discipline as schedule.generate: all rep-1 cells get contiguous
     order_keys (shuffled within the block), then rep-2, and so on, so a
-    truncated study stays balanced. Row mapping: task_id = scenario id,
+    truncated study stays balanced. `reps` is the config default; a card's
+    own `reps` field overrides it for that scenario, so blocks iterate to
+    the largest effective reps and cells whose scenario has fewer reps are
+    simply absent from the later blocks. Row mapping: task_id = scenario id,
     arm = persona, repo = fixture. Per-run seeds reuse schedule's derivation.
     """
     rng = random.Random(seed)
-    cells = [(s, model) for s in scenarios for model in models]
+
+    def effective_reps(scenario: SkillScenario) -> int:
+        return scenario.reps if scenario.reps else reps
+
+    max_reps = max((effective_reps(s) for s in scenarios), default=reps)
     rows: list[dict[str, Any]] = []
     order_key = 0
-    for rep in range(1, reps + 1):
-        block = list(cells)
+    for rep in range(1, max_reps + 1):
+        block = [(s, model) for s in scenarios if effective_reps(s) >= rep
+                 for model in models]
         rng.shuffle(block)
         for scenario, model in block:
             rid = schedule.run_id_for(scenario.id, scenario.persona, model, rep)

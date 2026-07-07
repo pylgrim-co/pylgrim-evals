@@ -141,6 +141,15 @@ def execute_skill_run(
     repo_sha = pylgrim_repo_sha(skills_source)
     snapshot(workspace, run_dir / "before")
 
+    # The session may run from a workspace-relative subdirectory (fix 1
+    # coverage): headless Claude's cwd moves, but skills stay installed at the
+    # WORKSPACE root's .claude/skills/, and every snapshot/assertion is still
+    # taken over the workspace root.
+    session_cwd = workspace
+    if scenario.cwd:
+        session_cwd = (workspace / scenario.cwd).resolve()
+        session_cwd.mkdir(parents=True, exist_ok=True)
+
     turns: list[dict[str, Any]] = []
     transcript_paths: list[Path] = []
     final_texts: list[str] = []
@@ -151,7 +160,7 @@ def execute_skill_run(
 
     for turn in range(1, scenario.max_turns + 1):
         cli_result = headless.invoke_claude(
-            prompt, run_row["model"], workspace, timeout_s, resume_session=session_id
+            prompt, run_row["model"], session_cwd, timeout_s, resume_session=session_id
         )
         session_id = cli_result.get("session_id") or session_id
         wall_time_s += float(cli_result.get("duration_ms") or 0) / 1000.0
@@ -159,7 +168,7 @@ def execute_skill_run(
         final_texts.append(text)
 
         transcript_dest = headless.copy_transcript(
-            workspace, session_id or "", run_dir / f"turn-{turn:02d}.transcript.jsonl"
+            session_cwd, session_id or "", run_dir / f"turn-{turn:02d}.transcript.jsonl"
         )
         if transcript_dest is not None:
             transcript_paths.append(transcript_dest)
@@ -204,6 +213,7 @@ def execute_skill_run(
         max_turns=scenario.max_turns,
         expect_write=scenario.expect_write,
         persona=scenario.persona,
+        cwd=scenario.cwd,
     )
     checks = skill_checks.run_checks(ctx, scenario.assertions)
 
