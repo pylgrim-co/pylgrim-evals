@@ -2,12 +2,17 @@
 
 Each of the 36 probes in tasks/skills/triggers.yaml runs as a single fresh
 `claude -p` in a rich-clean workspace with all three skills installed but the
-prompt left completely natural (no explicit invocation). The activation
-signal, verified live: a tool_use named "Skill" whose input carries
-{"skill": "<name>"}. should-trigger prompts score hit rate; should-not
-prompts score false-fire rate (weighted worse in the report). Results land
-one JSON per probe under results/triggers/, so an interrupted sweep resumes
-by skipping completed probes.
+prompt left completely natural (no explicit invocation). The workspace is
+seeded like a real pylgrim adopter's repo: a minimal .pylgrim/ ledger (one
+ratified charter entry) and a CLAUDE.md carrying the managed pylgrim block
+with its skills-hint line, matching spec/scripts/export_claudemd.py output.
+Without that block the probes measure a repo no adopter has (verified live:
+decide's misses on settled-decision prompts largely trace to its absence).
+The activation signal, verified live: a tool_use named "Skill" whose input
+carries {"skill": "<name>"}. should-trigger prompts score hit rate;
+should-not prompts score false-fire rate (weighted worse in the report).
+Results land one JSON per probe under results/triggers/, so an interrupted
+sweep resumes by skipping completed probes.
 """
 
 from __future__ import annotations
@@ -27,6 +32,56 @@ from harness.skill_runner import DEFAULT_SKILLS_SOURCE
 PYLGRIM_SKILLS = ("pylgrim-map", "pylgrim-plan", "pylgrim-decide")
 TRIGGER_FIXTURE = "rich-clean"
 DEFAULT_TRIGGER_TIMEOUT_S = 10 * 60
+
+# Seeded adopter state for every probe workspace: one ratified charter entry
+# and the managed CLAUDE.md block it exports to. The block is a static copy
+# of spec/scripts/export_claudemd.py output for exactly this ledger.
+SEED_CHARTER_ULID = "01JZS3GJ9CKQ4W8RTV5XKNM0PA"
+SEED_CHARTER_ENTRY = """\
+---
+kind: constraint
+mode: observe
+source: manual
+status: ratified
+last_confirmed: 2026-06-01
+---
+# Never edit generated files under src/gen/
+
+Files under src/gen/ are generated output; edit the generator and regenerate.
+"""
+SEED_MANAGED_BLOCK = """\
+<!-- pylgrim:begin -->
+<!-- managed by pylgrim: edit .pylgrim/ entries, not this text -->
+
+## Constraints
+
+- [observe] Never edit generated files under src/gen/
+
+Skills: log settled decisions with the pylgrim-decide skill; plan new work \
+into the ledger with pylgrim-plan; re-map repo intent with pylgrim-map.
+
+Full ledger: .pylgrim/ holds the ratified entries this block is generated \
+from; edit there, then re-run spec/scripts/export_claudemd.py.
+<!-- pylgrim:end -->
+"""
+
+
+def seed_probe_ledger(workspace: Path) -> None:
+    """Give the probe workspace a minimal adopter footprint: .pylgrim/ with
+    one ratified charter entry, and the managed pylgrim block (skills-hint
+    line included) spliced onto the fixture's CLAUDE.md the same way
+    export_claudemd.py appends it when no markers exist yet."""
+    charter = workspace / ".pylgrim" / "charter"
+    charter.mkdir(parents=True, exist_ok=True)
+    (charter / f"{SEED_CHARTER_ULID}-never-edit-src-gen.md").write_text(
+        SEED_CHARTER_ENTRY, encoding="utf-8")
+    claude_md = workspace / "CLAUDE.md"
+    base = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
+    if base and not base.endswith("\n"):
+        base += "\n"
+    if base:
+        base += "\n"
+    claude_md.write_text(base + SEED_MANAGED_BLOCK, encoding="utf-8")
 
 
 @dataclass
@@ -118,6 +173,7 @@ def run_probe(
 
     prepare_workspace(TRIGGER_FIXTURE, zoo_dir, workspace)
     install_skills(workspace, skills_source)
+    seed_probe_ledger(workspace)
 
     cli_result = headless.invoke_claude(probe.prompt, model, workspace, timeout_s)
     session_id = cli_result.get("session_id") or ""
@@ -131,6 +187,7 @@ def run_probe(
         "probe": {"id": probe.id, "skill": probe.skill, "expect": probe.expect,
                   "prompt": probe.prompt},
         "model": model,
+        "ledger_seeded": True,
         "pylgrim_repo_sha": pylgrim_repo_sha(skills_source),
         "session_id": session_id,
         "fired_skills": fired,

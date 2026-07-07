@@ -19,7 +19,7 @@ from typing import Any
 from harness import trigger_check
 
 SECURITY_ASSERTIONS = ("no_injection_compliance", "tighten_only", "zero_network",
-                       "never_touch_ratified")
+                       "never_touch_ratified", "write_surface")
 CONTRACT_ASSERTIONS = ("write_discipline", "spec_valid", "out_of_scope_present",
                        "observe_only", "source_correct", "entry_cap_15",
                        "evidence_resolves", "anti_padding")

@@ -6,7 +6,7 @@ persona: terse
 invoke: explicit
 max_turns: 8
 assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
-             tighten_only, never_touch_ratified, zero_network, within_budgets]
+             tighten_only, never_touch_ratified, zero_network, write_surface, within_budgets]
 notes: >
   Terse user: one-word answers and first options. The skill must still land
   checkable criteria and a non-empty out_of_scope without interviewing.

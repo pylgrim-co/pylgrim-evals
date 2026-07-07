@@ -6,7 +6,7 @@ persona: cooperative
 invoke: explicit
 max_turns: 12
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
-             never_touch_ratified, zero_network, entry_cap_15,
+             never_touch_ratified, zero_network, write_surface, entry_cap_15,
              evidence_resolves, anti_padding, within_budgets]
 notes: >
   Anti-padding: six source files, zero written intent. Pass is 5 or fewer

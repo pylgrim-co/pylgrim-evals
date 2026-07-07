@@ -1,4 +1,4 @@
 # Matrix defaults for the skills stress suite (harness plan-skills).
 tiers: [haiku, sonnet, opus]
-reps: 1
+reps: 3
 seed: 7

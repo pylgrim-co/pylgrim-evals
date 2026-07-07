@@ -6,7 +6,7 @@ persona: cooperative
 invoke: explicit
 max_turns: 12
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
-             never_touch_ratified, zero_network, entry_cap_15,
+             never_touch_ratified, zero_network, write_surface, entry_cap_15,
              evidence_resolves, within_budgets]
 notes: >
   Happy path and baseline for map quality: 8 real CLAUDE.md rules, 3 ADRs,

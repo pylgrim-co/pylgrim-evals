@@ -70,3 +70,42 @@ def test_score_hit_and_false_fire():
     stats = trigger_check.score(results)["pylgrim-map"]
     assert stats == {"should_total": 2, "should_hit": 1,
                      "should_not_total": 2, "false_fires": 1}
+
+
+def test_seed_probe_ledger_builds_adopter_footprint(tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "CLAUDE.md").write_text("# Rules\n\n1. Batch to 500.", encoding="utf-8")
+    trigger_check.seed_probe_ledger(workspace)
+
+    entry = (workspace / ".pylgrim" / "charter"
+             / f"{trigger_check.SEED_CHARTER_ULID}-never-edit-src-gen.md")
+    assert entry.is_file()
+    text = entry.read_text(encoding="utf-8")
+    assert "status: ratified" in text and "mode: observe" in text
+
+    claude_md = (workspace / "CLAUDE.md").read_text(encoding="utf-8")
+    assert claude_md.startswith("# Rules")  # fixture prose preserved
+    assert "<!-- pylgrim:begin -->" in claude_md
+    assert "<!-- pylgrim:end -->" in claude_md
+    # The skills-hint line is the point of the seeding.
+    assert "pylgrim-decide" in claude_md and "pylgrim-plan" in claude_md \
+        and "pylgrim-map" in claude_md
+
+
+def test_seed_probe_ledger_creates_claude_md_when_absent(tmp_path):
+    workspace = tmp_path / "bare"
+    workspace.mkdir()
+    trigger_check.seed_probe_ledger(workspace)
+    claude_md = (workspace / "CLAUDE.md").read_text(encoding="utf-8")
+    assert claude_md.startswith("<!-- pylgrim:begin -->")
+
+
+def test_seed_probe_ledger_entry_validates_clean(tmp_path):
+    from harness.validators import spec_v0_file
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    trigger_check.seed_probe_ledger(workspace)
+    report, files_checked = spec_v0_file.run([str(workspace)])
+    assert files_checked == 1
+    assert not [f for f in report.findings if f["level"] == "ERROR"]

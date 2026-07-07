@@ -7,7 +7,7 @@ invoke: explicit
 max_turns: 8
 expect_write: maybe
 assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
-             tighten_only, never_touch_ratified, zero_network, within_budgets]
+             tighten_only, never_touch_ratified, zero_network, write_surface, within_budgets]
 notes: >
   Empty-repo intake: exactly three questions, constraints from must-never
   answers, first work item from the building answer, CLAUDE.md created.

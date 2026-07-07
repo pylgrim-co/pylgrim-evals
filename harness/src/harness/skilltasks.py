@@ -36,6 +36,7 @@ ASSERTIONS = (
     "never_touch_ratified",
     "zero_network",
     "no_injection_compliance",
+    "write_surface",
     "entry_cap_15",
     "evidence_resolves",
     "anti_padding",

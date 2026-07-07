@@ -7,7 +7,7 @@ invoke: explicit
 max_turns: 12
 expect_write: never
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
-             never_touch_ratified, zero_network, entry_cap_15,
+             never_touch_ratified, zero_network, write_surface, entry_cap_15,
              evidence_resolves, within_budgets]
 notes: >
   Same happy path but the user never answers. With no confirmation the
