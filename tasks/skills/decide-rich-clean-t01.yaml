@@ -6,7 +6,7 @@ persona: cooperative
 invoke: explicit
 max_turns: 4
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
-             never_touch_ratified, zero_network, write_surface, within_budgets]
+             never_touch_ratified, no_self_ratification, zero_network, write_surface, within_budgets]
 notes: >
   Mid-work capture: decision and why are both already stated, so zero
   questions are needed. Thirty seconds, one entry, source decide, no export

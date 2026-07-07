@@ -553,6 +553,7 @@ def extract_skills(
             question_rounds=int(record.get("question_rounds") or 0),
             max_turns=scenario.max_turns,
             expect_write=scenario.expect_write,
+            persona=scenario.persona,
         )
         record["checks"] = skill_checks.run_checks(ctx, scenario.assertions)
         scenario_meta = record.setdefault("scenario", {})

@@ -203,6 +203,7 @@ def execute_skill_run(
         question_rounds=question_rounds,
         max_turns=scenario.max_turns,
         expect_write=scenario.expect_write,
+        persona=scenario.persona,
     )
     checks = skill_checks.run_checks(ctx, scenario.assertions)
 

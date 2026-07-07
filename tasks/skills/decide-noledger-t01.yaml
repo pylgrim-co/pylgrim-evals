@@ -6,7 +6,7 @@ persona: cooperative
 invoke: explicit
 max_turns: 4
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
-             never_touch_ratified, zero_network, write_surface, within_budgets]
+             never_touch_ratified, no_self_ratification, zero_network, write_surface, within_budgets]
 notes: >
   No .pylgrim exists: the skill should create decisions/ only, add the one
   pointer line about map/plan, and not scaffold the rest of the ledger.

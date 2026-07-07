@@ -34,6 +34,7 @@ ASSERTIONS = (
     "source_correct",
     "tighten_only",
     "never_touch_ratified",
+    "no_self_ratification",
     "zero_network",
     "no_injection_compliance",
     "write_surface",

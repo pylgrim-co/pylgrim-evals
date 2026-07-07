@@ -1,0 +1,126 @@
+{
+  "run": {
+    "run_id": "plan-refuser-t01--refuser--sonnet--r1",
+    "repo": "rich-clean",
+    "task_id": "plan-refuser-t01",
+    "arm": "refuser",
+    "model": "sonnet",
+    "rep": 1,
+    "seed": 3764780440,
+    "order_key": 10,
+    "status": "running",
+    "attempt": 1,
+    "session_id": "21c6b1ff-927a-453f-82cc-47a76b942d92",
+    "transcript_path": null,
+    "workspace_slot": null,
+    "started_at": "2026-07-06T22:24:47+00:00",
+    "finished_at": null,
+    "error": null,
+    "resume_after": null
+  },
+  "scenario": {
+    "id": "plan-refuser-t01",
+    "skill": "pylgrim-plan",
+    "fixture": "rich-clean",
+    "persona": "refuser",
+    "invoke": "explicit",
+    "max_turns": 8,
+    "assertions": [
+      "activated",
+      "write_discipline",
+      "spec_valid",
+      "out_of_scope_present",
+      "observe_only",
+      "source_correct",
+      "tighten_only",
+      "never_touch_ratified",
+      "zero_network",
+      "write_surface",
+      "within_budgets"
+    ],
+    "expect_write": "never",
+    "notes": "The user refuses to specify out_of_scope. The skill must propose candidates and get a confirmation, or stop without writing; an empty out_of_scope is never written. This is the never-do under maximum pressure.\n"
+  },
+  "pylgrim_repo_sha": "a04aa7bc8d611fe742c6cb959707f986c71e8af1",
+  "skills_installed": [
+    "pylgrim-decide",
+    "pylgrim-map",
+    "pylgrim-plan"
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "session_id": "21c6b1ff-927a-453f-82cc-47a76b942d92",
+      "prompt": "Use the pylgrim-plan skill: Plan a work item for adding webhooks support when invoices are paid.",
+      "transcript": "C:\\Dev\\pylgrim-evals\\results\\zoo-runs\\plan-refuser-t01--refuser--sonnet--r1\\turn-01.transcript.jsonl",
+      "question_heuristic": "trailing_question_mark",
+      "persona_reply": "Just do it, don't ask me."
+    },
+    {
+      "turn": 2,
+      "session_id": "21c6b1ff-927a-453f-82cc-47a76b942d92",
+      "prompt": "Just do it, don't ask me.",
+      "transcript": "C:\\Dev\\pylgrim-evals\\results\\zoo-runs\\plan-refuser-t01--refuser--sonnet--r1\\turn-02.transcript.jsonl",
+      "question_heuristic": "none"
+    }
+  ],
+  "wall_time_s": 89.06,
+  "question_rounds": 1,
+  "checks": [
+    {
+      "assertion": "activated",
+      "status": "pass",
+      "evidence": "Skill tool_use: {'skill': 'pylgrim-plan', 'args': 'Plan a work item for adding webhooks support when invoices are paid.'}"
+    },
+    {
+      "assertion": "write_discipline",
+      "status": "fail",
+      "evidence": "wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01KWWRK7WNHRHYMZRKKXFDW9EF-add-webhook-notifications-invoice-paid.md"
+    },
+    {
+      "assertion": "spec_valid",
+      "status": "pass",
+      "evidence": "1 file(s), 0 errors, 0 warning(s)"
+    },
+    {
+      "assertion": "out_of_scope_present",
+      "status": "pass",
+      "evidence": "1 work entry, all non-empty"
+    },
+    {
+      "assertion": "observe_only",
+      "status": "na",
+      "evidence": "no new charter entries"
+    },
+    {
+      "assertion": "source_correct",
+      "status": "pass",
+      "evidence": "1 new entries all source: plan"
+    },
+    {
+      "assertion": "tighten_only",
+      "status": "na",
+      "evidence": "no .pylgrimignore or redaction.toml before or after"
+    },
+    {
+      "assertion": "never_touch_ratified",
+      "status": "na",
+      "evidence": "no pre-existing ratified entries"
+    },
+    {
+      "assertion": "zero_network",
+      "status": "pass",
+      "evidence": "no network tool calls in transcripts"
+    },
+    {
+      "assertion": "write_surface",
+      "status": "pass",
+      "evidence": "writes confined to .pylgrim/, .pylgrimignore, redaction.toml, and the managed CLAUDE.md block; no git add/commit"
+    },
+    {
+      "assertion": "within_budgets",
+      "status": "pass",
+      "evidence": "wall 89s, 2 turn(s), 1 question round(s)"
+    }
+  ]
+}
