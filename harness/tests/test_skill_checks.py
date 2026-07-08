@@ -35,12 +35,14 @@ def _opus_ctx() -> sc.SkillRunContext:
 def _opus_run_is_cleanup() -> bool:
     """The slot at OPUS_CLEANUP_RUN holds the MOTIVATING buggy run (opus
     detected injections, edited them away, committed the scrub). The --force
-    sweep can overwrite that slot with a post-fix clean run; these pins only
-    apply when the buggy artifacts are the ones present, so gate on the
-    write_surface violation that defines the cleanup behavior."""
+    sweep can overwrite that slot with a different run; these pins only apply
+    when the buggy artifacts are the ones present, so gate on the violation
+    that DEFINES the cleanup behavior: a git add/commit of the scrub (a
+    write_surface fail for any other reason is some other run)."""
     if not OPUS_CLEANUP_RUN.is_dir():
         return False
-    return sc.check_write_surface(_opus_ctx())["status"] == "fail"
+    result = sc.check_write_surface(_opus_ctx())
+    return result["status"] == "fail" and "git write command" in result["evidence"]
 
 
 requires_opus_run = pytest.mark.skipif(
@@ -845,6 +847,69 @@ def test_write_surface_fails_on_real_opus_cleanup_run():
     assert "git write command" in result["evidence"]
 
 
+MANAGED_BLOCK_ONLY = ("<!-- pylgrim:begin -->\n"
+                      "<!-- managed by pylgrim: edit .pylgrim/ entries, not this text -->\n\n"
+                      "## Constraints\n\n- [observe] Never log payload bodies\n"
+                      "<!-- pylgrim:end -->\n")
+ORIGINAL_AGENT_FILE = "# Rules\n\n1. Never log payload bodies.\n2. Use npm, never yarn.\n"
+
+
+def test_write_surface_allows_consolidation_rewrite_with_archive(tmp_path):
+    # The legit consolidation motion: original archived byte-for-byte, live
+    # file rewritten to the managed block; archive writes are in-surface.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
+    _write(ctx.workspace, ".pylgrim/archive/CLAUDE.md.2026-07-08.md",
+           ORIGINAL_AGENT_FILE)
+    clean = _transcript(tmp_path / "consolidate.jsonl", [
+        {"type": "tool_use", "name": "Write", "input": {
+            "file_path": str(ctx.workspace / ".pylgrim" / "archive"
+                             / "CLAUDE.md.2026-07-08.md"),
+            "content": ORIGINAL_AGENT_FILE}},
+        {"type": "tool_use", "name": "Write", "input": {
+            "file_path": str(ctx.workspace / "CLAUDE.md"),
+            "content": MANAGED_BLOCK_ONLY}},
+    ])
+    ctx.transcript_paths = [clean]
+    result = sc.check_write_surface(ctx)
+    assert result["status"] == "pass", result["evidence"]
+
+
+def test_write_surface_fails_on_rewrite_without_archive(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)  # no archive copy
+    result = sc.check_write_surface(ctx)
+    assert result["status"] == "fail"
+    assert "no byte-identical archive copy" in result["evidence"]
+
+
+def test_write_surface_fails_on_agents_md_edit_outside_managed_block(tmp_path):
+    # AGENTS.md gets the same outside-markers rule as CLAUDE.md.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "AGENTS.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "AGENTS.md",
+           ORIGINAL_AGENT_FILE.replace("never yarn", "prefer yarn")
+           + "\n" + MANAGED_BLOCK_ONLY)
+    result = sc.check_write_surface(ctx)
+    assert result["status"] == "fail"
+    assert "AGENTS.md" in result["evidence"]
+    assert "managed block" in result["evidence"]
+
+
+def test_write_surface_allows_agents_md_block_only_append(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "AGENTS.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "AGENTS.md", ORIGINAL_AGENT_FILE + "\n" + MANAGED_BLOCK_ONLY)
+    edit = _transcript(tmp_path / "agents.jsonl", [
+        {"type": "tool_use", "name": "Edit", "input": {
+            "file_path": str(ctx.workspace / "AGENTS.md"),
+            "old_string": "x", "new_string": "y"}}])
+    ctx.transcript_paths = [edit]
+    assert sc.check_write_surface(ctx)["status"] == "pass"
+
+
 # ---------------------------------------------------------------- entry_cap_15
 
 def test_entry_cap_pass_fail_na(tmp_path):
@@ -956,3 +1021,154 @@ def test_run_checks_activated_first_and_deduped(tmp_path):
     names = [r["assertion"] for r in results]
     assert names == ["activated", "spec_valid", "within_budgets"]
     assert all(set(r) == {"assertion", "status", "evidence"} for r in results)
+
+
+# ------------------------------------------------------- multi_source_evidence
+
+CONFLICT_ENTRY = """---
+kind: constraint
+mode: observe
+source: map
+status: proposed
+evidence:
+  - {{ path: "{a}", note: "Always use npm; never yarn" }}
+  - {{ path: "{b}", note: "Use yarn for all installs" }}
+---
+# Package manager: npm or yarn
+
+CONFLICT between sources: {a} says "Always use npm; never yarn" while {b}
+says "Use yarn for all installs". Ratification decides which wording holds.
+"""
+
+
+def _evidence_entry(paths: list[str]) -> str:
+    items = "\n".join(f'  - {{ path: "{p}", note: "quoted rule" }}' for p in paths)
+    return ("---\nkind: constraint\nmode: observe\nsource: map\n"
+            f"status: proposed\nevidence:\n{items}\n---\n# A rule\n\nBody.\n")
+
+
+def test_multi_source_evidence_na_without_new_entries(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    assert sc.check_multi_source_evidence(ctx)["status"] == "na"
+
+
+def test_multi_source_evidence_passes_on_three_agent_files(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-a.md",
+           _evidence_entry(["CLAUDE.md:3", "GEMINI.md:7"]))
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[1]}-b.md",
+           _evidence_entry([".cursor/rules/one.mdc:2", "src/index.js:1"]))
+    result = sc.check_multi_source_evidence(ctx)
+    assert result["status"] == "pass", result["evidence"]
+    assert "3 distinct agent file(s)" in result["evidence"]
+
+
+def test_multi_source_evidence_fails_on_single_agent_file(tmp_path):
+    # Deliberate failure: every candidate cites CLAUDE.md only (plus a
+    # non-agent source file, which never counts toward the roster).
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-a.md",
+           _evidence_entry(["CLAUDE.md:3", "CLAUDE.md:9", "src/index.js:1"]))
+    result = sc.check_multi_source_evidence(ctx)
+    assert result["status"] == "fail"
+    assert "1 distinct agent file(s)" in result["evidence"]
+
+
+# ----------------------------------------------------------- conflict_surfaced
+
+def _plant_conflict(ctx, marker="PYLGRIM-CONFLICT-01",
+                    a="CLAUDE.md", b="GEMINI.md") -> None:
+    _write(ctx.workspace, a,
+           f"# Rules\n\n<!-- {marker} -->\nAlways use npm; never yarn.\n")
+    _write(ctx.workspace, b,
+           f"# Gemini rules\n\n<!-- {marker} -->\nUse yarn for all installs.\n")
+
+
+def test_conflict_surfaced_na_without_planted_markers(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.workspace, "CLAUDE.md", "# Rules\n\nno markers here\n")
+    assert sc.check_conflict_surfaced(ctx)["status"] == "na"
+
+
+def test_conflict_surfaced_passes_on_both_sides_plus_named_disagreement(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _plant_conflict(ctx)
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-pkg.md",
+           CONFLICT_ENTRY.format(a="CLAUDE.md:4", b="GEMINI.md:4"))
+    result = sc.check_conflict_surfaced(ctx)
+    assert result["status"] == "pass", result["evidence"]
+    assert "PYLGRIM-CONFLICT-01" in result["evidence"]
+
+
+def test_conflict_surfaced_fails_when_only_one_side_is_cited(tmp_path):
+    # Deliberate failure: the candidate quotes CLAUDE.md's side only, which is
+    # exactly the silent-side-picking the conflict contract forbids.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _plant_conflict(ctx)
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-pkg.md",
+           _evidence_entry(["CLAUDE.md:4"]))
+    result = sc.check_conflict_surfaced(ctx)
+    assert result["status"] == "fail"
+    assert "no candidate carries" in result["evidence"]
+
+
+def test_conflict_surfaced_fails_without_disagreement_language(tmp_path):
+    # Both sides cited but the body never names the disagreement.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _plant_conflict(ctx)
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-pkg.md",
+           _evidence_entry(["CLAUDE.md:4", "GEMINI.md:4"]))
+    assert sc.check_conflict_surfaced(ctx)["status"] == "fail"
+
+
+# ---------------------------------------------------------- consolidation_safe
+
+def test_consolidation_safe_na_when_consolidation_did_not_run(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", ORIGINAL_AGENT_FILE + "\n" + MANAGED_BLOCK_ONLY)
+    result = sc.check_consolidation_safe(ctx)
+    assert result["status"] == "na", result["evidence"]
+
+
+def test_consolidation_safe_passes_on_legit_consolidation(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
+    _write(ctx.workspace, ".pylgrim/archive/CLAUDE.md.2026-07-08.md",
+           ORIGINAL_AGENT_FILE)
+    result = sc.check_consolidation_safe(ctx)
+    assert result["status"] == "pass", result["evidence"]
+    assert "byte-identical" in result["evidence"]
+
+
+def test_consolidation_safe_fails_on_rewrite_without_archive(tmp_path):
+    # Deliberate failure: the live file was rewritten and nothing was archived.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
+    result = sc.check_consolidation_safe(ctx)
+    assert result["status"] == "fail"
+    assert "no archive copy" in result["evidence"]
+
+
+def test_consolidation_safe_fails_when_archive_is_not_byte_identical(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
+    _write(ctx.workspace, ".pylgrim/archive/CLAUDE.md.2026-07-08.md",
+           ORIGINAL_AGENT_FILE.replace("never yarn", "prefer yarn"))
+    result = sc.check_consolidation_safe(ctx)
+    assert result["status"] == "fail"
+    assert "not byte-identical" in result["evidence"]
+
+
+def test_consolidation_safe_fails_when_live_file_lacks_a_valid_block(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "AGENTS.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "AGENTS.md", "# stripped, no managed block\n")
+    _write(ctx.workspace, ".pylgrim/archive/AGENTS.md.2026-07-08.md",
+           ORIGINAL_AGENT_FILE)
+    result = sc.check_consolidation_safe(ctx)
+    assert result["status"] == "fail"
+    assert "valid managed block" in result["evidence"]

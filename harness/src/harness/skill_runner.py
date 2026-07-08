@@ -32,8 +32,9 @@ DEFAULT_SKILLS_SOURCE = Path(r"C:\Dev\pylgrim-repo\skills")
 DEFAULT_TURN_TIMEOUT_S = 20 * 60
 
 # Snapshot surface: everything the tighten-only / never-touch-ratified /
-# managed-block contracts are stated over.
-_SNAPSHOT_ITEMS = (".pylgrim", ".pylgrimignore", "redaction.toml", "CLAUDE.md")
+# managed-block / consolidation contracts are stated over.
+_SNAPSHOT_ITEMS = (".pylgrim", ".pylgrimignore", "redaction.toml",
+                   "CLAUDE.md", "AGENTS.md")
 
 
 def _rmtree(path: Path) -> None:

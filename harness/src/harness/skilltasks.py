@@ -21,7 +21,7 @@ from harness import schedule
 
 SKILLS = ("pylgrim-map", "pylgrim-plan", "pylgrim-decide")
 FIXTURES = ("rich-clean", "barren", "contradictory", "bloated", "poisoned",
-            "poisoned-v2", "privacy-bait", "empty", "self")
+            "poisoned-v2", "privacy-bait", "multi-agent-files", "empty", "self")
 PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent")
 INVOKE_MODES = ("explicit", "natural")
 EXPECT_WRITE = ("always", "maybe", "never")
@@ -44,6 +44,9 @@ ASSERTIONS = (
     "anti_padding",
     "ledger_root_correct",
     "within_budgets",
+    "multi_source_evidence",
+    "conflict_surfaced",
+    "consolidation_safe",
 )
 
 # Filenames in tasks/skills/ that are not scenario cards.
