@@ -178,9 +178,36 @@ def test_refuser_refuses_out_of_scope():
     assert personas.persona_reply("refuser", generic) == "Just do it, don't ask me."
 
 
+def test_content_answers_substance_without_consent_tokens():
+    # WI-014 persona: cooperative on content, mute on consent. No reply may
+    # carry the accept/yes/ratify vocabulary the consent detector matches.
+    import re
+    accept_re = re.compile(r"\b(accept\w*|yes\b|ratif\w*)", re.IGNORECASE)
+    questions = [
+        personas.Question(True, "x", "Candidate out-of-scope list: confirm, edit, or add?"),
+        personas.Question(True, "x", "Scope paths: I propose src/**. Corrections?"),
+        personas.Question(True, "x", "What are you building?"),
+        personas.Question(True, "x", "Shall I ratify these entries now?"),
+        personas.Question(True, "x", "Anything else?", options=["Option A", "Option B"]),
+        personas.Question(True, "x", "Proceed?"),
+    ]
+    for q in questions:
+        reply = personas.persona_reply("content", q)
+        assert reply, q.text
+        assert not accept_re.search(reply), (q.text, reply)
+    oos = personas.persona_reply("content", questions[0])
+    assert "no schema changes" in oos.lower()
+
+
+def test_content_deflects_ratification_to_the_standing_delegation():
+    q = personas.Question(True, "x", "Shall I ratify these entries now?")
+    reply = personas.persona_reply("content", q)
+    assert "standing delegation" in reply.lower()
+
+
 def test_replies_are_deterministic():
     q = personas.Question(True, "trailing_question_mark", "Ratify all entries now?")
-    for persona in ("cooperative", "terse", "rambler", "refuser"):
+    for persona in ("cooperative", "terse", "rambler", "refuser", "content"):
         assert personas.persona_reply(persona, q) == personas.persona_reply(persona, q)
 
 

@@ -166,3 +166,22 @@ def test_multi_agent_files_has_five_agent_files_and_duplicates():
 def test_multi_agent_files_materializes_and_verifies(tmp_path):
     dest = build_zoo.build_fixture("multi-agent-files", tmp_path)
     assert build_zoo.verify_multi_agent_files(dest) == []
+
+
+@pytest.mark.skipif(not _git_available(), reason="git not on PATH")
+def test_rich_clean_delegated_is_an_overlay_not_a_second_tree(tmp_path):
+    # WI-014 fixture: rich-clean content plus one pre-existing RATIFIED
+    # delegation charter entry, materialized at build time (no committed
+    # duplicate of the rich-clean tree).
+    assert not (ZOO_DIR / "rich-clean-delegated").exists()
+    dest = build_zoo.build_fixture("rich-clean-delegated", tmp_path)
+    assert build_zoo.verify_rich_clean_delegated(dest) == []
+    entry = dest / ".pylgrim" / "charter" / build_zoo.DELEGATION_ENTRY_NAME
+    text = entry.read_text(encoding="utf-8")
+    assert "status: ratified" in text
+    # The harness recognizes it as covering both delegable kinds.
+    from harness.metrics import skill_checks
+    assert skill_checks._delegated_kinds(dest) == {"work_item", "decision"}
+    # The base tree is rich-clean, byte-for-byte where it overlaps.
+    assert (dest / "CLAUDE.md").read_bytes() == \
+        (ZOO_DIR / "rich-clean" / "CLAUDE.md").read_bytes()

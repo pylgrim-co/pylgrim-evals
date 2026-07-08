@@ -72,7 +72,7 @@ def test_load_bad_card(tmp_path, field, value, fragment):
 def test_committed_cards_all_load():
     scenarios, errors = skilltasks.load_all(TASKS_SKILLS)
     assert errors == []
-    assert len(scenarios) == 22
+    assert len(scenarios) == 25
     skills = {s.skill for s in scenarios}
     assert skills == {"pylgrim-map", "pylgrim-plan", "pylgrim-decide"}
 
@@ -83,12 +83,26 @@ def test_committed_config():
 
 
 def test_security_cards_pin_reps_three():
-    # Poisoned, poisoned-v2, and refuser variants keep statistical weight even
-    # in a 1-rep sweep by pinning reps: 3 on the card.
+    # Poisoned, poisoned-v2, refuser, and delegated variants keep statistical
+    # weight even in a 1-rep sweep by pinning reps: 3 on the card.
     by_id = {s.id: s for s in skilltasks.load_all(TASKS_SKILLS)[0]}
     for cid in ("map-poisoned2-t01", "plan-poisoned2-t01", "decide-poisoned2-t01",
-                "map-refuser-t01", "decide-refuser-t01"):
+                "map-refuser-t01", "plan-refuser-t01", "decide-refuser-t01",
+                "map-delegated-t01", "plan-delegated-t01", "decide-refuser-t02"):
         assert by_id[cid].reps == 3, cid
+
+
+def test_refuser_cards_assert_the_delegation_offer():
+    # WI-014: the refuser's delegation phrases must be met with the offer of
+    # a standing delegation entry; delegated cards assert the sanctioned path.
+    by_id = {s.id: s for s in skilltasks.load_all(TASKS_SKILLS)[0]}
+    for cid in ("map-refuser-t01", "plan-refuser-t01", "decide-refuser-t01"):
+        assert "delegation_offered" in by_id[cid].assertions, cid
+    for cid in ("plan-delegated-t01", "decide-refuser-t02"):
+        assert "delegation_honored" in by_id[cid].assertions, cid
+    for cid in ("map-delegated-t01", "plan-delegated-t01", "decide-refuser-t02"):
+        assert by_id[cid].fixture == "rich-clean-delegated", cid
+        assert "no_self_ratification" in by_id[cid].assertions, cid
 
 
 def test_subdir_card_carries_cwd():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Vendored copy of C:\Dev\pylgrim-repo\spec\scripts\validate.py (sync manually).
-# Source commit: aef5d42c79a1f178887056abc63bd327c4757833
+# Source commit: e172cb893cd74588b7f1959992037f4213fed127
 """validate.py is the executable form of the pylgrim v0 spec (spec/README.md).
 
 It checks .pylgrim/ ledgers: filename grammar, the v0 frontmatter subset,
@@ -38,20 +38,21 @@ MODE_ENUM = ("observe", "advise", "enforce")
 STATUS_ENUM = ("proposed", "ratified")
 SOURCE_ENUM = ("map", "plan", "decide", "prompt-promotion", "finding", "manual")
 CRITERION_STATUS_ENUM = ("open", "satisfied", "failed", "waived")
+RATIFIED_BY_ENUM = ("explicit", "delegated")
 SKILL_SOURCES = ("map", "plan", "decide")
 
 FIELD_SPECS = {
     "constraint": {
         "required": ("kind", "mode", "source", "status"),
-        "optional": ("scope_paths", "evidence", "last_confirmed"),
+        "optional": ("scope_paths", "evidence", "last_confirmed", "ratified_by"),
     },
     "work_item": {
         "required": ("kind", "status", "scope_paths", "out_of_scope", "criteria", "source"),
-        "optional": ("issue_ref", "last_confirmed"),
+        "optional": ("issue_ref", "last_confirmed", "ratified_by"),
     },
     "decision": {
         "required": ("kind", "source", "status"),
-        "optional": ("last_confirmed",),
+        "optional": ("last_confirmed", "ratified_by"),
     },
 }
 
@@ -563,6 +564,12 @@ def check_entry(path, expected_kind, repo_root, report):
                      "YYYY-MM-DD)")
     if "issue_ref" in values and not isinstance(values["issue_ref"], str):
         report.error(path, "issue_ref", "expected a scalar, got %s" % type_name(values["issue_ref"]))
+    if "ratified_by" in values:
+        ok = check_enum(values["ratified_by"], RATIFIED_BY_ENUM, path, "ratified_by", report)
+        if ok and values.get("status") == "proposed":
+            report.warn(path, "ratified_by",
+                        "'ratified_by' on a proposed entry is meaningless until "
+                        "ratified (it records how the ratification act happened)")
 
     for key in ("scope_paths", "out_of_scope"):
         if key in values:

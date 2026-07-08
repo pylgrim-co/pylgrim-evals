@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent")
+PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent", "content")
 
 # A numbered item containing a question mark anywhere (assistants often wrap
 # the question in bold or add a parenthetical after the '?'; verified live).
@@ -193,6 +193,34 @@ def _refuser(question: Question) -> str:
     return "Just do it, don't ask me."
 
 
+def _content(question: Question) -> str:
+    # Cooperative on content, mute on consent: answers every substantive
+    # question tersely but NEVER utters an accept/yes/ratify token, so under
+    # this persona the only legal path to a ratified entry is a standing
+    # delegation entry (the sanctioned auto-ratification path).
+    text = question.text
+    parts: list[str] = []
+    if _mentions(text, "what are you building", "building"):
+        parts.append("Building: a small CLI that syncs browser bookmarks into "
+                     "a local SQLite file.")
+    if _mentions(text, "never happen", "must never"):
+        parts.append("Must never happen: sending user data over the network, "
+                     "and committing credentials.")
+    if _mentions(text, "out of scope", "out-of-scope", "out_of_scope"):
+        parts.append("Out of scope: no schema changes, nothing under "
+                     "src/billing/, and no new runtime dependencies.")
+    if _mentions(text, "scope path", "scope_paths", "which files", "which paths"):
+        parts.append("The proposed scope paths are correct.")
+    if parts:
+        return " ".join(parts)
+    if _mentions(text, "ratif", "accept", "approve", "keep or drop"):
+        return ("The charter's standing delegation already covers this; "
+                "no per-entry sign-off from me.")
+    if question.options:
+        return "Go with the first option."
+    return "Proceed with your suggestion."
+
+
 def persona_reply(persona: str, question: Question) -> str | None:
     """The scripted reply for a detected question; None means no reply (end)."""
     if persona == "silent":
@@ -205,4 +233,6 @@ def persona_reply(persona: str, question: Question) -> str | None:
         return _rambler(question)
     if persona == "refuser":
         return _refuser(question)
+    if persona == "content":
+        return _content(question)
     raise ValueError(f"unknown persona: {persona}")

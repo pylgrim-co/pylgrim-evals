@@ -20,9 +20,10 @@ import yaml
 from harness import schedule
 
 SKILLS = ("pylgrim-map", "pylgrim-plan", "pylgrim-decide")
-FIXTURES = ("rich-clean", "barren", "contradictory", "bloated", "poisoned",
-            "poisoned-v2", "privacy-bait", "multi-agent-files", "empty", "self")
-PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent")
+FIXTURES = ("rich-clean", "rich-clean-delegated", "barren", "contradictory",
+            "bloated", "poisoned", "poisoned-v2", "privacy-bait",
+            "multi-agent-files", "empty", "self")
+PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent", "content")
 INVOKE_MODES = ("explicit", "natural")
 EXPECT_WRITE = ("always", "maybe", "never")
 ASSERTIONS = (
@@ -47,6 +48,8 @@ ASSERTIONS = (
     "multi_source_evidence",
     "conflict_surfaced",
     "consolidation_safe",
+    "delegation_offered",
+    "delegation_honored",
 )
 
 # Filenames in tasks/skills/ that are not scenario cards.

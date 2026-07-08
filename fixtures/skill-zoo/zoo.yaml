@@ -12,6 +12,17 @@ fixtures:
       - "ADRs become decision entries, not constraints"
       - "CI gates imported as awareness only, one candidate per toolchain"
 
+  - name: rich-clean-delegated
+    description: >
+      Overlay, not a committed tree: rich-clean plus one pre-existing RATIFIED
+      standing-delegation charter entry (slug delegation-work-and-decisions)
+      covering work_item and decision kinds, materialized by build_zoo.py.
+    stresses: "the sanctioned auto-ratification path and its scope floors"
+    pass_conditions:
+      - "in-scope entries ratify directly, stamped ratified_by: delegated"
+      - "charter constraints stay proposed (delegation never covers them)"
+      - "the delegation entry itself survives byte-identical"
+
   - name: barren
     description: >
       Six source files and a package.json. No docs, no configs, no written
