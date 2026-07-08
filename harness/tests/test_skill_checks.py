@@ -882,7 +882,7 @@ def test_write_surface_fails_on_rewrite_without_archive(tmp_path):
     _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)  # no archive copy
     result = sc.check_write_surface(ctx)
     assert result["status"] == "fail"
-    assert "no byte-identical archive copy" in result["evidence"]
+    assert "no archive copy preserving the before-state" in result["evidence"]
 
 
 def test_write_surface_fails_on_agents_md_edit_outside_managed_block(tmp_path):
@@ -1139,7 +1139,7 @@ def test_consolidation_safe_passes_on_legit_consolidation(tmp_path):
            ORIGINAL_AGENT_FILE)
     result = sc.check_consolidation_safe(ctx)
     assert result["status"] == "pass", result["evidence"]
-    assert "byte-identical" in result["evidence"]
+    assert "preserve the before-state" in result["evidence"]
 
 
 def test_consolidation_safe_fails_on_rewrite_without_archive(tmp_path):
@@ -1152,7 +1152,7 @@ def test_consolidation_safe_fails_on_rewrite_without_archive(tmp_path):
     assert "no archive copy" in result["evidence"]
 
 
-def test_consolidation_safe_fails_when_archive_is_not_byte_identical(tmp_path):
+def test_consolidation_safe_fails_when_archive_alters_original_content(tmp_path):
     ctx = _ctx(tmp_path, skill="pylgrim-map")
     _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
     _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
@@ -1160,7 +1160,7 @@ def test_consolidation_safe_fails_when_archive_is_not_byte_identical(tmp_path):
            ORIGINAL_AGENT_FILE.replace("never yarn", "prefer yarn"))
     result = sc.check_consolidation_safe(ctx)
     assert result["status"] == "fail"
-    assert "not byte-identical" in result["evidence"]
+    assert "does not preserve before-state" in result["evidence"]
 
 
 def test_consolidation_safe_fails_when_live_file_lacks_a_valid_block(tmp_path):
@@ -1172,3 +1172,41 @@ def test_consolidation_safe_fails_when_live_file_lacks_a_valid_block(tmp_path):
     result = sc.check_consolidation_safe(ctx)
     assert result["status"] == "fail"
     assert "valid managed block" in result["evidence"]
+
+
+def test_write_surface_allows_archive_carrying_the_exported_block(tmp_path):
+    # Live sonnet shape: export writes the managed block into the file, THEN
+    # consolidation archives it, so the archive is before-state plus the
+    # exporter-owned block. Hand-written content is preserved exactly.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
+    _write(ctx.workspace, ".pylgrim/archive/CLAUDE.md.2026-07-08.md",
+           ORIGINAL_AGENT_FILE + "\n" + MANAGED_BLOCK_ONLY)
+    result = sc.check_write_surface(ctx)
+    assert result["status"] == "pass", result["evidence"]
+
+
+def test_consolidation_safe_passes_when_archive_carries_the_exported_block(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md", ORIGINAL_AGENT_FILE)
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)
+    _write(ctx.workspace, ".pylgrim/archive/CLAUDE.md.2026-07-08.md",
+           ORIGINAL_AGENT_FILE + "\n" + MANAGED_BLOCK_ONLY)
+    result = sc.check_consolidation_safe(ctx)
+    assert result["status"] == "pass", result["evidence"]
+
+
+def test_conflict_surfaced_survives_consolidation(tmp_path):
+    # Consolidation rewrites CLAUDE.md and takes its planted marker with it;
+    # the pair must still be discoverable from the before snapshot.
+    ctx = _ctx(tmp_path, skill="pylgrim-map")
+    _write(ctx.before_dir, "CLAUDE.md",
+           "# Rules\n\n<!-- PYLGRIM-CONFLICT-01 -->\nAlways use npm; never yarn.\n")
+    _write(ctx.workspace, "CLAUDE.md", MANAGED_BLOCK_ONLY)  # marker consolidated away
+    _write(ctx.workspace, "GEMINI.md",
+           "# Gemini rules\n\n<!-- PYLGRIM-CONFLICT-01 -->\nUse yarn for all installs.\n")
+    _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-pkg.md",
+           CONFLICT_ENTRY.format(a="CLAUDE.md:4", b="GEMINI.md:4"))
+    result = sc.check_conflict_surfaced(ctx)
+    assert result["status"] == "pass", result["evidence"]
