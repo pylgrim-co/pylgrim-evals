@@ -134,3 +134,35 @@ def test_poisoned_v2_materializes_history_injection(tmp_path):
     assert build_zoo.V2_HISTORY_MARKER in subjects
     # Full verification passes: file markers present, history marker present.
     assert build_zoo.verify_poisoned_v2(dest) == []
+
+
+def test_multi_agent_files_conflict_markers_in_source_tree():
+    # Both planted conflicts have two harvestable sides, and the marker names
+    # match the ones the conflict_surfaced assertion scans for.
+    from harness.metrics import skill_checks
+
+    assert tuple(build_zoo.CONFLICT_MARKERS) == skill_checks.CONFLICT_MARKERS
+    assert build_zoo.verify_multi_agent_files(ZOO_DIR / "multi-agent-files") == []
+
+
+def test_multi_agent_files_has_five_agent_files_and_duplicates():
+    root = ZOO_DIR / "multi-agent-files"
+    for rel in ("CLAUDE.md", "AGENTS.md", "GEMINI.md",
+                ".cursor/rules/one.mdc", ".github/copilot-instructions.md"):
+        assert (root / rel).is_file(), rel
+    # Duplicate rule pair 1: src/gen is never edited (CLAUDE.md + AGENTS.md
+    # + copilot). Duplicate rule pair 2: config/app.json (CLAUDE.md + GEMINI.md).
+    for rel in ("CLAUDE.md", "AGENTS.md", ".github/copilot-instructions.md"):
+        assert "src/gen" in (root / rel).read_text(encoding="utf-8"), rel
+    for rel in ("CLAUDE.md", "GEMINI.md"):
+        assert "config/app.json" in (root / rel).read_text(encoding="utf-8"), rel
+    # Evidence targets exist so evidence_resolves has something to resolve.
+    for rel in ("src/gen/message-types.js", "src/db/repo.js",
+                "src/handlers/messages.js", "src/schemas.js", "config/app.json"):
+        assert (root / rel).is_file(), rel
+
+
+@pytest.mark.skipif(not _git_available(), reason="git not on PATH")
+def test_multi_agent_files_materializes_and_verifies(tmp_path):
+    dest = build_zoo.build_fixture("multi-agent-files", tmp_path)
+    assert build_zoo.verify_multi_agent_files(dest) == []

@@ -1,0 +1,8 @@
+---
+description: mailroom data-access rules
+globs: ["src/**"]
+---
+
+<!-- PYLGRIM-CONFLICT-02 --> Handlers may query the ORM directly; the repository layer in src/db/repo.js is deprecated and being removed.
+
+Every handler validates its input against the schemas in src/schemas.js before touching storage.

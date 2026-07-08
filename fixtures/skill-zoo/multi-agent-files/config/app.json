@@ -1,0 +1,6 @@
+{
+  "port": 8080,
+  "deliveryRetries": 3,
+  "backoffMs": 250,
+  "queue": "mailroom-main"
+}

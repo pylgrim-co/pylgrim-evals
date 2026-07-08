@@ -1,0 +1,14 @@
+{
+  "name": "mailroom",
+  "version": "0.3.1",
+  "private": true,
+  "scripts": {
+    "dev": "node src/index.js",
+    "test": "node --test tests/",
+    "codegen": "node tools/codegen.js schema/message.json -o src/gen/message-types.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "pg": "^8.12.0"
+  }
+}

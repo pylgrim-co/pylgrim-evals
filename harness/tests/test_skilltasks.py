@@ -72,7 +72,7 @@ def test_load_bad_card(tmp_path, field, value, fragment):
 def test_committed_cards_all_load():
     scenarios, errors = skilltasks.load_all(TASKS_SKILLS)
     assert errors == []
-    assert len(scenarios) == 21
+    assert len(scenarios) == 22
     skills = {s.skill for s in scenarios}
     assert skills == {"pylgrim-map", "pylgrim-plan", "pylgrim-decide"}
 
