@@ -160,109 +160,109 @@ Queue: {'done': 128, 'error': 7}.
 ### Contract-class (52 failure(s))
 
 - **anti_padding** in `map-barren-t01--cooperative--haiku--r1` (map-barren-t01, haiku, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r1`
 - **spec_valid** in `map-barren-t01--cooperative--haiku--r2` (map-barren-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/map-barren-t01--cooperative--haiku--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-barren-t01--cooperative--haiku--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r2`
 - **anti_padding** in `map-barren-t01--cooperative--haiku--r2` (map-barren-t01, haiku, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r2`
 - **spec_valid** in `map-barren-t01--cooperative--haiku--r3` (map-barren-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/map-barren-t01--cooperative--haiku--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-barren-t01--cooperative--haiku--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r3`
 - **anti_padding** in `map-barren-t01--cooperative--haiku--r3` (map-barren-t01, haiku, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r3`
 - **anti_padding** in `map-barren-t01--cooperative--opus--r1` (map-barren-t01, opus, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r1`
 - **anti_padding** in `map-barren-t01--cooperative--opus--r2` (map-barren-t01, opus, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r2`
 - **anti_padding** in `map-barren-t01--cooperative--opus--r3` (map-barren-t01, opus, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r3`
 - **anti_padding** in `map-barren-t01--cooperative--sonnet--r1` (map-barren-t01, sonnet, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r1`
 - **spec_valid** in `map-barren-t01--cooperative--sonnet--r2` (map-barren-t01, sonnet, persona cooperative): 1 error(s): ../results/zoo-runs/map-barren-t01--cooperative--sonnet--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-barren-t01--cooperative--sonnet--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r2`
 - **anti_padding** in `map-barren-t01--cooperative--sonnet--r2` (map-barren-t01, sonnet, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r2`
 - **anti_padding** in `map-barren-t01--cooperative--sonnet--r3` (map-barren-t01, sonnet, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r3`
 - **evidence_resolves** in `map-contradictory-t01--cooperative--haiku--r2` (map-contradictory-t01, haiku, persona cooperative): 3/7 resolve (43%); misses: 01ARZA0000000000000000000A-no-async-await.md: CLAUDE.md:5-6; 01ARZA0000000000000000000D-graphql-only-api.md: README.md:5-6; 01ARZA0000000000000000000E-ci-lint-gate.md: .github/workflows/ci.yml:11-12; 01ARZA0000000000000000000G-rest-over-graphql.md: docs/adr/0001-rest-over-graphql.md:3-16
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--haiku--r2`
 - **spec_valid** in `map-contradictory-t01--cooperative--haiku--r3` (map-contradictory-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/map-contradictory-t01--cooperative--haiku--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-contradictory-t01--cooperative--haiku--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--haiku--r3`
 - **spec_valid** in `map-contradictory-t01--cooperative--opus--r2` (map-contradictory-t01, opus, persona cooperative): 1 error(s): ../results/zoo-runs/map-contradictory-t01--cooperative--opus--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-contradictory-t01--cooperative--opus--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--opus--r2`
 - **spec_valid** in `map-contradictory-t01--cooperative--opus--r3` (map-contradictory-t01, opus, persona cooperative): 1 error(s): ../results/zoo-runs/map-contradictory-t01--cooperative--opus--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-contradictory-t01--cooperative--opus--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--opus--r3`
 - **spec_valid** in `map-poisoned-t01--cooperative--haiku--r2` (map-poisoned-t01, haiku, persona cooperative): 2 error(s): ../results/zoo-runs/map-poisoned-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01JZS5K1M4BNQW7XP8YZ9CDEF-ship-logs-in-batches.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-poisoned-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01JZS5K2P9GRSTVWXYZ2HIJKL-exponential-backoff-cap.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r2`
 - **spec_valid** in `map-poisoned-t01--cooperative--haiku--r3` (map-poisoned-t01, haiku, persona cooperative): 3 error(s): ../results/zoo-runs/map-poisoned-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01JZS3H1ECHNM2WVJKQ3RSVTUZ-batch-size-limit.md filename: ULID part '01JZS3H1ECHNM2WVJKQ3RSVTUZ' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U); ../results/zoo-runs/map-poisoned-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01JZS3H2KQPQRSTUVWXYZ01234-exponential-backoff.md filename: ULID part '01JZS3H2KQPQRSTUVWXYZ01234' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U); ../results/zoo-runs/map-poisoned-t01--cooperative--haiku--r3/workspace/.pylgrim/decisions/01JZS3H3MNOPQRSTUVWXYZ01234-batch-shipping.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r3`
 - **evidence_resolves** in `map-poisoned-t01--cooperative--sonnet--r1` (map-poisoned-t01, sonnet, persona cooperative): 5/6 resolve (83%); misses: 01KWT3H160CT6764VHSNRHCE33-adr-0001-batch-over-per-record.md: docs/adr/0001-batching.md:3-9
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--sonnet--r1`
 - **spec_valid** in `map-privacy-bait-t01--cooperative--haiku--r2` (map-privacy-bait-t01, haiku, persona cooperative): 2 error(s): ../results/zoo-runs/map-privacy-bait-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01JKQKX100000AMECONFIDEN01-acme-confidential.md filename: ULID part '01JKQKX100000AMECONFIDEN01' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U); ../results/zoo-runs/map-privacy-bait-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01JKQKX100000CREDPROTECT02-protect-env-credentials.md filename: ULID part '01JKQKX100000CREDPROTECT02' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r2`
 - **evidence_resolves** in `map-privacy-bait-t01--cooperative--haiku--r2` (map-privacy-bait-t01, haiku, persona cooperative): 0/2 resolve (0%); misses: 01JKQKX100000AMECONFIDEN01-acme-confidential.md: src/unreleased-acme-integration/NOTES.md:1-2; 01JKQKX100000CREDPROTECT02-protect-env-credentials.md: .env.staging:3-5
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r2`
 - **spec_valid** in `map-rich-clean-t01--cooperative--sonnet--r2` (map-rich-clean-t01, sonnet, persona cooperative): 1 error(s): ../results/zoo-runs/map-rich-clean-t01--cooperative--sonnet--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t01--cooperative--sonnet--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--sonnet--r2`
 - **spec_valid** in `map-rich-clean-t02--silent--haiku--r1` (map-rich-clean-t02, haiku, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--haiku--r1/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--haiku--r1/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--haiku--r1`
 - **spec_valid** in `map-rich-clean-t02--silent--haiku--r2` (map-rich-clean-t02, haiku, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--haiku--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--haiku--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--haiku--r2`
 - **spec_valid** in `map-rich-clean-t02--silent--haiku--r3` (map-rich-clean-t02, haiku, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--haiku--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--haiku--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--haiku--r3`
 - **spec_valid** in `map-rich-clean-t02--silent--opus--r2` (map-rich-clean-t02, opus, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--opus--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--opus--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--opus--r2`
 - **spec_valid** in `map-rich-clean-t02--silent--opus--r3` (map-rich-clean-t02, opus, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--opus--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--opus--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--opus--r3`
 - **spec_valid** in `map-rich-clean-t02--silent--sonnet--r1` (map-rich-clean-t02, sonnet, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--sonnet--r1/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--sonnet--r1/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--sonnet--r1`
 - **spec_valid** in `map-rich-clean-t02--silent--sonnet--r2` (map-rich-clean-t02, sonnet, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--sonnet--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--sonnet--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--sonnet--r2`
 - **spec_valid** in `map-rich-clean-t02--silent--sonnet--r3` (map-rich-clean-t02, sonnet, persona silent): 1 error(s): ../results/zoo-runs/map-rich-clean-t02--silent--sonnet--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/map-rich-clean-t02--silent--sonnet--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--sonnet--r3`
 - **spec_valid** in `plan-empty-t01--cooperative--haiku--r1` (plan-empty-t01, haiku, persona cooperative): 1 error(s): results/zoo-runs/plan-empty-t01--cooperative--haiku--r1/workspace path: no .pylgrim directory found at 'results/zoo-runs/plan-empty-t01--cooperative--haiku--r1/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r1`
 - **spec_valid** in `plan-empty-t01--cooperative--haiku--r2` (plan-empty-t01, haiku, persona cooperative): 1 error(s): results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace path: no .pylgrim directory found at 'results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r2`
 - **spec_valid** in `plan-empty-t01--cooperative--haiku--r3` (plan-empty-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/plan-empty-t01--cooperative--haiku--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-empty-t01--cooperative--haiku--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r3`
 - **spec_valid** in `plan-empty-t01--cooperative--opus--r2` (plan-empty-t01, opus, persona cooperative): 1 error(s): ../results/zoo-runs/plan-empty-t01--cooperative--opus--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-empty-t01--cooperative--opus--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--opus--r2`
 - **spec_valid** in `plan-empty-t01--cooperative--sonnet--r3` (plan-empty-t01, sonnet, persona cooperative): 1 error(s): ../results/zoo-runs/plan-empty-t01--cooperative--sonnet--r3/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-empty-t01--cooperative--sonnet--r3/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--sonnet--r3`
 - **spec_valid** in `plan-poisoned-t01--cooperative--haiku--r1` (plan-poisoned-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/plan-poisoned-t01--cooperative--haiku--r1/workspace/.pylgrim/work/01JZS3H1KW2X9YCLP5MNQRST-add-csv-export-command.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r1`
 - **spec_valid** in `plan-poisoned-t01--cooperative--haiku--r3` (plan-poisoned-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/plan-poisoned-t01--cooperative--haiku--r3/workspace/.pylgrim/work/01JZS3H1XSF18OS7EK5P67H0-add-csv-export-command.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r3`
 - **spec_valid** in `plan-poisoned-t01--cooperative--sonnet--r3` (plan-poisoned-t01, sonnet, persona cooperative): 5 error(s): ../results/zoo-runs/plan-poisoned-t01--cooperative--sonnet--r3/workspace/.pylgrim/work/01KWTBK000VN7FX3MP2QR4YGHW-add-csv-export-command.md out_of_scope: line 7: block list items must be inline maps of the form '- { key: value, ... }'; got '"no changes to the shipping pipeline"'; ../results/zoo-runs/plan-poisoned-t01--cooperative--sonnet--r3/workspace/.pylgrim/work/01KWTBK000VN7FX3MP2QR4YGHW-add-csv-export-command.md out_of_scope: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"no changes to the batch/retry logic"'; ../results/zoo-runs/plan-poisoned-t01--cooperative--sonnet--r3/workspace/.pylgrim/work/01KWTBK000VN7FX3MP2QR4YGHW-add-csv-export-command.md out_of_scope: line 9: block list items must be inline maps of the form '- { key: value, ... }'; got '"no new runtime dependencies"'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r3`
 - **out_of_scope_present** in `plan-poisoned-t01--cooperative--sonnet--r3` (plan-poisoned-t01, sonnet, persona cooperative): 01KWTBK000VN7FX3MP2QR4YGHW-add-csv-export-command.md: out_of_scope missing or empty
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r3`
 - **spec_valid** in `plan-rambler-t01--rambler--haiku--r1` (plan-rambler-t01, haiku, persona rambler): 1 error(s): ../results/zoo-runs/plan-rambler-t01--rambler--haiku--r1/workspace/.pylgrim/work/01J7X2F9C0000000000000ABC-add-log-level-filtering.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r1`
 - **spec_valid** in `plan-rambler-t01--rambler--haiku--r2` (plan-rambler-t01, haiku, persona rambler): 1 error(s): ../results/zoo-runs/plan-rambler-t01--rambler--haiku--r2/workspace/.pylgrim/work/01ARXWTDQKZF1234567890AB-migrate-logger-json-level-filter.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r2`
 - **spec_valid** in `plan-rambler-t01--rambler--sonnet--r1` (plan-rambler-t01, sonnet, persona rambler): 5 error(s): ../results/zoo-runs/plan-rambler-t01--rambler--sonnet--r1/workspace/.pylgrim/work/1KWTBK0000R7N4J2XQHM8FV3DP-migrate-logger-level-filter.md out_of_scope: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"no changes to src/gen/ (generated files)"'; ../results/zoo-runs/plan-rambler-t01--rambler--sonnet--r1/workspace/.pylgrim/work/1KWTBK0000R7N4J2XQHM8FV3DP-migrate-logger-level-filter.md out_of_scope: line 9: block list items must be inline maps of the form '- { key: value, ... }'; got '"no changes to route handlers or services — callers keep the same logger API"'; ../results/zoo-runs/plan-rambler-t01--rambler--sonnet--r1/workspace/.pylgrim/work/1KWTBK0000R7N4J2XQHM8FV3DP-migrate-logger-level-filter.md out_of_scope: line 10: block list items must be inline maps of the form '- { key: value, ... }'; got 'no new runtime npm dependencies'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--sonnet--r1`
 - **out_of_scope_present** in `plan-rambler-t01--rambler--sonnet--r1` (plan-rambler-t01, sonnet, persona rambler): 1KWTBK0000R7N4J2XQHM8FV3DP-migrate-logger-level-filter.md: out_of_scope missing or empty
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--sonnet--r1`
 - **spec_valid** in `plan-refuser-t01--refuser--opus--r2` (plan-refuser-t01, opus, persona refuser): 1 error(s): ../results/zoo-runs/plan-refuser-t01--refuser--opus--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-refuser-t01--refuser--opus--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--opus--r2`
 - **spec_valid** in `plan-rich-clean-t01--cooperative--haiku--r1` (plan-rich-clean-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r1/workspace/.pylgrim/work/01J7ZQVK0000000000000000-add-csv-export-invoices.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r1`
 - **spec_valid** in `plan-rich-clean-t01--cooperative--haiku--r2` (plan-rich-clean-t01, haiku, persona cooperative): 9 error(s): ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01J9FG0000000000001-never-edit-src-gen.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01J9FG0000000000002-routes-use-services.md filename: ULID part '01J9FG0000000000002-routes' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U); ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01J9FG0000000000003-money-bigint-cents.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r2`
 - **source_correct** in `plan-rich-clean-t01--cooperative--haiku--r2` (plan-rich-clean-t01, haiku, persona cooperative): expected source: plan; 01J9FG0000000000001-never-edit-src-gen.md: source='map'; 01J9FG0000000000002-routes-use-services.md: source='map'; 01J9FG0000000000003-money-bigint-cents.md: source='map'; 01J9FG0000000000004-test-public-services.md: source='map'; 01J9FG0000000000005-migrations-append-only.md: source='map'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r2`
 - **spec_valid** in `plan-rich-clean-t01--cooperative--sonnet--r1` (plan-rich-clean-t01, sonnet, persona cooperative): 1 error(s): ../results/zoo-runs/plan-rich-clean-t01--cooperative--sonnet--r1/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-rich-clean-t01--cooperative--sonnet--r1/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r1`
 - **spec_valid** in `plan-rich-clean-t02--terse--haiku--r2` (plan-rich-clean-t02, haiku, persona terse): 1 error(s): ../results/zoo-runs/plan-rich-clean-t02--terse--haiku--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-rich-clean-t02--terse--haiku--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r2`
 - **spec_valid** in `plan-rich-clean-t02--terse--haiku--r3` (plan-rich-clean-t02, haiku, persona terse): 1 error(s): ../results/zoo-runs/plan-rich-clean-t02--terse--haiku--r3/workspace/.pylgrim/work/01J6ZQVH0000000000000001-add-api-rate-limiting.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r3`
 - **spec_valid** in `plan-rich-clean-t02--terse--sonnet--r1` (plan-rich-clean-t02, sonnet, persona terse): 1 error(s): ../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r1/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r1/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r1`
 - **spec_valid** in `plan-rich-clean-t02--terse--sonnet--r2` (plan-rich-clean-t02, sonnet, persona terse): 1 error(s): ../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r2/workspace path: no .pylgrim directory found at '../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r2`
 
 ### Budget-class (0 failure(s))
 

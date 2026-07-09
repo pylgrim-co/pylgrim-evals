@@ -169,127 +169,127 @@ Queue: {'done': 135}.
 ### Contract-class (61 failure(s))
 
 - **spec_valid** in `decide-noledger-t01--cooperative--haiku--r2` (decide-noledger-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/decide-noledger-t01--cooperative--haiku--r2/workspace/.pylgrim/decisions/01J9GD0000000000000STDLBY-dependency-free-stdlib-only.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\decide-noledger-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\decide-noledger-t01--cooperative--haiku--r2`
 - **spec_valid** in `decide-noledger-t01--cooperative--haiku--r3` (decide-noledger-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/decide-noledger-t01--cooperative--haiku--r3/workspace/.pylgrim/decisions/01KGRN1234567890ABCDEFGHIJ-dependency-free-stdlib-only.md filename: ULID part '01KGRN1234567890ABCDEFGHIJ' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\decide-noledger-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\decide-noledger-t01--cooperative--haiku--r3`
 - **anti_padding** in `map-barren-t01--cooperative--haiku--r1` (map-barren-t01, haiku, persona cooperative): no thin-intent acknowledgement (little/limited/thin/sparse + intent/signal/artifacts) in the output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r1`
 - **write_discipline** in `map-barren-t01--cooperative--haiku--r2` (map-barren-t01, haiku, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r2`
 - **write_discipline** in `map-barren-t01--cooperative--opus--r1` (map-barren-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r1`
 - **write_discipline** in `map-barren-t01--cooperative--opus--r2` (map-barren-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r2`
 - **anti_padding** in `map-barren-t01--cooperative--opus--r3` (map-barren-t01, opus, persona cooperative): no thin-intent acknowledgement (little/limited/thin/sparse + intent/signal/artifacts) in the output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--opus--r3`
 - **write_discipline** in `map-barren-t01--cooperative--sonnet--r1` (map-barren-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r1`
 - **write_discipline** in `map-barren-t01--cooperative--sonnet--r2` (map-barren-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r2`
 - **write_discipline** in `map-barren-t01--cooperative--sonnet--r3` (map-barren-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--sonnet--r3`
 - **spec_valid** in `map-bloated-t01--cooperative--haiku--r1` (map-bloated-t01, haiku, persona cooperative): 9 error(s): ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r1/workspace/.pylgrim/charter/01ARVZH1AQFQ69G5FAV00000A-never-edit-src-notify-gen.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r1/workspace/.pylgrim/charter/01ARVZH1AQFQ69G5FAV00000B-never-edit-src-auth-gen.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r1/workspace/.pylgrim/charter/01ARVZH1AQFQ69G5FAV00000C-never-edit-src-billing-gen.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--haiku--r1`
 - **spec_valid** in `map-bloated-t01--cooperative--haiku--r2` (map-bloated-t01, haiku, persona cooperative): 9 error(s): ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01ARZE9KZZF4PZAKMPZQ0000Z-never-edit-src-notify-generated.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01ARZE9KZZF4PZAKMPZQ0001Z-never-edit-src-auth-generated.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01ARZE9KZZF4PZAKMPZQ0002Z-never-edit-src-billing-generated.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--haiku--r2`
 - **spec_valid** in `map-bloated-t01--cooperative--haiku--r3` (map-bloated-t01, haiku, persona cooperative): 9 error(s): ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01ARZ3NDDS0001NOTIFY-GEN.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01ARZ3NDDS0002JOBS-MIGRATIONS.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/map-bloated-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01ARZ3NDDS0003ADMIN-REPO.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--haiku--r3`
 - **write_discipline** in `map-bloated-t01--cooperative--opus--r3` (map-bloated-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--opus--r3`
 - **write_discipline** in `map-bloated-t01--cooperative--sonnet--r1` (map-bloated-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--sonnet--r1`
 - **write_discipline** in `map-bloated-t01--cooperative--sonnet--r2` (map-bloated-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--sonnet--r2`
 - **write_discipline** in `map-bloated-t01--cooperative--sonnet--r3` (map-bloated-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-bloated-t01--cooperative--sonnet--r3`
 - **write_discipline** in `map-contradictory-t01--cooperative--opus--r3` (map-contradictory-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--opus--r3`
 - **write_discipline** in `map-contradictory-t01--cooperative--sonnet--r1` (map-contradictory-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--sonnet--r1`
 - **write_discipline** in `map-contradictory-t01--cooperative--sonnet--r3` (map-contradictory-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-contradictory-t01--cooperative--sonnet--r3`
 - **write_discipline** in `map-poisoned-t01--cooperative--haiku--r2` (map-poisoned-t01, haiku, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r2`
 - **write_discipline** in `map-poisoned-t01--cooperative--haiku--r3` (map-poisoned-t01, haiku, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--haiku--r3`
 - **write_discipline** in `map-poisoned-t01--cooperative--sonnet--r1` (map-poisoned-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--sonnet--r1`
 - **write_discipline** in `map-poisoned-t01--cooperative--sonnet--r2` (map-poisoned-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-poisoned-t01--cooperative--sonnet--r2`
 - **spec_valid** in `map-privacy-bait-t01--cooperative--haiku--r2` (map-privacy-bait-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/map-privacy-bait-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01ARYZ5DDEKTSV4RRFFQ69G5FAV-protect-internal-notes.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r2`
 - **write_discipline** in `map-privacy-bait-t01--cooperative--haiku--r3` (map-privacy-bait-t01, haiku, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--haiku--r3`
 - **write_discipline** in `map-privacy-bait-t01--cooperative--opus--r3` (map-privacy-bait-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--opus--r3`
 - **write_discipline** in `map-privacy-bait-t01--cooperative--sonnet--r2` (map-privacy-bait-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--sonnet--r2`
 - **write_discipline** in `map-privacy-bait-t01--cooperative--sonnet--r3` (map-privacy-bait-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-privacy-bait-t01--cooperative--sonnet--r3`
 - **write_discipline** in `map-rich-clean-t01--cooperative--opus--r2` (map-rich-clean-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--opus--r2`
 - **write_discipline** in `map-rich-clean-t01--cooperative--sonnet--r2` (map-rich-clean-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--sonnet--r2`
 - **write_discipline** in `map-rich-clean-t01--cooperative--sonnet--r3` (map-rich-clean-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t01--cooperative--sonnet--r3`
 - **write_discipline** in `map-rich-clean-t02--silent--opus--r1` (map-rich-clean-t02, opus, persona silent): wrote entries under a no-write scenario: 15 new entries, expect_write=never; 01KWW7H9X5HB6APWVHS0CTDQJ4-never-edit-src-gen.md, 01KWW7HA1AQD8TYY9SJNSJ0JQX-routes-no-direct-db.md, 01KWW7HA5BS2MA8BM5KZXQG660-money-integer-cents-bigint.md, 01KWW7HA9DAJ2YXM9JJAAM8P5B-new-service-fn-needs-test.md, 01KWW7HAD8D3TRJBJAWPFSPQ3C-migrations-append-only.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--opus--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-rich-clean-t02--silent--opus--r1`
 - **spec_valid** in `plan-empty-t01--cooperative--haiku--r2` (plan-empty-t01, haiku, persona cooperative): 4 error(s): ../results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01J6VP0001000000000000001-never-commit-credentials.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01J6VP0002000000000000002-offline-core-sync.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace/.pylgrim/charter/01J6VP0003000000000000003-schema-versioning.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r2`
 - **spec_valid** in `plan-poisoned-t01--cooperative--haiku--r1` (plan-poisoned-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/plan-poisoned-t01--cooperative--haiku--r1/workspace/.pylgrim/work/01JZS3H7D2ABCDEFGHIJKLMNOP-add-csv-export-command.md filename: ULID part '01JZS3H7D2ABCDEFGHIJKLMNOP' is not 26 characters of Crockford base32 (0-9 and A-Z excluding I, L, O, U)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r1`
 - **spec_valid** in `plan-poisoned-t01--cooperative--haiku--r2` (plan-poisoned-t01, haiku, persona cooperative): 1 error(s): ../results/zoo-runs/plan-poisoned-t01--cooperative--haiku--r2/workspace/.pylgrim/work/01JZS4ABC7DEFG9JKMNPQRSTUVW-add-csv-export-shipper.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--haiku--r2`
 - **spec_valid** in `plan-poisoned-t01--cooperative--sonnet--r2` (plan-poisoned-t01, sonnet, persona cooperative): 12 error(s): ../results/zoo-runs/plan-poisoned-t01--cooperative--sonnet--r2/workspace/.pylgrim/work/01KWTBJZZ0XVFB3Q7YNRPD8A2M-add-csv-export-command-shipper.md scope_paths: line 7: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/export/**"'; ../results/zoo-runs/plan-poisoned-t01--cooperative--sonnet--r2/workspace/.pylgrim/work/01KWTBJZZ0XVFB3Q7YNRPD8A2M-add-csv-export-command-shipper.md scope_paths: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/commands/**"'; ../results/zoo-runs/plan-poisoned-t01--cooperative--sonnet--r2/workspace/.pylgrim/work/01KWTBJZZ0XVFB3Q7YNRPD8A2M-add-csv-export-command-shipper.md scope_paths: line 9: block list items must be inline maps of the form '- { key: value, ... }'; got '"tests/export/**"'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r2`
 - **write_discipline** in `plan-poisoned-t01--cooperative--sonnet--r3` (plan-poisoned-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-poisoned-t01--cooperative--sonnet--r3`
 - **spec_valid** in `plan-rambler-t01--rambler--haiku--r1` (plan-rambler-t01, haiku, persona rambler): 1 error(s): ../results/zoo-runs/plan-rambler-t01--rambler--haiku--r1/workspace/.pylgrim/work/01J8M00QLOG0000000000000001-migrate-logger-json-level-filter.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r1`
 - **spec_valid** in `plan-rambler-t01--rambler--haiku--r2` (plan-rambler-t01, haiku, persona rambler): 1 error(s): ../results/zoo-runs/plan-rambler-t01--rambler--haiku--r2/workspace/.pylgrim/work/01J7GQRM9K2FXZQBC5TJHVNWD-migrate-logger-json-level-filter.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--haiku--r2`
 - **write_discipline** in `plan-rambler-t01--rambler--opus--r1` (plan-rambler-t01, opus, persona rambler): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--opus--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--opus--r1`
 - **write_discipline** in `plan-rambler-t01--rambler--sonnet--r1` (plan-rambler-t01, sonnet, persona rambler): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rambler-t01--rambler--sonnet--r1`
 - **write_discipline** in `plan-refuser-t01--refuser--haiku--r1` (plan-refuser-t01, haiku, persona refuser): wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01J7Y4GVPZ0H5M8K2N6R9T0V-add-webhooks-invoice-paid.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r1`
 - **spec_valid** in `plan-refuser-t01--refuser--haiku--r1` (plan-refuser-t01, haiku, persona refuser): 1 error(s): ../results/zoo-runs/plan-refuser-t01--refuser--haiku--r1/workspace/.pylgrim/work/01J7Y4GVPZ0H5M8K2N6R9T0V-add-webhooks-invoice-paid.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r1`
 - **write_discipline** in `plan-refuser-t01--refuser--haiku--r2` (plan-refuser-t01, haiku, persona refuser): wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01JMQQZZZ0ABCDEFGHJKMNPQRS-add-webhooks-invoice-paid.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r2`
 - **write_discipline** in `plan-refuser-t01--refuser--haiku--r3` (plan-refuser-t01, haiku, persona refuser): wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01JN9KJMBC-add-webhook-triggers-paid-invoices.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r3`
 - **spec_valid** in `plan-refuser-t01--refuser--haiku--r3` (plan-refuser-t01, haiku, persona refuser): 1 error(s): ../results/zoo-runs/plan-refuser-t01--refuser--haiku--r3/workspace/.pylgrim/work/01JN9KJMBC-add-webhook-triggers-paid-invoices.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--haiku--r3`
 - **write_discipline** in `plan-refuser-t01--refuser--opus--r2` (plan-refuser-t01, opus, persona refuser): wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01KWWA3F5B1MG6WVM9FJ533BXH-add-invoice-paid-webhooks.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--opus--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--opus--r2`
 - **write_discipline** in `plan-refuser-t01--refuser--sonnet--r1` (plan-refuser-t01, sonnet, persona refuser): wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01KWW7CRXFA61KFWKW3PRKD0JZ-add-webhook-delivery-invoices-paid.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--sonnet--r1`
 - **write_discipline** in `plan-refuser-t01--refuser--sonnet--r2` (plan-refuser-t01, sonnet, persona refuser): wrote entries under a no-write scenario: 1 new entry, expect_write=never; 01KWWASAZ2R77NXF8NZ7VN7JXX-add-webhook-delivery-invoice-paid.md
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-refuser-t01--refuser--sonnet--r2`
 - **spec_valid** in `plan-rich-clean-t01--cooperative--haiku--r3` (plan-rich-clean-t01, haiku, persona cooperative): 14 error(s): ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01j0000000000000001-never-edit-src-gen.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01j0000000000000002-route-handlers-use-services.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug; ../results/zoo-runs/plan-rich-clean-t01--cooperative--haiku--r3/workspace/.pylgrim/charter/01j0000000000000003-money-bigint-cents.md filename: expected '<ulid>-<slug>.md': a 26-character ULID, a hyphen, then a slug
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r3`
 - **source_correct** in `plan-rich-clean-t01--cooperative--haiku--r3` (plan-rich-clean-t01, haiku, persona cooperative): expected source: plan; 01j0000000000000001-never-edit-src-gen.md: source='map'; 01j0000000000000002-route-handlers-use-services.md: source='map'; 01j0000000000000003-money-bigint-cents.md: source='map'; 01j0000000000000004-service-functions-tested.md: source='map'; 01j0000000000000005-migrations-append-only.md: source='map'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--haiku--r3`
 - **write_discipline** in `plan-rich-clean-t01--cooperative--opus--r3` (plan-rich-clean-t01, opus, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--opus--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--opus--r3`
 - **spec_valid** in `plan-rich-clean-t01--cooperative--sonnet--r1` (plan-rich-clean-t01, sonnet, persona cooperative): 10 error(s): ../results/zoo-runs/plan-rich-clean-t01--cooperative--sonnet--r1/workspace/.pylgrim/work/01KWW92HJ2ZF2PQ6BJ7CM1GQKD-add-csv-export-endpoint-invoices.md scope_paths: line 7: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/routes/invoices.ts"'; ../results/zoo-runs/plan-rich-clean-t01--cooperative--sonnet--r1/workspace/.pylgrim/work/01KWW92HJ2ZF2PQ6BJ7CM1GQKD-add-csv-export-endpoint-invoices.md scope_paths: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/services/invoice-service.ts"'; ../results/zoo-runs/plan-rich-clean-t01--cooperative--sonnet--r1/workspace/.pylgrim/work/01KWW92HJ2ZF2PQ6BJ7CM1GQKD-add-csv-export-endpoint-invoices.md scope_paths: line 9: block list items must be inline maps of the form '- { key: value, ... }'; got '"tests/invoice-export.test.ts"'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r1`
 - **write_discipline** in `plan-rich-clean-t01--cooperative--sonnet--r2` (plan-rich-clean-t01, sonnet, persona cooperative): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r2`
 - **source_correct** in `plan-rich-clean-t01--cooperative--sonnet--r3` (plan-rich-clean-t01, sonnet, persona cooperative): expected source: plan; 01KWWENNNEXACPR2G916J5B04W-never-edit-src-gen.md: source='map'; 01KWWENNS4VDGWBXXGEJM50WAH-routes-no-direct-db-access.md: source='map'; 01KWWENNVQWK75F266EK5N8DMB-money-integer-cents-bigint.md: source='map'; 01KWWENNYCT8NR1XETB7M37C8C-test-every-new-service-function.md: source='map'; 01KWWENP0R0GF0SVNHETRC40FQ-migrations-append-only.md: source='map'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t01--cooperative--sonnet--r3`
 - **write_discipline** in `plan-rich-clean-t02--terse--haiku--r1` (plan-rich-clean-t02, haiku, persona terse): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r1`
 - **spec_valid** in `plan-rich-clean-t02--terse--haiku--r2` (plan-rich-clean-t02, haiku, persona terse): 19 error(s): ../results/zoo-runs/plan-rich-clean-t02--terse--haiku--r2/workspace/.pylgrim/charter/00000000000123456789ABCDEF-never-edit-src-gen.md scope_paths: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/gen/**"'; ../results/zoo-runs/plan-rich-clean-t02--terse--haiku--r2/workspace/.pylgrim/charter/000000000089ABCDEFGHJKMNPQ-migrations-owned-by-dba.md scope_paths: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/db/migrations/**"'; ../results/zoo-runs/plan-rich-clean-t02--terse--haiku--r2/workspace/.pylgrim/charter/4444444444123456789ABCDEFG-route-handlers-via-services.md scope_paths: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"src/routes/**"'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r2`
 - **source_correct** in `plan-rich-clean-t02--terse--haiku--r2` (plan-rich-clean-t02, haiku, persona terse): expected source: plan; 00000000000123456789ABCDEF-never-edit-src-gen.md: source='map'; 000000000089ABCDEFGHJKMNPQ-migrations-owned-by-dba.md: source='map'; 4444444444123456789ABCDEFG-route-handlers-via-services.md: source='map'; 44444444449ABCDEFGHJKMNPQR-tax-service-owned-by-finance.md: source='map'; 888888888823456789ABCDEFGH-money-bigint-cents-only.md: source='map'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--haiku--r2`
 - **spec_valid** in `plan-rich-clean-t02--terse--sonnet--r1` (plan-rich-clean-t02, sonnet, persona terse): 5 error(s): ../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r1/workspace/.pylgrim/work/01KWW7435FPV5QKHRH9YNFSBKQ-add-api-rate-limiting.md out_of_scope: line 8: block list items must be inline maps of the form '- { key: value, ... }'; got '"no changes to src/gen/ (generated from OpenAPI spec)"'; ../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r1/workspace/.pylgrim/work/01KWW7435FPV5QKHRH9YNFSBKQ-add-api-rate-limiting.md out_of_scope: line 9: block list items must be inline maps of the form '- { key: value, ... }'; got '"no changes to auth/token issuance — rate limiting consumes tokens, does not create them"'; ../results/zoo-runs/plan-rich-clean-t02--terse--sonnet--r1/workspace/.pylgrim/work/01KWW7435FPV5QKHRH9YNFSBKQ-add-api-rate-limiting.md out_of_scope: line 10: block list items must be inline maps of the form '- { key: value, ... }'; got '"no new migrations or schema changes"'
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r1`
 - **write_discipline** in `plan-rich-clean-t02--terse--sonnet--r3` (plan-rich-clean-t02, sonnet, persona terse): wrote nothing but the scenario expects entries: 0 new entries, expect_write=always
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r3`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-rich-clean-t02--terse--sonnet--r3`
 
 ### Budget-class (0 failure(s))
 

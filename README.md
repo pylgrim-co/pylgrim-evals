@@ -95,7 +95,7 @@ queue's `meta` table at plan time).
   set (parsed from the error if possible, else now + 60 min) and the attempt
   counter is not consumed.
 - Suggested cadence on Windows: a Task Scheduler job running hourly, e.g.
-  `uv run harness run --root C:\Dev\pylgrim-evals --batch 3`. Idle invocations
+  `uv run harness run --root C:\Dev\pylgrim-master\pylgrim-evals --batch 3`. Idle invocations
   are free: if everything is gated or done, the command exits immediately.
 - The schedule is blocked by rep: all rep-1 runs (shuffled across cells) come
   before any rep-2 run, so a truncated study is still balanced across cells.

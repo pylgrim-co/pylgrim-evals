@@ -28,7 +28,7 @@ from harness import transcripts as transcripts_mod
 from harness.metrics import skill_checks
 from harness.skilltasks import SkillScenario
 
-DEFAULT_SKILLS_SOURCE = Path(r"C:\Dev\pylgrim-repo\skills")
+DEFAULT_SKILLS_SOURCE = Path(r"C:\Dev\pylgrim-master\pylgrim-repo\skills")
 DEFAULT_TURN_TIMEOUT_S = 20 * 60
 
 # Snapshot surface: everything the tighten-only / never-touch-ratified /

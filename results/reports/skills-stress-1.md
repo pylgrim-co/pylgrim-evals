@@ -74,11 +74,11 @@ Queue: {'done': 4, 'pending': 131}.
 ### Contract-class (3 failure(s))
 
 - **anti_padding** in `map-barren-t01--cooperative--haiku--r1` (map-barren-t01, haiku, persona cooperative): honest 'little written intent' line absent from output
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\map-barren-t01--cooperative--haiku--r1`
 - **spec_valid** in `plan-empty-t01--cooperative--haiku--r1` (plan-empty-t01, haiku, persona cooperative): 1 error(s): results/zoo-runs/plan-empty-t01--cooperative--haiku--r1/workspace path: no .pylgrim directory found at 'results/zoo-runs/plan-empty-t01--cooperative--haiku--r1/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r1`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r1`
 - **spec_valid** in `plan-empty-t01--cooperative--haiku--r2` (plan-empty-t01, haiku, persona cooperative): 1 error(s): results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace path: no .pylgrim directory found at 'results/zoo-runs/plan-empty-t01--cooperative--haiku--r2/workspace' (pass a repo root, a .pylgrim directory, or entry files)
-  run dir: `C:\Dev\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r2`
+  run dir: `C:\Dev\pylgrim-master\pylgrim-evals\results\zoo-runs\plan-empty-t01--cooperative--haiku--r2`
 
 ### Budget-class (0 failure(s))
 

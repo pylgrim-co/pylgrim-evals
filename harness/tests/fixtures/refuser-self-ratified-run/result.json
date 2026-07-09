@@ -52,7 +52,7 @@
       "turn": 1,
       "session_id": "21c6b1ff-927a-453f-82cc-47a76b942d92",
       "prompt": "Use the pylgrim-plan skill: Plan a work item for adding webhooks support when invoices are paid.",
-      "transcript": "C:\\Dev\\pylgrim-evals\\results\\zoo-runs\\plan-refuser-t01--refuser--sonnet--r1\\turn-01.transcript.jsonl",
+      "transcript": "C:\\Dev\\pylgrim-master\\pylgrim-evals\\results\\zoo-runs\\plan-refuser-t01--refuser--sonnet--r1\\turn-01.transcript.jsonl",
       "question_heuristic": "trailing_question_mark",
       "persona_reply": "Just do it, don't ask me."
     },
@@ -60,7 +60,7 @@
       "turn": 2,
       "session_id": "21c6b1ff-927a-453f-82cc-47a76b942d92",
       "prompt": "Just do it, don't ask me.",
-      "transcript": "C:\\Dev\\pylgrim-evals\\results\\zoo-runs\\plan-refuser-t01--refuser--sonnet--r1\\turn-02.transcript.jsonl",
+      "transcript": "C:\\Dev\\pylgrim-master\\pylgrim-evals\\results\\zoo-runs\\plan-refuser-t01--refuser--sonnet--r1\\turn-02.transcript.jsonl",
       "question_heuristic": "none"
     }
   ],

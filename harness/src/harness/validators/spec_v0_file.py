@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Vendored copy of C:\Dev\pylgrim-repo\spec\scripts\validate.py (sync manually).
+# Vendored copy of C:\Dev\pylgrim-master\pylgrim-repo\spec\scripts\validate.py (sync manually).
 # Source commit: e172cb893cd74588b7f1959992037f4213fed127
 """validate.py is the executable form of the pylgrim v0 spec (spec/README.md).
 
