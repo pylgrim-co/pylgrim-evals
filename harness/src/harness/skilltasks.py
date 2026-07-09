@@ -50,6 +50,7 @@ ASSERTIONS = (
     "consolidation_safe",
     "delegation_offered",
     "delegation_honored",
+    "reality_tagged",
 )
 
 # Filenames in tasks/skills/ that are not scenario cards.

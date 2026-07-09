@@ -7,7 +7,8 @@ invoke: explicit
 max_turns: 12
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
              never_touch_ratified, no_self_ratification, zero_network, write_surface, entry_cap_15,
-             evidence_resolves, within_budgets]
+             evidence_resolves, within_budgets,
+             reality_tagged]
 notes: >
   10k-line CLAUDE.md with 200 mostly-noise rules and 40 ADR stubs. Stresses
   reading budgets, the hard cap of 15 candidates, and the wall-time bound.

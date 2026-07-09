@@ -9,7 +9,8 @@ reps: 3
 expect_write: always
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
              never_touch_ratified, no_self_ratification, zero_network, write_surface, entry_cap_15,
-             evidence_resolves, within_budgets]
+             evidence_resolves, within_budgets,
+             reality_tagged]
 notes: >
   Scope-floor coverage: the pre-existing ratified delegation entry covers work
   items and decisions, NEVER charter constraints. With a persona that never

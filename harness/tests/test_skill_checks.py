@@ -1441,3 +1441,64 @@ def test_conflict_surfaced_survives_consolidation(tmp_path):
            CONFLICT_ENTRY.format(a="CLAUDE.md:4", b="GEMINI.md:4"))
     result = sc.check_conflict_surfaced(ctx)
     assert result["status"] == "pass", result["evidence"]
+
+
+# ------------------------------------------------------------- reality_tagged
+
+RATIFY_TABLE_LABELED = """Proposed constraints:
+
+#  candidate                                mode     evidence             reality
+1  Never edit src/gen/; regenerate instead  observe  CLAUDE.md:12         followed
+2  No direct DB access from handlers        observe  docs/adr/001.md:9    contradicted (src/api/users.ts)
+3  CI already gates typecheck; noted only   observe  ci.yml:31            not checked
+
+Reply per line with accept, edit, reject, or defer.
+"""
+
+RATIFY_TABLE_MISSING_LABEL = """Proposed constraints:
+
+| # | candidate | mode | evidence | reality |
+|---|---|---|---|---|
+| 1 | Never edit src/gen/ | observe | CLAUDE.md:12 | followed |
+| 2 | No direct DB access from handlers | observe | docs/adr/001.md:9 | |
+
+Reply per line with accept, edit, reject, or defer.
+"""
+
+
+def test_reality_tagged_pass_from_synthetic_transcript(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="rich-clean")
+    transcript = _transcript(tmp_path / "t1.jsonl",
+                             [{"type": "text", "text": RATIFY_TABLE_LABELED}])
+    ctx.transcript_paths = [transcript]
+    result = sc.check_reality_tagged(ctx)
+    assert result["status"] == "pass", result["evidence"]
+    assert "3 candidate row(s)" in result["evidence"]
+    assert "contradicted=1" in result["evidence"]
+
+
+def test_reality_tagged_fails_on_a_missing_label(tmp_path):
+    # Deliberate failure: a markdown-table candidate row with no reality label.
+    ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="rich-clean",
+               final_texts=[RATIFY_TABLE_MISSING_LABEL])
+    result = sc.check_reality_tagged(ctx)
+    assert result["status"] == "fail"
+    assert "missing a reality label" in result["evidence"]
+    assert "1/2" in result["evidence"]
+
+
+def test_reality_tagged_fails_on_multiple_labels(tmp_path):
+    text = RATIFY_TABLE_LABELED.replace("not checked", "followed, not checked")
+    ctx = _ctx(tmp_path, skill="pylgrim-map", final_texts=[text])
+    result = sc.check_reality_tagged(ctx)
+    assert result["status"] == "fail"
+    assert "multiple labels" in result["evidence"]
+
+
+def test_reality_tagged_na_outside_map_and_without_a_table(tmp_path):
+    assert sc.check_reality_tagged(_ctx(tmp_path))["status"] == "na"
+    ctx = _ctx(tmp_path, skill="pylgrim-map",
+               final_texts=["All entries stay mode: observe, source: map."])
+    result = sc.check_reality_tagged(ctx)
+    assert result["status"] == "na"
+    assert "no ratification-table" in result["evidence"]

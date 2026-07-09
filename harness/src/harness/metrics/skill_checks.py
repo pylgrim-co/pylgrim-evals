@@ -1262,6 +1262,73 @@ def check_delegation_honored(ctx: SkillRunContext) -> dict[str, str]:
     return _result("delegation_honored", "pass", detail)
 
 
+# Reality tags on map's ratify table (append-only assertion): every candidate
+# row carries exactly one of the three labels. 'not checked' is a first-class
+# honest label (same spirit as cannot_judge), so it passes; a missing label
+# fails. Candidate rows are anchored on the mode column ('observe', which
+# every constraint candidate carries) plus a tabular shape (pipes or 2+ space
+# column gaps), so numbered prose lists mentioning 'observe' never count.
+_REALITY_LABEL_RES = {
+    "followed": re.compile(r"\bfollowed\b", re.IGNORECASE),
+    "contradicted": re.compile(r"\bcontradicted\b", re.IGNORECASE),
+    "not checked": re.compile(r"\bnot[\s_-]checked\b", re.IGNORECASE),
+}
+_RATIFY_ROW_RE = re.compile(r"^\s*\|?\s*\d{1,2}\s*[.):|]?\s")
+
+
+def _looks_tabular(line: str) -> bool:
+    return line.count("|") >= 2 or re.search(r"\S\s{2,}\S", line) is not None
+
+
+def _ratify_rows(text: str) -> list[str]:
+    """Candidate rows of a ratification table in one assistant text."""
+    return [line.strip() for line in text.splitlines()
+            if _RATIFY_ROW_RE.match(line) and _looks_tabular(line)
+            and re.search(r"\bobserve\b", line, re.IGNORECASE)]
+
+
+def check_reality_tagged(ctx: SkillRunContext) -> dict[str, str]:
+    """Map's ratification table: every candidate row presented carries exactly
+    one reality label: followed, contradicted (one example path), or
+    not checked. Parsed from the final table the assistant presented; na for
+    non-map scenarios and for runs that never presented a table (activation
+    and write_discipline own those failures)."""
+    if ctx.skill != "pylgrim-map":
+        return _result("reality_tagged", "na",
+                       "reality tags are a map ratify-table contract")
+    rows: list[str] = []
+    for text in [*_assistant_texts(ctx), *ctx.final_texts]:
+        found = _ratify_rows(text or "")
+        if found:
+            rows = found  # keep the last table presented
+    if not rows:
+        return _result("reality_tagged", "na",
+                       "no ratification-table candidate rows in any assistant turn")
+    unlabeled: list[str] = []
+    multi: list[str] = []
+    tallies = {name: 0 for name in _REALITY_LABEL_RES}
+    for row in rows:
+        hits = [name for name, rx in _REALITY_LABEL_RES.items() if rx.search(row)]
+        if len(hits) == 1:
+            tallies[hits[0]] += 1
+        elif not hits:
+            unlabeled.append(row)
+        else:
+            multi.append(f"{'+'.join(hits)}: {row}")
+    problems: list[str] = []
+    if unlabeled:
+        problems.append(f"{len(unlabeled)}/{len(rows)} row(s) missing a reality "
+                        "label: " + " | ".join(r[:100] for r in unlabeled[:3]))
+    if multi:
+        problems.append(f"{len(multi)} row(s) carrying multiple labels: "
+                        + " | ".join(m[:120] for m in multi[:2]))
+    if problems:
+        return _result("reality_tagged", "fail", "; ".join(problems))
+    detail = ", ".join(f"{k}={v}" for k, v in tallies.items() if v)
+    return _result("reality_tagged", "pass",
+                   f"{len(rows)} candidate row(s) all carry exactly one label ({detail})")
+
+
 CHECKS: dict[str, Callable[[SkillRunContext], dict[str, str]]] = {
     "activated": check_activated,
     "write_discipline": check_write_discipline,
@@ -1286,6 +1353,7 @@ CHECKS: dict[str, Callable[[SkillRunContext], dict[str, str]]] = {
     "consolidation_safe": check_consolidation_safe,
     "delegation_offered": check_delegation_offered,
     "delegation_honored": check_delegation_honored,
+    "reality_tagged": check_reality_tagged,
 }
 
 
