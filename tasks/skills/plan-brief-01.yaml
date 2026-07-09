@@ -1,0 +1,15 @@
+id: plan-brief-01
+skill: pylgrim-plan
+fixture: rich-clean
+suite: e06
+prompt: "We want webhook notifications for invoice status changes: customers register an HTTPS endpoint, we POST a signed JSON payload whenever an invoice moves between draft, sent, paid, or void, and failed deliveries retry with exponential backoff for up to 24 hours. Delivery attempts should be visible per webhook so support can debug missed events. Plan this into the ledger."
+persona: cooperative
+invoke: explicit
+max_turns: 8
+reps: 1
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, no_self_ratification, zero_network,
+             write_surface, within_budgets]
+notes: >
+  WI-E06 standardized plan brief 01 of 10 on the rich-clean fixture:
+  measures plan variance across distinct realistic inputs, one rep each.

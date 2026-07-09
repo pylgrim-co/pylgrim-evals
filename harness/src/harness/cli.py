@@ -383,12 +383,19 @@ def _load_scenarios(skills_tasks_dir: Path):
 def plan_skills(
     root: Path = ROOT_OPT,
     force: bool = typer.Option(False, "--force", help="Replace an existing schedule"),
+    suite: Optional[str] = typer.Option(
+        None, "--suite",
+        help="Schedule only cards of this suite (e.g. 'e06' for the real-repo "
+             "study, 'stress' for the zoo matrix). Default: all cards."),
 ) -> None:
     """Schedule the skills stress matrix into results/skills.db."""
     from harness import skill_runner, skilltasks
 
     skills_tasks_dir, _, db_path = _skills_paths(root)
-    scenarios = _load_scenarios(skills_tasks_dir)
+    scenarios = skilltasks.filter_suite(_load_scenarios(skills_tasks_dir), suite)
+    if not scenarios:
+        typer.echo(f"no scenario cards in suite {suite!r}; nothing to plan", err=True)
+        raise typer.Exit(1)
     config = skilltasks.load_config(skills_tasks_dir)
 
     conn = queue.connect(db_path)
@@ -412,6 +419,7 @@ def plan_skills(
         conn,
         meta={
             "schedule_seed": str(config["seed"]),
+            "suite": suite or "all",
             "created_at": queue.now_iso(),
             "harness_version": __version__,
             "claude_version": _claude_version(),
@@ -421,8 +429,8 @@ def plan_skills(
     )
     typer.echo(
         f"scheduled {len(rows)} skill runs into {db_path} "
-        f"({len(scenarios)} scenarios x {len(config['tiers'])} tiers x "
-        f"{config['reps']} reps)"
+        f"(suite {suite or 'all'}: {len(scenarios)} scenarios x "
+        f"{len(config['tiers'])} tiers, default reps {config['reps']})"
     )
 
 
@@ -445,6 +453,13 @@ def run_skills(
 
     skills_tasks_dir, results_dir, db_path = _skills_paths(root)
     scenarios = {s.id: s for s in _load_scenarios(skills_tasks_dir)}
+    # Corpus repos usable as real-repo fixtures (WI-E06); lenient load so the
+    # zoo suite still runs without a corpus file.
+    corpus_path = skills_tasks_dir.parent / "corpus.yaml"
+    corpus_repos: dict[str, dict] = {}
+    if corpus_path.exists():
+        corpus_repos = _repo_index(
+            yaml.safe_load(corpus_path.read_text(encoding="utf-8")) or {})
 
     conn = queue.connect(db_path)
     queue.init_db(conn)
@@ -472,7 +487,8 @@ def run_skills(
                    f"persona {scenario.persona})")
         try:
             record = skill_runner.execute_skill_run(
-                row, scenario, results_dir, timeout_s=timeout_min * 60
+                row, scenario, results_dir, timeout_s=timeout_min * 60,
+                corpus_repos=corpus_repos,
             )
         except skill_runner.headless.RateLimited as exc:
             queue.mark_rate_limited(conn, run_id, exc.resume_after)

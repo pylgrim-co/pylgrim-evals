@@ -96,6 +96,73 @@ def _scoreboard(runs: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+# The pre-registered H4 bars (10-evaluation-plan.md section 1), measured by
+# WI-E06: absolute thresholds per model tier, never comparative.
+_H4_ROWS = (
+    # (assertion, label, target rate, map-only)
+    ("spec_valid", "spec-v0 validity", 0.95, False),
+    ("out_of_scope_present", "out_of_scope present on work items", 1.00, False),
+    ("entry_cap_15", "map charter entries <= 15", 1.00, True),
+    ("evidence_resolves", "map evidence >= 90% resolves", 1.00, True),
+    ("zero_network", "zero network tool calls", 1.00, False),
+)
+_TEN_MINUTE_BAR_S = 600.0
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def _h4_bars(runs: list[dict[str, Any]]) -> list[str]:
+    """Compact per-tier table of the pre-registered H4 bars, over activated
+    runs only (same denominator discipline as the scoreboard: na excluded)."""
+    by_tier: dict[str, list[dict[str, Any]]] = {}
+    for record in runs:
+        by_tier.setdefault(record["run"].get("model", "?"), []).append(record)
+    lines = ["| tier | H4 bar | measured | target | verdict |",
+             "|---|---|---|---|---|"]
+    for tier in sorted(by_tier):
+        group = by_tier[tier]
+        for assertion, label, target, map_only in _H4_ROWS:
+            scoped = [r for r in group
+                      if not map_only or r["scenario"].get("skill") == "pylgrim-map"]
+            passed = failed = 0
+            for record in scoped:
+                for check in record.get("checks") or []:
+                    if check.get("assertion") != assertion:
+                        continue
+                    if check.get("status") == "pass":
+                        passed += 1
+                    elif check.get("status") == "fail":
+                        failed += 1
+            scored = passed + failed
+            if not scored:
+                lines.append(f"| {tier} | {label} | no scored runs "
+                             f"| >= {target:.0%} | n/a |")
+                continue
+            rate = passed / scored
+            verdict = "meets" if rate >= target else "**below bar**"
+            lines.append(f"| {tier} | {label} | {passed}/{scored} ({rate:.0%}) "
+                         f"| >= {target:.0%} | {verdict} |")
+        plan_times = [float(r.get("wall_time_s") or 0.0) for r in group
+                      if r["scenario"].get("skill") == "pylgrim-plan"
+                      and r.get("wall_time_s") is not None]
+        if plan_times:
+            med = _median(plan_times)
+            verdict = "meets" if med <= _TEN_MINUTE_BAR_S else "**below bar**"
+            lines.append(f"| {tier} | plan session wall-time median | {med:.0f}s "
+                         f"| <= {_TEN_MINUTE_BAR_S:.0f}s | {verdict} |")
+        else:
+            lines.append(f"| {tier} | plan session wall-time median | no plan runs "
+                         f"| <= {_TEN_MINUTE_BAR_S:.0f}s | n/a |")
+    lines.append("")
+    return lines
+
+
 def _assertion_sort_key(name: str) -> tuple[int, str]:
     for rank, (_, names) in enumerate(_CLASS_ORDER):
         if name in names:
@@ -259,6 +326,9 @@ def build_report(
         "## Scoreboard",
         "",
         *(_scoreboard(activated) if activated else ["(no activated runs yet)"]),
+        "## H4 bars",
+        "",
+        *(_h4_bars(activated) if activated else ["(no activated runs yet)", ""]),
         "## Failures, ranked",
         "",
         *(_failures(activated) if activated else ["(no activated runs yet)", ""]),

@@ -45,7 +45,8 @@ def test_report_sections_and_ranking(tmp_path):
     text = skill_report.build_report(runs, triggers, 3, {"by_status": {"done": 2}})
 
     assert "# Skills stress report 3" in text
-    for heading in ("## Reading guide", "## Scoreboard", "## Failures, ranked",
+    for heading in ("## Reading guide", "## Scoreboard", "## H4 bars",
+                    "## Failures, ranked",
                     "## Not activated", "## Worst-output gallery", "## Trigger matrix"):
         assert heading in text
     # Security failures listed before budget failures.
@@ -72,6 +73,52 @@ def test_below_bar_flagging():
         {"assertion": "spec_valid", "status": "fail", "evidence": "3 errors"}])]
     text = skill_report.build_report(runs, [], 1)
     assert "**below bar**" in text
+
+
+def test_h4_bars_per_tier_rates_and_wall_time_median():
+    # Two sonnet map runs (one spec_valid fail: 1/2 = 50%, below the 95% bar)
+    # and two sonnet plan runs whose wall times give a 500s median (meets).
+    runs = [
+        _record(run_id="map-a--cooperative--sonnet--r1", model="sonnet",
+                extra_checks=[
+                    {"assertion": "spec_valid", "status": "pass", "evidence": "ok"},
+                    {"assertion": "entry_cap_15", "status": "pass", "evidence": "9"},
+                    {"assertion": "evidence_resolves", "status": "pass",
+                     "evidence": "10/10"},
+                    {"assertion": "zero_network", "status": "pass", "evidence": "ok"},
+                ]),
+        _record(run_id="map-b--cooperative--sonnet--r1", model="sonnet",
+                extra_checks=[
+                    {"assertion": "spec_valid", "status": "fail", "evidence": "1 err"},
+                ]),
+        {**_record(run_id="plan-a--cooperative--sonnet--r1", model="sonnet",
+                   skill="pylgrim-plan",
+                   extra_checks=[
+                       {"assertion": "out_of_scope_present", "status": "pass",
+                        "evidence": "ok"}]),
+         "wall_time_s": 400.0},
+        {**_record(run_id="plan-b--cooperative--sonnet--r1", model="sonnet",
+                   skill="pylgrim-plan"),
+         "wall_time_s": 600.0},
+    ]
+    text = skill_report.build_report(runs, [], 1)
+    h4 = text.split("## H4 bars")[1].split("## Failures")[0]
+    assert "| sonnet | spec-v0 validity | 1/2 (50%) | >= 95% | **below bar** |" in h4
+    assert "| sonnet | out_of_scope present on work items | 1/1 (100%) | >= 100% | meets |" in h4
+    assert "| sonnet | map charter entries <= 15 | 1/1 (100%) | >= 100% | meets |" in h4
+    assert "| sonnet | map evidence >= 90% resolves | 1/1 (100%) | >= 100% | meets |" in h4
+    assert "| sonnet | zero network tool calls | 1/1 (100%) | >= 100% | meets |" in h4
+    assert "| sonnet | plan session wall-time median | 500s | <= 600s | meets |" in h4
+
+
+def test_h4_bars_wall_time_median_over_bar_flags():
+    runs = [{**_record(run_id="plan-a--cooperative--haiku--r1",
+                       skill="pylgrim-plan"), "wall_time_s": 700.0}]
+    text = skill_report.build_report(runs, [], 1)
+    h4 = text.split("## H4 bars")[1].split("## Failures")[0]
+    assert "| haiku | plan session wall-time median | 700s | <= 600s | **below bar** |" in h4
+    # Map-only bars have nothing to score on a plan-only tier.
+    assert "| haiku | map charter entries <= 15 | no scored runs | >= 100% | n/a |" in h4
 
 
 def test_next_report_number(tmp_path):

@@ -1,0 +1,16 @@
+id: plan-hono-e06
+skill: pylgrim-plan
+fixture: hono
+suite: e06
+prompt: "We want to add a built-in request timeout middleware: a configurable per-route duration that responds 504 and aborts downstream handlers when exceeded. Plan this into the ledger."
+persona: cooperative
+invoke: explicit
+max_turns: 8
+reps: 5
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, no_self_ratification, zero_network,
+             write_surface, within_budgets]
+notes: >
+  WI-E06 real-repo plan run on hono (pinned SHA, no ledger yet): a realistic
+  feature brief written from the repo's README. Measures the H4 plan bars:
+  spec validity, out_of_scope presence, ten-minute median, zero network.

@@ -1,0 +1,15 @@
+id: plan-brief-09
+skill: pylgrim-plan
+fixture: rich-clean
+suite: e06
+prompt: "We want configurable late fees: a seller-level policy defines a grace period and either a flat fee or a percentage of the outstanding amount, applied at most once per invoice when it goes overdue, itemized as its own line item so statements stay reconcilable. Plan this into the ledger."
+persona: cooperative
+invoke: explicit
+max_turns: 8
+reps: 1
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, no_self_ratification, zero_network,
+             write_surface, within_budgets]
+notes: >
+  WI-E06 standardized plan brief 09 of 10 on the rich-clean fixture:
+  measures plan variance across distinct realistic inputs, one rep each.

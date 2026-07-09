@@ -1,0 +1,16 @@
+id: map-rich-e06
+skill: pylgrim-map
+fixture: rich
+suite: e06
+prompt: "Set up pylgrim in this repo."
+persona: cooperative
+invoke: explicit
+max_turns: 12
+reps: 5
+assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
+             never_touch_ratified, no_self_ratification, zero_network, write_surface,
+             entry_cap_15, evidence_resolves, within_budgets, reality_tagged]
+notes: >
+  WI-E06 real-repo map run: the rich corpus repo at its pinned SHA, .git
+  included so git-facts resolve, dependencies never installed. Measures the
+  H4 map bars: entry cap, evidence resolution, spec validity, budgets.

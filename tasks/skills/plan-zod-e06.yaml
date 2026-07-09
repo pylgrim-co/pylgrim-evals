@@ -1,0 +1,16 @@
+id: plan-zod-e06
+skill: pylgrim-plan
+fixture: zod
+suite: e06
+prompt: "We want to add a z.string().duration() validator for ISO 8601 duration strings, mirroring the existing datetime() validation options. Plan this into the ledger."
+persona: cooperative
+invoke: explicit
+max_turns: 8
+reps: 5
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, no_self_ratification, zero_network,
+             write_surface, within_budgets]
+notes: >
+  WI-E06 real-repo plan run on zod (pinned SHA, no ledger yet): a realistic
+  feature brief written from the repo's README. Measures the H4 plan bars:
+  spec validity, out_of_scope presence, ten-minute median, zero network.

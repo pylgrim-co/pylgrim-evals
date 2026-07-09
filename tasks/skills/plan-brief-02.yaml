@@ -1,0 +1,15 @@
+id: plan-brief-02
+skill: pylgrim-plan
+fixture: rich-clean
+suite: e06
+prompt: "We want a PDF rendering endpoint for invoices: GET /invoices/:id/pdf returns a printable PDF built from the stored invoice data, with the seller letterhead, line items, tax breakdown, and payment terms. Rendering should be deterministic so the same invoice always produces byte-identical output for caching. Plan this into the ledger."
+persona: cooperative
+invoke: explicit
+max_turns: 8
+reps: 1
+assertions: [write_discipline, spec_valid, out_of_scope_present, observe_only, source_correct,
+             tighten_only, never_touch_ratified, no_self_ratification, zero_network,
+             write_surface, within_budgets]
+notes: >
+  WI-E06 standardized plan brief 02 of 10 on the rich-clean fixture:
+  measures plan variance across distinct realistic inputs, one rep each.

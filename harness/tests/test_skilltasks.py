@@ -72,9 +72,96 @@ def test_load_bad_card(tmp_path, field, value, fragment):
 def test_committed_cards_all_load():
     scenarios, errors = skilltasks.load_all(TASKS_SKILLS)
     assert errors == []
-    assert len(scenarios) == 25
+    # 25 stress cards + 12 real-repo e06 cards + 10 plan briefs.
+    assert len(scenarios) == 47
     skills = {s.skill for s in scenarios}
     assert skills == {"pylgrim-map", "pylgrim-plan", "pylgrim-decide"}
+
+
+E06_REPOS = ("zustand", "sql-formatter", "click", "hono", "rich", "zod")
+
+
+def test_committed_e06_cards():
+    # WI-E06: 6 repos x {map, plan} at reps 5, plus 10 briefs at reps 1,
+    # all tagged suite e06; everything else stays suite stress.
+    scenarios, errors = skilltasks.load_all(TASKS_SKILLS)
+    assert errors == []
+    by_id = {s.id: s for s in scenarios}
+    for repo in E06_REPOS:
+        for kind in ("map", "plan"):
+            card = by_id[f"{kind}-{repo}-e06"]
+            assert card.suite == "e06"
+            assert card.fixture == repo
+            assert card.reps == 5
+            assert card.persona == "cooperative"
+    for n in range(1, 11):
+        brief = by_id[f"plan-brief-{n:02d}"]
+        assert brief.suite == "e06"
+        assert brief.fixture == "rich-clean"
+        assert brief.reps == 1
+        assert brief.skill == "pylgrim-plan"
+    for scenario in scenarios:
+        if not scenario.id.endswith("-e06") and not scenario.id.startswith("plan-brief-"):
+            assert scenario.suite == "stress", scenario.id
+    # Map cards carry the reality-tag contract; plan cards the out-of-scope bar.
+    for repo in E06_REPOS:
+        assert "reality_tagged" in by_id[f"map-{repo}-e06"].assertions
+        assert "out_of_scope_present" in by_id[f"plan-{repo}-e06"].assertions
+
+
+def test_e06_schedule_is_210_runs():
+    scenarios, _ = skilltasks.load_all(TASKS_SKILLS)
+    e06 = skilltasks.filter_suite(scenarios, "e06")
+    assert len(e06) == 22
+    rows = skilltasks.generate_schedule(e06, ["haiku", "sonnet", "opus"], 1, 7)
+    # 6 repos x 2 skills x 3 tiers x 5 reps + 10 briefs x 3 tiers x 1 rep.
+    assert len(rows) == 210
+
+
+def test_filter_suite():
+    scenarios, _ = skilltasks.load_all(TASKS_SKILLS)
+    assert skilltasks.filter_suite(scenarios, None) == scenarios
+    e06 = skilltasks.filter_suite(scenarios, "e06")
+    stress = skilltasks.filter_suite(scenarios, "stress")
+    assert {s.suite for s in e06} == {"e06"}
+    assert {s.suite for s in stress} == {"stress"}
+    assert len(e06) + len(stress) == len(scenarios)
+    assert skilltasks.filter_suite(scenarios, "nope") == []
+
+
+def test_suite_defaults_to_stress_and_loads_from_card(tmp_path):
+    default, errors = skilltasks.load_scenario(_write_card(tmp_path / "a.yaml"))
+    assert errors == []
+    assert default.suite == "stress"
+    tagged, errors = skilltasks.load_scenario(
+        _write_card(tmp_path / "b.yaml", suite="e06"))
+    assert errors == []
+    assert tagged.suite == "e06"
+
+
+def test_unknown_suite_rejected(tmp_path):
+    scenario, errors = skilltasks.load_scenario(
+        _write_card(tmp_path / "bad.yaml", suite="wave9"))
+    assert scenario is None
+    assert any("suite must be one of" in e for e in errors)
+
+
+def test_corpus_fixture_names_and_extra_fixture_validation(tmp_path):
+    # A corpus repo name validates as a fixture only when supplied via
+    # extra_fixtures (load_all wires this from tasks/corpus.yaml).
+    names = skilltasks.corpus_fixture_names(TASKS_SKILLS)
+    assert set(E06_REPOS) <= names
+    card = _write_card(tmp_path / "map-fake-e06.yaml", fixture="fakerepo")
+    rejected, errors = skilltasks.load_scenario(card)
+    assert rejected is None and any("unknown fixture" in e for e in errors)
+    accepted, errors = skilltasks.load_scenario(
+        card, extra_fixtures=frozenset({"fakerepo"}))
+    assert errors == []
+    assert accepted.fixture == "fakerepo"
+
+
+def test_corpus_fixture_names_missing_corpus_is_empty(tmp_path):
+    assert skilltasks.corpus_fixture_names(tmp_path / "skills") == frozenset()
 
 
 def test_committed_config():

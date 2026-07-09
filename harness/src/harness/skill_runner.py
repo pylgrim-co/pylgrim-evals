@@ -66,9 +66,50 @@ def pylgrim_repo_sha(skills_source: Path = DEFAULT_SKILLS_SOURCE) -> str:
         return "unknown"
 
 
-def prepare_workspace(fixture: str, zoo_dir: Path, workspace: Path) -> None:
-    """Materialize the run workspace: fixture copy, empty repo, or self copy."""
+def materialize_corpus_repo(
+    repo_cfg: dict[str, Any], results_dir: Path, workspace: Path
+) -> None:
+    """Export a plain working copy of a pinned corpus repo into `workspace`.
+
+    Reuses workspace.py's bare-clone cache in results/repos/ (so the
+    zustand/click caches from the coding-task pilot are shared), then clones
+    locally and checks out the pinned SHA detached. The working copy keeps
+    its .git so map's git-facts (history, CODEOWNERS-adjacent archaeology)
+    work. Dependencies are never installed: map and plan read the repo, they
+    do not run test suites.
+    """
+    from harness import workspace as workspace_mod
+
+    name = str(repo_cfg["name"])
+    url = str(repo_cfg["url"])
+    sha = str(repo_cfg["pinned_sha"])
+    clone = workspace_mod.ensure_bare_clone(Path(results_dir).resolve(), name, url, sha)
+    _git("clone", "--no-checkout", str(clone), str(workspace), cwd=clone.parent)
+    _git("checkout", "--detach", "--force", sha, cwd=workspace)
+    # Local identity so any harness-side git plumbing works; the skills
+    # themselves never commit (write_surface forbids it).
+    _git("config", "user.name", "zoo-runner", cwd=workspace)
+    _git("config", "user.email", "zoo@pylgrim-evals.invalid", cwd=workspace)
+
+
+def prepare_workspace(
+    fixture: str,
+    zoo_dir: Path,
+    workspace: Path,
+    corpus_repos: dict[str, dict[str, Any]] | None = None,
+    results_dir: Path | None = None,
+) -> None:
+    """Materialize the run workspace: zoo fixture copy, empty repo, self copy,
+    or a pinned corpus-repo checkout (when `fixture` names a repo in
+    tasks/corpus.yaml and corpus_repos/results_dir are provided)."""
     _rmtree(workspace)
+    if corpus_repos and fixture in corpus_repos:
+        if results_dir is None:
+            raise RuntimeError(
+                f"corpus fixture {fixture!r} needs results_dir for the bare-clone cache"
+            )
+        materialize_corpus_repo(corpus_repos[fixture], results_dir, workspace)
+        return
     if fixture == "empty":
         workspace.mkdir(parents=True)
         _git("init", "-q", cwd=workspace)
@@ -157,6 +198,7 @@ def execute_skill_run(
     zoo_dir: Path | str | None = None,
     skills_source: Path = DEFAULT_SKILLS_SOURCE,
     timeout_s: int = DEFAULT_TURN_TIMEOUT_S,
+    corpus_repos: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run one scenario end to end. Returns the result record written to disk.
 
@@ -170,7 +212,8 @@ def execute_skill_run(
     purge_turn_artifacts(run_dir)
     workspace = run_dir / "workspace"
 
-    prepare_workspace(scenario.fixture, zoo_dir, workspace)
+    prepare_workspace(scenario.fixture, zoo_dir, workspace,
+                      corpus_repos=corpus_repos, results_dir=results_dir)
     installed = install_skills(workspace, skills_source)
     repo_sha = pylgrim_repo_sha(skills_source)
     snapshot(workspace, run_dir / "before")
