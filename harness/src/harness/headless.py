@@ -160,11 +160,63 @@ def looks_rate_limited(exit_code: int, text: str) -> bool:
     return exit_code != 0 and bool(_RATE_LIMIT_RE.search(text))
 
 
+def result_rate_limited(result: dict[str, Any]) -> bool:
+    """Status-based rate-limit detection on the parsed result JSON.
+
+    The text patterns above are not exhaustive: seen live in WI-E06, the CLI
+    exits 1 with result text "You've hit your session limit ... resets 4:50pm"
+    (matches no pattern) while the JSON carries api_error_status: 429, which
+    is definitive. A 429 must gate the queue, never count as a run failure.
+    """
+    status = result.get("api_error_status")
+    if status == 429 or (isinstance(status, str) and "429" in status):
+        return True
+    if result.get("is_error"):
+        for key, value in result.items():
+            if "status" in str(key).lower() and "429" in str(value):
+                return True
+    return False
+
+
+_RESET_HINT_RE = re.compile(
+    r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*\(([^)]+)\)",
+    re.IGNORECASE,
+)
+
+
+def _parse_reset_hint(text: str, now: datetime) -> datetime | None:
+    """Parse the CLI's colloquial reset hint, e.g. 'resets 4:50pm (America/Denver)'.
+
+    Returns an aware UTC datetime, or None when there is no hint or the IANA
+    zone cannot be resolved (bare zoneinfo without tzdata). A hint without a
+    parenthesised zone is ambiguous and ignored.
+    """
+    match = _RESET_HINT_RE.search(text)
+    if not match:
+        return None
+    hour = int(match.group(1)) % 12
+    if match.group(3).lower() == "pm":
+        hour += 12
+    minute = int(match.group(2) or 0)
+    try:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(match.group(4).strip())
+    except Exception:
+        return None
+    candidate = now.astimezone(tz).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(days=1)
+    return candidate.astimezone(timezone.utc)
+
+
 def parse_resume_after(text: str, now: datetime | None = None) -> str:
     """Best-effort: pull a reset time out of the error text, else now + 60 min.
 
-    Handles ISO-8601 timestamps and unix epoch seconds. Anything else falls
-    back to the fixed backoff; the queue re-gates anyway if we come back early.
+    Handles ISO-8601 timestamps, the CLI's 'resets 4:50pm (America/Denver)'
+    wording, and unix epoch seconds. Anything else falls back to the fixed
+    backoff; the queue re-gates anyway if we come back early. Always returns
+    UTC so the queue's lexicographic resume_after comparison stays sound.
     """
     now = now or datetime.now(timezone.utc)
     iso = re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?", text)
@@ -174,9 +226,12 @@ def parse_resume_after(text: str, now: datetime | None = None) -> str:
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
             if ts > now:
-                return ts.isoformat(timespec="seconds")
+                return ts.astimezone(timezone.utc).isoformat(timespec="seconds")
         except ValueError:
             pass
+    hint = _parse_reset_hint(text, now)
+    if hint is not None and hint > now:
+        return hint.isoformat(timespec="seconds")
     epoch = re.search(r"\b(1[6-9]\d{8}|2\d{9})\b", text)
     if epoch:
         ts = datetime.fromtimestamp(int(epoch.group(1)), tz=timezone.utc)
@@ -215,6 +270,23 @@ def invoke_claude(
         raise RuntimeError(f"claude run timed out after {timeout_s}s")
 
     combined = (stdout or "") + "\n" + (stderr or "")
+    result: dict[str, Any] | None
+    try:
+        result = json.loads(stdout or "")
+    except json.JSONDecodeError:
+        result = None
+    if not isinstance(result, dict):
+        result = None
+
+    # Status-based check first: a 429 in the result JSON is a rate limit no
+    # matter what the exit code or the result wording says (the CLI exits 1
+    # with is_error result JSON on stdout when the usage cap bites mid-run).
+    if result is not None and result_rate_limited(result):
+        text = json.dumps(result)
+        # Prefer the human-readable result field for the reset hint; the full
+        # JSON dump is full of numeric fields that could fake an epoch match.
+        hint_text = str(result.get("result") or "") or text
+        raise RateLimited(text[:2000], parse_resume_after(hint_text))
     if looks_rate_limited(proc.returncode, combined):
         raise RateLimited(combined.strip()[:2000], parse_resume_after(combined))
     if proc.returncode != 0:
@@ -222,9 +294,7 @@ def invoke_claude(
             f"claude exited {proc.returncode}: {combined.strip()[:2000]}"
         )
 
-    try:
-        result = json.loads(stdout)
-    except json.JSONDecodeError:
+    if result is None:
         raise RuntimeError(f"claude produced non-JSON output: {stdout[:2000]}")
     if result.get("is_error"):
         text = json.dumps(result)

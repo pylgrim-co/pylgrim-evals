@@ -6,6 +6,9 @@ requires-python = ">=3.12"
 dependencies = [
     "typer>=0.12",
     "pyyaml>=6.0",
+    # IANA zone data for zoneinfo on Windows: parse_resume_after resolves the
+    # CLI's "resets 4:50pm (America/Denver)" hint into a real gate time.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
