@@ -503,6 +503,7 @@ def extract_skills(
     """Recompute skill-run assertions from stored artifacts (before/after
     snapshots and transcripts). No agent calls; scenario cards are re-read, so
     new or changed assertions apply retroactively."""
+    from harness import skill_runner as skill_runner_mod
     from harness.metrics import skill_checks
 
     skills_tasks_dir, results_dir, db_path = _skills_paths(root)
@@ -533,8 +534,14 @@ def extract_skills(
             continue
 
         record = json.loads(result_path.read_text(encoding="utf-8"))
+        # Only this attempt's turn files: a requeued run shares its dir with
+        # any previous attempt's higher-numbered leftovers, and globbing
+        # turn-* rescores a chimera of the two (skill_runner now purges at
+        # run start; this guards dirs written before that fix).
+        transcript_paths, turn_result_paths = skill_runner_mod.turn_artifacts(
+            run_dir, len(record.get("turns") or []))
         final_texts = []
-        for turn_result in sorted(run_dir.glob("turn-*.result.json")):
+        for turn_result in turn_result_paths:
             try:
                 turn_data = json.loads(turn_result.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -546,7 +553,7 @@ def extract_skills(
             fixture=scenario.fixture,
             workspace=run_dir / "workspace",
             before_dir=run_dir / "before",
-            transcript_paths=sorted(run_dir.glob("turn-*.transcript.jsonl")),
+            transcript_paths=transcript_paths,
             final_texts=final_texts,
             wall_time_s=float(record.get("wall_time_s") or 0.0),
             num_turns=len(record.get("turns") or []) or 1,

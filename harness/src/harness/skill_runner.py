@@ -106,6 +106,38 @@ def install_skills(workspace: Path, skills_source: Path = DEFAULT_SKILLS_SOURCE)
     return installed
 
 
+def purge_turn_artifacts(run_dir: Path) -> int:
+    """Delete turn-* artifacts left by a previous attempt at this run_id.
+
+    A requeued or re-claimed run reuses its run_dir; without this purge the
+    old attempt's higher-numbered turn files survive alongside the new
+    attempt's, and any consumer that globs turn-* scores a chimera of two
+    attempts (seen live: the reality-tag validation reruns rescored against
+    a stale final table). Returns the number of files removed."""
+    removed = 0
+    for stale in sorted(run_dir.glob("turn-*")):
+        if stale.is_file():
+            stale.unlink()
+            removed += 1
+    return removed
+
+
+def turn_artifacts(run_dir: Path, num_turns: int) -> tuple[list[Path], list[Path]]:
+    """(transcript_paths, result_paths) belonging to THIS attempt: turn files
+    are keyed by turn number, so only turns 1..num_turns are trusted; never
+    glob blindly, higher numbers may be a previous attempt's leftovers."""
+    transcripts: list[Path] = []
+    results: list[Path] = []
+    for turn in range(1, num_turns + 1):
+        transcript = run_dir / f"turn-{turn:02d}.transcript.jsonl"
+        if transcript.exists():
+            transcripts.append(transcript)
+        result = run_dir / f"turn-{turn:02d}.result.json"
+        if result.exists():
+            results.append(result)
+    return transcripts, results
+
+
 def snapshot(workspace: Path, dest: Path) -> None:
     """Copy the ledger surface (full file copies) preserving relative layout."""
     _rmtree(dest)
@@ -135,6 +167,7 @@ def execute_skill_run(
     zoo_dir = Path(zoo_dir) if zoo_dir else results_dir / "zoo"
     run_dir = results_dir / "zoo-runs" / run_row["run_id"]
     run_dir.mkdir(parents=True, exist_ok=True)
+    purge_turn_artifacts(run_dir)
     workspace = run_dir / "workspace"
 
     prepare_workspace(scenario.fixture, zoo_dir, workspace)
