@@ -86,7 +86,9 @@ def execute_run(
             task.test_command, slot_dir, task.deterministic_checks, outcome_timeout_s
         )
 
-    artifacts = workspace.capture_and_reset(slot_dir, run_dir, preserve)
+    artifacts = workspace.capture_and_reset(
+        slot_dir, run_dir, preserve, base_sha=task.base_sha
+    )
     name_only = [l for l in artifacts["name_only"].splitlines() if l.strip()]
     untracked = [l for l in artifacts["untracked"].splitlines() if l.strip()]
 
@@ -97,6 +99,7 @@ def execute_run(
             task.rules, artifacts["diff"], name_only, untracked
         ),
         "outcome": outcome,
+        "agent_committed": artifacts.get("agent_committed") == "true",
     }
     if transcript_dest is not None:
         metrics["tokens"] = tokens_metric.compute(

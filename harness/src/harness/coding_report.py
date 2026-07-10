@@ -50,6 +50,7 @@ COLUMNS = [
     "out_of_scope_files_count", "untracked_count", "out_of_scope_untracked_count",
     "out_of_scope_untracked_excl_claudemd",
     "violations_active", "violations_violated", "violated_rules",
+    "agent_committed",
     "tests_passed", "det_checks_passed", "det_checks_total",
     "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
     "transcript_input_tokens", "transcript_output_tokens",
@@ -142,6 +143,9 @@ def flatten_run(
         violated = [v.get("rule", "?") for v in violations if v.get("violated")]
         flat["violations_violated"] = len(violated)
         flat["violated_rules"] = ";".join(violated)
+
+    if isinstance(metrics.get("agent_committed"), bool):
+        flat["agent_committed"] = metrics["agent_committed"]
 
     outcome = metrics.get("outcome")
     if isinstance(outcome, dict):

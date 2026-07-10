@@ -115,6 +115,7 @@ def capture_and_reset(
     slot_dir: Path | str,
     run_results_dir: Path | str,
     preserve: tuple[str, ...] = ("node_modules", ".venv", "target"),
+    base_sha: str | None = None,
 ) -> dict[str, str]:
     """Capture the run's diff artifacts, then scrub the worktree pristine.
 
@@ -123,22 +124,41 @@ def capture_and_reset(
       name_only.txt    git diff --name-only
       untracked.txt    untracked, non-ignored files (one per line)
 
-    Then `git checkout . && git clean -fdx -e <preserve...>` and verifies
-    `git status --porcelain` is empty (ignoring preserved entries).
-    Returns the artifact contents keyed by name.
+    base_sha: when given, diffs are taken AGAINST THE PINNED BASE, not the
+    working tree vs HEAD. Agents sometimes `git commit` their work unprompted
+    (observed live: haiku committed instructed drift and every diff-based
+    metric read zero while the transcript estimator still fired); diffing
+    against the base makes committed changes visible, and agent_committed
+    records that HEAD moved. Without base_sha the legacy working-tree diff
+    is preserved for old callers.
+
+    Then resets (git reset --hard <base>, or checkout . when no base),
+    cleans with -fdx -e <preserve...>, and verifies `git status --porcelain`
+    is empty (ignoring preserved entries).
+    Returns the artifact contents keyed by name, plus agent_committed
+    ("true"/"false").
     """
     slot_dir = Path(slot_dir)
     run_results_dir = Path(run_results_dir)
     run_results_dir.mkdir(parents=True, exist_ok=True)
 
-    diff_text = _git("diff", cwd=slot_dir)
-    name_only = _git("diff", "--name-only", cwd=slot_dir)
+    agent_committed = False
+    if base_sha:
+        head = _git("rev-parse", "HEAD", cwd=slot_dir).strip()
+        agent_committed = head != base_sha
+        diff_text = _git("diff", base_sha, cwd=slot_dir)
+        name_only = _git("diff", "--name-only", base_sha, cwd=slot_dir)
+    else:
+        diff_text = _git("diff", cwd=slot_dir)
+        name_only = _git("diff", "--name-only", cwd=slot_dir)
     untracked = _git("ls-files", "--others", "--exclude-standard", cwd=slot_dir)
 
     (run_results_dir / "diff.patch").write_text(diff_text, encoding="utf-8")
     (run_results_dir / "name_only.txt").write_text(name_only, encoding="utf-8")
     (run_results_dir / "untracked.txt").write_text(untracked, encoding="utf-8")
 
+    if base_sha:
+        _git("reset", "--hard", base_sha, cwd=slot_dir)
     _clean(slot_dir, preserve)
 
     leftovers = []
@@ -150,4 +170,9 @@ def capture_and_reset(
     if leftovers:
         raise WorkspaceError(f"worktree not clean after reset: {leftovers[:10]}")
 
-    return {"diff": diff_text, "name_only": name_only, "untracked": untracked}
+    return {
+        "diff": diff_text,
+        "name_only": name_only,
+        "untracked": untracked,
+        "agent_committed": "true" if agent_committed else "false",
+    }
