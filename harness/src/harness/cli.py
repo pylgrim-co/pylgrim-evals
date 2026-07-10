@@ -24,17 +24,16 @@ from __future__ import annotations
 
 import json
 import platform
-import shutil
-import subprocess
 from pathlib import Path
 from typing import Optional
 
 import typer
 import yaml
 
-from harness import __version__, queue, runner, schedule
+from harness import __version__, provenance, queue, runner, schedule
 from harness import taskcards as taskcards_mod
 from harness import transcripts as transcripts_mod
+from harness.metrics import drift_tokens as drift_tokens_metric
 from harness.metrics import honeypots as honeypots_metric
 from harness.metrics import scope as scope_metric
 from harness.metrics import tokens as tokens_metric
@@ -72,14 +71,17 @@ def _repo_for_task(task_id: str, repos: dict[str, dict]) -> str | None:
 
 
 def _claude_version() -> str:
-    exe = shutil.which("claude")
-    if not exe:
-        return "not-found"
-    try:
-        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=60)
-        return out.stdout.strip() or "unknown"
-    except Exception:
-        return "unknown"
+    return provenance.claude_code_version()
+
+
+def worker_repos(all_repos: list[str], workers: int, index: int) -> list[str]:
+    """Deterministic repo partition for parallel coding drains.
+
+    Sorted repos striped by position (never hash(): Python string hashing is
+    randomized per process). Partitions are disjoint and cover every repo;
+    workers=1 returns everything, reproducing single-worker behavior.
+    """
+    return [r for i, r in enumerate(sorted(all_repos)) if i % workers == index]
 
 
 @app.command()
@@ -102,16 +104,19 @@ def plan(
         raise typer.Exit(1)
 
     tasks = []
+    control_tasks = []
     for card in cards:
         repo = _repo_for_task(card.id, repos)
         if repo is None:
             typer.echo(f"error: task {card.id} matches no repo name in corpus.yaml", err=True)
             raise typer.Exit(1)
-        tasks.append({"task_id": card.id, "repo": repo})
+        entry = {"task_id": card.id, "repo": repo}
+        (control_tasks if card.control else tasks).append(entry)
 
     arms_list = corpus.get("arms") or ["vanilla", "claudemd"]
     models = corpus.get("models") or ["sonnet"]
     reps = int(corpus.get("reps") or 1)
+    control_reps = int(corpus.get("control_reps") or 1)
     seed = int(corpus.get("schedule_seed") or 0)
 
     conn = queue.connect(db_path)
@@ -128,6 +133,15 @@ def plan(
             conn.execute("DELETE FROM runs")
 
     rows = schedule.generate(tasks, arms_list, models, reps, seed)
+    if control_tasks:
+        # Positive-control runs (instrument validity) are appended after the
+        # main block at their own rep count; they never enter confirmatory
+        # analysis, so they must never displace confirmatory runs earlier
+        # in the drain order.
+        rows += schedule.generate(
+            control_tasks, arms_list, models, control_reps, seed,
+            order_key_start=len(rows),
+        )
     queue.insert_schedule(conn, rows)
     queue.init_db(
         conn,
@@ -148,6 +162,18 @@ def run(
     batch: int = typer.Option(..., "--batch", help="Max runs to execute this invocation"),
     slot_count: int = typer.Option(2, "--slot-count", help="Workspace slot pool size"),
     timeout_min: int = typer.Option(30, "--timeout-min", help="Per-run timeout in minutes"),
+    workers: int = typer.Option(
+        1, "--workers", help="Total parallel workers (repo-partitioned)"
+    ),
+    worker_index: int = typer.Option(
+        0, "--worker-index", help="This worker's index in [0, workers)"
+    ),
+    stale_reset: bool = typer.Option(
+        True,
+        "--stale-reset/--no-stale-reset",
+        help="Reset stale running rows first (disable for parallel workers: "
+        "a startup reset would return a sibling's in-flight claim to pending)",
+    ),
 ) -> None:
     """Execute up to --batch claimed runs. Exits cleanly on rate limit or batch end."""
     tasks_dir, results_dir, db_path = _paths(root)
@@ -159,21 +185,33 @@ def run(
             typer.echo(f"task card error: {err}", err=True)
         raise typer.Exit(1)
     cards_by_id = {c.id: c for c in cards}
+    if not 0 <= worker_index < workers:
+        typer.echo(f"error: --worker-index must be in [0, {workers})", err=True)
+        raise typer.Exit(2)
 
     conn = queue.connect(db_path)
     queue.init_db(conn)
-    stale = queue.reset_stale(conn)
-    if stale:
-        typer.echo(f"reset {stale} stale running row(s) to pending")
+    if stale_reset:
+        stale = queue.reset_stale(conn)
+        if stale:
+            typer.echo(f"reset {stale} stale running row(s) to pending")
 
     # Slots are pinned per repo (round-robin over sorted names): a slot that
     # switches repos loses its worktree and with it the preserved dependency
     # caches, so repo-stable assignment is what makes `preserve` effective.
-    repo_slots = {name: i % slot_count for i, name in enumerate(sorted(repos))}
+    # Under parallel workers each worker owns a disjoint repo subset and a
+    # disjoint slot range (offset by worker_index), so slot directories can
+    # never collide across workers. workers=1 reproduces the legacy mapping.
+    mine = worker_repos(list(repos), workers, worker_index)
+    repo_slots = {
+        name: worker_index * slot_count + (i % slot_count)
+        for i, name in enumerate(mine)
+    }
+    claim_repos = mine if workers > 1 else None
 
     executed = 0
     while executed < batch:
-        row = queue.claim_next(conn)
+        row = queue.claim_next(conn, repos=claim_repos)
         if row is None:
             typer.echo("no eligible pending runs (done, or gated by resume_after)")
             break
@@ -288,8 +326,17 @@ def extract(
             metrics["tokens"] = tokens_metric.compute(
                 transcripts_mod.summarize_file(transcript), cli_result
             )
+            # workspace_root=None: derived from the transcript's own cwd
+            # field, so extraction from a copied transcript matches the
+            # live run exactly.
+            metrics["drift_tokens"] = drift_tokens_metric.compute(
+                transcripts_mod.iter_events(transcript), task, workspace_root=None
+            )
         record.setdefault("run", dict(row))
         record["metrics"] = metrics
+        record["provenance"] = provenance.backfill(
+            record, dict(row), task, transcript if transcript.exists() else None
+        )
         result_path.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
         typer.echo(f"{rid}: metrics extracted")
 
@@ -638,6 +685,252 @@ def run_triggers(
 
     results = trigger_check.load_results(results_dir)
     typer.echo(f"trigger probes complete: {len(results)}/{len(probes)}")
+
+
+@app.command("report-coding")
+def report_coding(root: Path = ROOT_OPT) -> None:
+    """Regenerate the coding-task drift report + per-run CSV export."""
+    from harness import coding_report
+
+    tasks_dir, results_dir, db_path = _paths(root)
+    if not db_path.exists():
+        typer.echo("no schedule yet: run `harness plan` first", err=True)
+        raise typer.Exit(1)
+    cards, _ = taskcards_mod.load_all(tasks_dir)
+    cards_by_id = {c.id: c for c in cards}
+
+    conn = queue.connect(db_path)
+    queue.init_db(conn)
+    loaded = coding_report.load_coding_runs(conn, results_dir)
+    all_rows = [item["row"] for item in loaded]
+    flat_rows = [
+        coding_report.flatten_run(
+            item["row"], item["record"], cards_by_id.get(item["row"]["task_id"])
+        )
+        for item in loaded
+        if item["record"] is not None
+    ]
+    meta = {
+        row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM meta")
+    }
+
+    reports_dir = results_dir / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    number = coding_report.next_report_number(reports_dir)
+    text = coding_report.build_report(all_rows, flat_rows, meta, number)
+    out = reports_dir / f"coding-report-{number}.md"
+    out.write_text(text, encoding="utf-8")
+    csv_path = reports_dir / f"coding-report-{number}.csv"
+    coding_report.write_csv(flat_rows, csv_path)
+    typer.echo(
+        f"report written: {out} ({len(flat_rows)} runs with results, "
+        f"{len(all_rows)} scheduled); csv: {csv_path}"
+    )
+
+
+@app.command("plan-judge")
+def plan_judge(
+    root: Path = ROOT_OPT,
+    model: str = typer.Option("sonnet", "--model", help="Judge model"),
+    reps: int = typer.Option(1, "--reps", help="Judge reps per run"),
+    include_control: bool = typer.Option(
+        False, "--include-control", help="Also judge positive-control runs"
+    ),
+) -> None:
+    """Enqueue judge work for every done run with a diff artifact."""
+    from harness import judge as judge_mod
+
+    tasks_dir, results_dir, db_path = _paths(root)
+    cards, _ = taskcards_mod.load_all(tasks_dir)
+    conn = queue.connect(db_path)
+    queue.init_db(conn)
+    inserted = judge_mod.enqueue_judge_runs(
+        conn,
+        model,
+        reps,
+        cards_by_id={c.id: c for c in cards},
+        results_dir=results_dir,
+        include_control=include_control,
+    )
+    total = conn.execute("SELECT COUNT(*) FROM judge_runs").fetchone()[0]
+    typer.echo(f"enqueued {inserted} new judge run(s) ({total} total)")
+
+
+@app.command("run-judge")
+def run_judge(
+    root: Path = ROOT_OPT,
+    batch: int = typer.Option(..., "--batch", help="Max judge runs this invocation"),
+    timeout_min: int = typer.Option(15, "--timeout-min", help="Per-judge timeout (minutes)"),
+    stale_reset: bool = typer.Option(
+        True,
+        "--stale-reset/--no-stale-reset",
+        help="Reset stale running judge rows first (disable for parallel workers)",
+    ),
+) -> None:
+    """Drain judge runs. Exits cleanly on rate limit or batch end."""
+    from harness import judge as judge_mod
+
+    tasks_dir, results_dir, db_path = _paths(root)
+    cards, _ = taskcards_mod.load_all(tasks_dir)
+    cards_by_id = {c.id: c for c in cards}
+    conn = queue.connect(db_path)
+    queue.init_db(conn)
+    judge_mod.init_judge_table(conn)
+    if stale_reset:
+        stale = judge_mod.reset_stale_judge(conn)
+        if stale:
+            typer.echo(f"reset {stale} stale judge row(s) to pending")
+
+    executed = 0
+    while executed < batch:
+        row = judge_mod.claim_next_judge(conn)
+        if row is None:
+            typer.echo("no eligible pending judge runs")
+            break
+        jid = row["judge_run_id"]
+        run_row = conn.execute(
+            "SELECT task_id FROM runs WHERE run_id = ?", (row["run_id"],)
+        ).fetchone()
+        task = cards_by_id.get(run_row["task_id"]) if run_row else None
+        if task is None:
+            judge_mod.mark_skipped_judge(conn, jid, "task card missing")
+            typer.echo(f"{jid}: skipped (task card missing)")
+            continue
+        typer.echo(f"{jid}: judging")
+        try:
+            payload = judge_mod.score_run(
+                row["run_id"],
+                results_dir,
+                task,
+                model=row["model"],
+                rep=row["rep"],
+                timeout_s=timeout_min * 60,
+            )
+        except judge_mod.ArmLeakError as exc:
+            judge_mod.mark_skipped_judge(conn, jid, f"arm-leak-unscrubbable: {exc}")
+            typer.echo(f"{jid}: skipped (arm leak unscrubbable)")
+            executed += 1
+            continue
+        except runner.RateLimited as exc:
+            judge_mod.mark_rate_limited_judge(conn, jid, exc.resume_after)
+            typer.echo(f"{jid}: rate limited, resume after {exc.resume_after}; exiting")
+            break
+        except Exception as exc:
+            judge_mod.mark_error_judge(conn, jid, str(exc))
+            typer.echo(f"{jid}: error: {exc}", err=True)
+            executed += 1
+            continue
+        judge_mod.mark_done_judge(conn, jid, json.dumps(payload["verdicts"]))
+        typer.echo(f"{jid}: done ({len(payload['verdicts'])} verdicts)")
+        executed += 1
+
+    counts = {
+        row["status"]: row["n"]
+        for row in conn.execute(
+            "SELECT status, COUNT(*) AS n FROM judge_runs GROUP BY status"
+        )
+    }
+    typer.echo(f"judge batch finished: {counts}")
+
+
+@app.command("extract-judge")
+def extract_judge(
+    judge_run_id: Optional[str] = typer.Argument(None, help="Re-parse one judge run"),
+    all_runs: bool = typer.Option(False, "--all", help="Re-parse every done judge run"),
+    root: Path = ROOT_OPT,
+) -> None:
+    """Re-parse stored judge artifacts into the verdicts column. No agent calls."""
+    from harness import judge as judge_mod
+
+    tasks_dir, results_dir, db_path = _paths(root)
+    cards, _ = taskcards_mod.load_all(tasks_dir)
+    cards_by_id = {c.id: c for c in cards}
+    conn = queue.connect(db_path)
+    judge_mod.init_judge_table(conn)
+
+    if judge_run_id:
+        rows = conn.execute(
+            "SELECT * FROM judge_runs WHERE judge_run_id = ?", (judge_run_id,)
+        ).fetchall()
+    elif all_runs:
+        rows = conn.execute("SELECT * FROM judge_runs WHERE status = 'done'").fetchall()
+    else:
+        typer.echo("provide a judge_run_id or --all", err=True)
+        raise typer.Exit(1)
+
+    for row in rows:
+        artifact = (
+            results_dir / "runs" / row["run_id"]
+            / judge_mod.artifact_name(row["model"], row["rep"])
+        )
+        if not artifact.exists():
+            typer.echo(f"{row['judge_run_id']}: no artifact, skipping", err=True)
+            continue
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+        run_row = conn.execute(
+            "SELECT task_id FROM runs WHERE run_id = ?", (row["run_id"],)
+        ).fetchone()
+        task = cards_by_id.get(run_row["task_id"]) if run_row else None
+        n = len(task.criteria) if task else 0
+        verdicts = judge_mod.parse_verdicts(payload.get("raw_result_text", ""), n)
+        if verdicts is None:
+            verdicts = payload.get("verdicts")
+        if verdicts is None:
+            typer.echo(f"{row['judge_run_id']}: unparseable, leaving as-is", err=True)
+            continue
+        judge_mod.mark_done_judge(conn, row["judge_run_id"], json.dumps(verdicts))
+        typer.echo(f"{row['judge_run_id']}: verdicts re-parsed")
+
+
+@app.command("judge-calibration")
+def judge_calibration(
+    root: Path = ROOT_OPT,
+    sample: int = typer.Option(100, "--sample", help="Calibration sample size"),
+    seed: int = typer.Option(42, "--seed", help="Sampling seed"),
+    graded: Optional[Path] = typer.Option(
+        None, "--graded", help="Filled sheet CSV: compute kappa instead of sampling"
+    ),
+) -> None:
+    """Emit the founder-grading sheet, or compute Cohen's kappa from a filled one."""
+    from harness import judge as judge_mod
+
+    tasks_dir, results_dir, db_path = _paths(root)
+    reports_dir = results_dir / "reports"
+
+    if graded is not None:
+        key_csv = reports_dir / "judge-calibration-key.csv"
+        if not key_csv.exists():
+            typer.echo(f"error: {key_csv} not found", err=True)
+            raise typer.Exit(1)
+        result = judge_mod.kappa_from_files(graded, key_csv)
+        typer.echo(f"graded: {result['n_graded']} (skipped {result['n_skipped']})")
+        typer.echo(f"raw agreement: {result['raw_agreement']:.3f}")
+        typer.echo(f"Cohen's kappa: {result['kappa']:.3f}")
+        typer.echo("confusion (rows=sam, cols=judge):")
+        for sam_verdict, cols in result["confusion"].items():
+            typer.echo(f"  {sam_verdict:13s} " + " ".join(
+                f"{v}={cols[v]}" for v in judge_mod.VERDICTS
+            ))
+        if result["kappa"] is not None and result["kappa"] < 0.6:
+            typer.echo(
+                "kappa < 0.6: judged criteria-satisfaction is DEMOTED to "
+                "exploratory per the pre-registration."
+            )
+        return
+
+    cards, _ = taskcards_mod.load_all(tasks_dir)
+    conn = queue.connect(db_path)
+    judge_mod.init_judge_table(conn)
+    units = judge_mod.calibration_pairs(conn, {c.id: c for c in cards})
+    if not units:
+        typer.echo("no done judge runs to sample from", err=True)
+        raise typer.Exit(1)
+    sheet_csv, sheet_md, key_csv = judge_mod.write_calibration_sheet(
+        units, results_dir, reports_dir, sample_size=sample, seed=seed
+    )
+    typer.echo(f"sheet: {sheet_md}")
+    typer.echo(f"grades go in: {sheet_csv} (sam_verdict column)")
+    typer.echo(f"key (do not open while grading): {key_csv}")
 
 
 @app.command("report-skills")

@@ -25,11 +25,9 @@
 #     pending with the same resume_after gate, and exits. The outer loop then
 #     backs off on the shared gate, so the drain degrades to waiting, not to
 #     burning attempts.
-#   * Coding-task runs (`harness run`, NOT `run-skills`) must NOT be
-#     parallelized this way: they use repo-pinned workspace slots
-#     (slot = repo round-robin), so two workers on the same repo would
-#     collide in one slot directory. They would need per-worker slot ranges
-#     first.
+#   * Coding-task runs (`harness run`) have their own parallel drain with
+#     repo partitioning and per-worker slot ranges: scripts/coding-drain.sh.
+#     Do not parallelize `harness run` by hand without those flags.
 #
 # Safe to kill and restart; resumes from the queue.
 set -u

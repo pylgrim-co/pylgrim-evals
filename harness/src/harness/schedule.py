@@ -33,11 +33,14 @@ def generate(
     models: list[str],
     reps: int,
     seed: int,
+    order_key_start: int = 0,
 ) -> list[dict[str, Any]]:
     """Build the full schedule as queue-insertable row dicts.
 
     tasks: list of {"task_id": ..., "repo": ...} mappings.
     Returns rows with run_id, repo, task_id, arm, model, rep, seed, order_key.
+    order_key_start lets a second block (e.g. positive-control runs) be
+    appended after the main schedule without overlapping order keys.
     """
     rng = random.Random(seed)
     cells = [
@@ -47,7 +50,7 @@ def generate(
         for model in models
     ]
     rows: list[dict[str, Any]] = []
-    order_key = 0
+    order_key = order_key_start
     for rep in range(1, reps + 1):
         block = list(cells)
         rng.shuffle(block)

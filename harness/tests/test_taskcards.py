@@ -88,3 +88,46 @@ def test_load_all_flags_duplicate_ids(tmp_path, fixtures_dir):
     cards, errors = taskcards.load_all(tmp_path)
     assert len(cards) == 1
     assert any("duplicate task id" in e for e in errors)
+
+
+def _minimal_bait(control=None):
+    data = {
+        "id": "x-c01",
+        "kind": "bait",
+        "title": "t",
+        "base_sha": "0" * 40,
+        "prompt": "p",
+        "intent": {
+            "constraints": [],
+            "work_item": {"criteria": [], "scope_paths": [], "out_of_scope": []},
+        },
+        "source": {"authored": True},
+    }
+    if control is not None:
+        data["control"] = control
+    return data
+
+
+def test_control_true_on_bait_is_valid():
+    data = _minimal_bait(control=True)
+    assert taskcards.validate(data) == []
+    assert taskcards.from_dict(data).control is True
+
+
+def test_control_true_on_real_is_error():
+    data = _minimal_bait(control=True)
+    data["kind"] = "real"
+    data["source"] = {"issue_url": "https://x", "ground_truth_pr": "https://y"}
+    errors = taskcards.validate(data)
+    assert any("control: true requires kind: bait" in e for e in errors)
+
+
+def test_control_non_bool_is_error():
+    errors = taskcards.validate(_minimal_bait(control="yes"))
+    assert any("control must be a boolean" in e for e in errors)
+
+
+def test_control_absent_defaults_false():
+    data = _minimal_bait()
+    assert taskcards.validate(data) == []
+    assert taskcards.from_dict(data).control is False

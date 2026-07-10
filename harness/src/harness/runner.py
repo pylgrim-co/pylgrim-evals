@@ -23,7 +23,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from harness import arms, workspace
+from harness import arms, provenance, workspace
 from harness import transcripts as transcripts_mod
 from harness.headless import (  # noqa: F401  (re-exported public surface)
     DEFAULT_TIMEOUT_S,
@@ -37,6 +37,7 @@ from harness.headless import (  # noqa: F401  (re-exported public surface)
     parse_resume_after,
     scrub_env,
 )
+from harness.metrics import drift_tokens as drift_tokens_metric
 from harness.metrics import honeypots as honeypots_metric
 from harness.metrics import scope as scope_metric
 from harness.metrics import tests_outcome as tests_metric
@@ -101,12 +102,18 @@ def execute_run(
         metrics["tokens"] = tokens_metric.compute(
             transcripts_mod.summarize_file(transcript_dest), cli_result
         )
+        metrics["drift_tokens"] = drift_tokens_metric.compute(
+            transcripts_mod.iter_events(transcript_dest),
+            task,
+            workspace_root=str(slot_dir),
+        )
 
     record = {
         "run": {**run_row, "session_id": session_id,
                 "transcript_path": str(transcript_dest) if transcript_dest else None},
         "cli_result": cli_result,
         "metrics": metrics,
+        "provenance": provenance.build(run_row, task, cli_result),
     }
     (run_dir / "result.json").write_text(
         json.dumps(record, indent=2, default=str), encoding="utf-8"

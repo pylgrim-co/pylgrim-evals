@@ -38,6 +38,10 @@ class TaskCard:
     rules: list[dict[str, Any]] = field(default_factory=list)
     test_command: str = ""
     deterministic_checks: list[str] = field(default_factory=list)
+    # Positive-control cards instruct the agent to perform the tempting
+    # out-of-scope work, proving the drift instruments fire. They are
+    # excluded from every confirmatory analysis.
+    control: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -80,6 +84,13 @@ def validate(data: Any) -> list[str]:
         errors.append("missing required field: base_sha")
     elif not isinstance(sha, str) or not _SHA_RE.match(sha):
         errors.append("base_sha must be a 40-character lowercase hex string")
+
+    control = data.get("control")
+    if control is not None:
+        if not isinstance(control, bool):
+            errors.append(f"control must be a boolean, got {type(control).__name__}")
+        elif control and kind != "bait":
+            errors.append("control: true requires kind: bait (controls are authored)")
 
     intent = data.get("intent")
     if not isinstance(intent, dict):
@@ -166,6 +177,7 @@ def from_dict(data: dict[str, Any]) -> TaskCard:
         rules=list(data.get("rules") or []),
         test_command=outcome.get("test_command", "") or "",
         deterministic_checks=list(outcome.get("deterministic_checks") or []),
+        control=data.get("control") is True,
         raw=data,
     )
 

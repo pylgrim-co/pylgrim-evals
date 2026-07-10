@@ -62,3 +62,26 @@ def test_run_ids_and_seeds_stable():
     # Per-run seed is a pure function of (master seed, run_id).
     again = schedule.generate(TASKS, ARMS, MODELS, reps=2, seed=42)
     assert {r["run_id"]: r["seed"] for r in again} == {r["run_id"]: r["seed"] for r in rows}
+
+
+def test_order_key_start_appends_without_overlap():
+    main = schedule.generate(TASKS, ARMS, MODELS, reps=2, seed=42)
+    controls = schedule.generate(
+        [{"task_id": "alpha-c01", "repo": "alpha"}],
+        ARMS,
+        MODELS,
+        reps=1,
+        seed=42,
+        order_key_start=len(main),
+    )
+    main_keys = {r["order_key"] for r in main}
+    control_keys = {r["order_key"] for r in controls}
+    assert not (main_keys & control_keys)
+    assert min(control_keys) == len(main)
+    assert max(control_keys) == len(main) + len(controls) - 1
+
+
+def test_order_key_start_default_zero_unchanged():
+    rows = schedule.generate(TASKS, ARMS, MODELS, reps=1, seed=42)
+    baseline = schedule.generate(TASKS, ARMS, MODELS, reps=1, seed=42, order_key_start=0)
+    assert rows == baseline

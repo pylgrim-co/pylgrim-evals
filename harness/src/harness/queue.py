@@ -87,29 +87,43 @@ def insert_schedule(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> Non
         )
 
 
-def claim_next(conn: sqlite3.Connection, now: str | None = None) -> dict[str, Any] | None:
+def claim_next(
+    conn: sqlite3.Connection,
+    now: str | None = None,
+    repos: list[str] | None = None,
+) -> dict[str, Any] | None:
     """Atomically claim the next eligible pending run.
 
     Eligible: status pending and (resume_after IS NULL OR resume_after <= now).
     Order: order_key, which the schedule generator assigned as rep-blocked
     random order, so a truncated study stays balanced across cells.
 
+    repos: when given, claim only runs for those repos. This is the parallel
+    coding drain's partition filter (each worker owns a disjoint repo subset,
+    so workspace slots never collide); None preserves the original behavior.
+
     Returns the claimed row as a dict, or None when nothing is eligible.
     """
     now = now or now_iso()
+    sql = """
+        SELECT run_id FROM runs
+        WHERE status = 'pending'
+          AND (resume_after IS NULL OR resume_after <= ?)
+        {repo_filter}
+        ORDER BY order_key
+        LIMIT 1
+    """
+    params: list[Any] = [now]
+    if repos:
+        placeholders = ",".join("?" for _ in repos)
+        sql = sql.format(repo_filter=f"AND repo IN ({placeholders})")
+        params += list(repos)
+    else:
+        sql = sql.format(repo_filter="")
     with conn:
         # BEGIN IMMEDIATE-equivalent: the UPDATE takes the write lock, and the
         # claimed run_id is selected inside the same transaction.
-        row = conn.execute(
-            """
-            SELECT run_id FROM runs
-            WHERE status = 'pending'
-              AND (resume_after IS NULL OR resume_after <= ?)
-            ORDER BY order_key
-            LIMIT 1
-            """,
-            (now,),
-        ).fetchone()
+        row = conn.execute(sql, params).fetchone()
         if row is None:
             return None
         run_id = row["run_id"]

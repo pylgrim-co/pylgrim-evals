@@ -125,3 +125,22 @@ def test_mark_done_error_and_summary(conn):
     assert done["transcript_path"] == "t.jsonl"
     errored = conn.execute("SELECT * FROM runs WHERE run_id = ?", (second["run_id"],)).fetchone()
     assert errored["error"] == "boom"
+
+
+def test_claim_next_repo_filter(conn):
+    queue.insert_schedule(
+        conn,
+        [
+            {"run_id": "a-t01--vanilla--sonnet--r1", "repo": "alpha", "task_id": "a-t01",
+             "arm": "vanilla", "model": "sonnet", "rep": 1, "seed": 1, "order_key": 0},
+            {"run_id": "b-t01--vanilla--sonnet--r1", "repo": "beta", "task_id": "b-t01",
+             "arm": "vanilla", "model": "sonnet", "rep": 1, "seed": 1, "order_key": 1},
+        ],
+    )
+    row = queue.claim_next(conn, repos=["beta"])
+    assert row is not None and row["repo"] == "beta"
+    # only alpha remains; a beta-filtered claim finds nothing
+    assert queue.claim_next(conn, repos=["beta"]) is None
+    # unfiltered claim still sees alpha (default behavior unchanged)
+    row = queue.claim_next(conn)
+    assert row is not None and row["repo"] == "alpha"
