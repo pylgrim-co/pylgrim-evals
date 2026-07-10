@@ -43,7 +43,10 @@ repos:
     stratum: small
     install: "pnpm install"
     test: "pnpm test"
-    host_verified: false
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10: install exit 0 (~420s: the prepare script runs the
+      full check+build pipeline), test exit 0 (~43s, 5822 passed / 2 skipped).
   - name: click
     url: https://github.com/pallets/click
     preserve: [.venv]
@@ -64,8 +67,14 @@ repos:
     license: MIT
     stratum: medium
     install: "bun install"
-    test: "bun run vitest --run --project node"
-    host_verified: false
+    test: "bun run vitest --run --project main"
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10. AMENDED test command: the original
+      "--project node" ran only the Node-adapter smoke file (14 tests);
+      "--project main" runs the library suite (121 files, 3614 tests, ~5
+      min). Known flaky under host load: compress streaming multi-chunk
+      test can hit its 5s timeout; passes in isolation.
   - name: zod
     url: https://github.com/colinhacks/zod
     preserve: [node_modules]
@@ -74,8 +83,14 @@ repos:
     license: MIT
     stratum: medium
     install: "pnpm install"
-    test: "pnpm --filter zod vitest run"
-    host_verified: false
+    test: "pnpm vitest run --project zod"
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10. AMENDED test command: the original
+      "pnpm --filter zod vitest run" was a FALSE GREEN (pnpm prints "None of
+      the selected packages has a vitest script" and exits 0 running zero
+      tests). The amended command runs 336 files / 3808 tests (~44s) from
+      the repo root.
   - name: prettier
     url: https://github.com/prettier/prettier
     preserve: [node_modules, .yarn]
@@ -83,9 +98,18 @@ repos:
     language: JavaScript
     license: MIT
     stratum: medium
-    install: "yarn install"
-    test: "yarn test"
-    host_verified: false
+    install: "node .yarn/releases/yarn-4.17.0.cjs install"
+    test: "node .yarn/releases/yarn-4.17.0.cjs test --testPathIgnorePatterns=patterns-dirs"
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10. AMENDED commands: no global yarn/corepack on this
+      host (Node 25 dropped corepack); the repo vendors yarn 4.17.0, invoked
+      via node. Full suite 30630 passed / 12520 snapshots green in ~8 min.
+      tests/integration/__tests__/patterns-dirs.js is excluded: it needs
+      fs.symlinkSync, which requires Windows Developer Mode (off on this
+      host) — host-specific, not genuine. The suite also fails en masse
+      under a sandboxed shell (spawn UNKNOWN in fork-heavy integration
+      tests); it must run unsandboxed.
   - name: rich
     url: https://github.com/Textualize/rich
     preserve: [.venv]
@@ -93,9 +117,14 @@ repos:
     language: Python
     license: MIT
     stratum: medium
-    install: "uv venv && uv pip install -e . pytest"
+    install: "uv venv && uv pip install -e . pytest attrs"
     test: "uv run pytest -q"
-    host_verified: false
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10. AMENDED install: attrs added (tests/test_pretty.py
+      imports attr; rich's dev deps live in a Poetry group that
+      "uv pip install -e ." ignores — command gap, not host-specific).
+      With attrs: 984 passed / 23 skipped in ~12s.
   # ---- large ----
   - name: eslint
     url: https://github.com/eslint/eslint
@@ -126,7 +155,11 @@ repos:
     stratum: large
     install: "go build ./..."
     test: "go test ./..."
-    host_verified: false
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10: go test ./... green (143 packages ok, 0 FAIL,
+      48 without tests), ~35-40 min wall. Log kept at
+      results/host-verify/hugo-test.log.
 
 # Pilot configuration (WI-E04): 2 repos x 4 tasks x 2 arms x 3 reps = 48 runs.
 # Wave 1 proper re-plans with the frozen pre-registration seed after the pilot.

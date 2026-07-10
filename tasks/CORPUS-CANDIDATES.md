@@ -42,3 +42,21 @@ prettier/eslint/hugo/nushell/zod are famous enough that memorization is likely (
 ## Pilot suggestion (2 repos, 4 tasks each, for WI-E04)
 
 **zustand** (small TS, fast vitest, clean install) + **click** (small Python, pytest, Win CI, 22% linkage). Both install in seconds and keep pilot iteration cheap.
+
+## Host-verification amendments (2026-07-10, pre-freeze)
+
+Recorded before the pre-registration freeze per docs/10 §5's amendments
+protocol. All ten repos KEPT; four needed command corrections, found by
+running every corpus command verbatim on the eval host:
+
+| repo | amendment | why |
+|---|---|---|
+| hono | test `--project node` → `--project main` | the node project is a 14-test runtime-adapter smoke file; main is the 3,614-test library suite |
+| zod | test `pnpm --filter zod vitest run` → `pnpm vitest run --project zod` | original was a FALSE GREEN: pnpm reports "no vitest script" and exits 0 having run nothing |
+| rich | install += `attrs` | tests/test_pretty.py imports attr; dev deps live in a Poetry group `uv pip install -e .` ignores |
+| prettier | install/test via vendored `node .yarn/releases/yarn-4.17.0.cjs`; exclude `patterns-dirs` | no global yarn/corepack on Node 25; the excluded suite needs fs.symlinkSync (Windows Developer Mode off) — host-specific |
+
+Verification evidence: sql-formatter 5,822 pass; hono 3,614 pass (one
+known-flaky compress-streaming timeout under load); zod 3,808 pass;
+rich 984 pass; prettier 30,630 pass / 12,520 snapshots; hugo 143 packages
+ok, 0 FAIL (~35-40 min). Logs where kept: results/host-verify/.
