@@ -30,7 +30,7 @@ from typing import Optional
 import typer
 import yaml
 
-from harness import __version__, provenance, queue, runner, schedule
+from harness import __version__, provenance, queue, runner, schedule, workspace
 from harness import taskcards as taskcards_mod
 from harness import transcripts as transcripts_mod
 from harness.metrics import drift_tokens as drift_tokens_metric
@@ -370,6 +370,14 @@ def smoke(
     task: Path = typer.Option(..., "--task", help="Task card YAML path"),
     model: str = typer.Option("sonnet", "--model"),
     arm: str = typer.Option("vanilla", "--arm"),
+    repo_name: Optional[str] = typer.Option(
+        None,
+        "--repo-name",
+        help="Bare-clone cache key; matching corpus.yaml's name reuses the "
+        "real repo cache and its warmed slot (default: derived from card id)",
+    ),
+    slot: int = typer.Option(0, "--slot", help="Workspace slot"),
+    rep: int = typer.Option(0, "--rep", help="Rep index (distinguishes run dirs)"),
     root: Path = ROOT_OPT,
     timeout_min: int = typer.Option(30, "--timeout-min"),
 ) -> None:
@@ -382,25 +390,102 @@ def smoke(
         raise typer.Exit(1)
     card.base_sha = sha or card.base_sha
 
-    repo_name = card.id.rsplit("-t", 1)[0] or "smoke"
+    name = repo_name or card.id.rsplit("-t", 1)[0] or "smoke"
+    run_id = f"smoke--{card.id}--{arm}--{model}"
+    if rep:
+        run_id += f"--r{rep}"
     row = {
-        "run_id": f"smoke--{card.id}--{arm}--{model}",
-        "repo": repo_name,
+        "run_id": run_id,
+        "repo": name,
         "task_id": card.id,
         "arm": arm,
         "model": model,
-        "rep": 0,
+        "rep": rep,
         "seed": 0,
     }
     try:
         record = runner.execute_run(
-            row, card, repo, results_dir, slot=0, timeout_s=timeout_min * 60
+            row, card, repo, results_dir, slot=slot, timeout_s=timeout_min * 60
         )
     except runner.RateLimited as exc:
         typer.echo(f"rate limited; resume after {exc.resume_after}", err=True)
         raise typer.Exit(2)
     typer.echo(json.dumps(record["metrics"], indent=2, default=str))
     typer.echo(f"smoke run complete: results/runs/{row['run_id']}/")
+
+
+@app.command("warm-slots")
+def warm_slots(
+    root: Path = ROOT_OPT,
+    slot_count: int = typer.Option(2, "--slot-count", help="Workspace slot pool size"),
+    workers: int = typer.Option(1, "--workers", help="Match the drain's worker count"),
+    repos_filter: Optional[str] = typer.Option(
+        None, "--repos", help="Comma-separated repo names (default: all in corpus)"
+    ),
+    install_timeout_min: int = typer.Option(
+        20, "--install-timeout-min", help="Per-repo install timeout"
+    ),
+) -> None:
+    """Prepare each repo's slot at its pin and run the corpus install command.
+
+    The harness never installs during runs (corpus `install` is documentation
+    for humans and for this command); slots must be warmed before a drain or
+    outcome test commands fail on cold dependency caches. Mirrors the drain's
+    worker-partitioned slot mapping so the warmed slot is the one each
+    worker will actually use.
+    """
+    import subprocess as sp
+
+    tasks_dir, results_dir, _ = _paths(root)
+    corpus = _load_corpus(tasks_dir)
+    repos = _repo_index(corpus)
+    wanted = (
+        [r.strip() for r in repos_filter.split(",") if r.strip()]
+        if repos_filter
+        else sorted(repos)
+    )
+    unknown = [r for r in wanted if r not in repos]
+    if unknown:
+        typer.echo(f"error: not in corpus: {unknown}", err=True)
+        raise typer.Exit(1)
+
+    failures = []
+    for worker_index in range(workers):
+        mine = [r for r in worker_repos(sorted(repos), workers, worker_index) if r in wanted]
+        slots = {
+            name: worker_index * slot_count + (i % slot_count)
+            for i, name in enumerate(worker_repos(sorted(repos), workers, worker_index))
+        }
+        for name in mine:
+            cfg = repos[name]
+            pin = cfg.get("pinned_sha")
+            install = cfg.get("install")
+            if not pin or not install:
+                typer.echo(f"{name}: no pinned_sha/install in corpus, skipping")
+                continue
+            preserve = tuple(cfg.get("preserve") or ("node_modules", ".venv", "target"))
+            slot = slots[name]
+            typer.echo(f"{name}: preparing slot {slot} at {pin[:12]}")
+            slot_dir = workspace.prepare(results_dir, slot, name, cfg["url"], pin, preserve)
+            typer.echo(f"{name}: running install: {install}")
+            proc = sp.run(
+                install,
+                shell=True,
+                cwd=str(slot_dir),
+                capture_output=True,
+                text=True,
+                timeout=install_timeout_min * 60,
+            )
+            if proc.returncode != 0:
+                failures.append(name)
+                tail = (proc.stdout + proc.stderr)[-500:]
+                typer.echo(f"{name}: INSTALL FAILED (exit {proc.returncode}): {tail}", err=True)
+            else:
+                typer.echo(f"{name}: warmed")
+    if failures:
+        typer.echo(f"failed: {failures}", err=True)
+        raise typer.Exit(1)
+    typer.echo("all requested slots warmed")
 
 
 # ---------------------------------------------------------------------------
