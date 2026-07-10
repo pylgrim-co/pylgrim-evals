@@ -3,7 +3,7 @@
 id: nushell-t05
 kind: real
 title: Keep alias-referenced variables alive when a shadowed binding is cleaned up
-base_sha: 17c6e81428c74a67826587e35e08f3322f092421
+base_sha: 27cc9cab17b8e8be0f072890e83541f28b197e6d
 prompt: |
   If an alias uses a variable and the variable is later re-declared with
   another let, the alias breaks:

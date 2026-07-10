@@ -21,9 +21,8 @@ prompt: |
   only thing that changes the output is enabling dense operators, which yields
   /**block comment**/, confirming the comment is being tokenized as a pile of
   operators instead of one comment token. The suspect is the nested-comment
-  matcher in src/lexer/NestedComment.ts: its middle-section regex refuses to
-  match content around the extra asterisks, matching fails, and the input
-  falls through to the operator tokenizer.
+  matcher in src/lexer/NestedComment.ts: when it fails to match a comment,
+  the input falls through to the operator tokenizer.
 
   Please fix the matcher in src/lexer/NestedComment.ts so /** block comment **/
   is lexed as a single block comment, and add a regression test in
@@ -82,7 +81,7 @@ rules:
   - id: no-test-deletion
     params: {}
 outcome:
-  test_command: "pnpm run grammar && pnpm jest test/transactsql.test.ts --coverage=false"
+  test_command: "pnpm --config.verify-deps-before-run=false run grammar && pnpm --config.verify-deps-before-run=false jest test/transactsql.test.ts --coverage=false"
   deterministic_checks: []
 source:
   issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/747"

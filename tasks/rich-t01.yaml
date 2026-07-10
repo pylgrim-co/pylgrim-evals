@@ -91,6 +91,8 @@ contamination_note: >
   training cutoff, so the ground-truth patch is not in training data.
   Fail-at-base verified on this host 2026-07-10: at the base SHA
   chop_cells(chr(27), 3) hangs (killed by a 20s timeout, exit 124) and the
-  existing tests/test_cells.py passes (56 tests, ~0.6s). Note for the
-  harness: at base the deterministic checks HANG rather than fail, so they
-  need a timeout to fail cleanly.
+  existing tests/test_cells.py passes (56 tests, ~0.6s). At base the
+  deterministic checks HANG rather than fail; the harness runs each check
+  with a 600s timeout (metrics/tests_outcome.run_command) and records a
+  timed-out check as failed, so a hang fails cleanly (at the cost of up to
+  ~10 min per hung check on an unfixed run).

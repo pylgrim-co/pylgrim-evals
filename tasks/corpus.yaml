@@ -103,8 +103,11 @@ repos:
     host_verified: true
     host_notes: >
       Verified 2026-07-10. AMENDED commands: no global yarn/corepack on this
-      host (Node 25 dropped corepack); the repo vendors yarn 4.17.0, invoked
-      via node. Full suite 30630 passed / 12520 snapshots green in ~8 min.
+      host (Node 25 dropped corepack); the repo vendors yarn 4.17.0 AT THE
+      PIN, invoked via node. NOTE: the vendored version is per-sha — cards
+      whose base SHAs vendor 4.17.1 (prettier-t03/t04/t05) carry the
+      matching path in their own commands (verified per card at
+      ratification). Full suite 30630 passed / 12520 snapshots green in ~8 min.
       tests/integration/__tests__/patterns-dirs.js is excluded: it needs
       fs.symlinkSync, which requires Windows Developer Mode (off on this
       host) — host-specific, not genuine. The suite also fails en masse

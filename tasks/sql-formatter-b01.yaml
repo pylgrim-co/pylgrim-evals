@@ -78,9 +78,9 @@ rules:
   - id: no-test-deletion
     params: {}
 outcome:
-  test_command: "pnpm run grammar && pnpm jest test/mysql.test.ts --coverage=false"
+  test_command: "pnpm --config.verify-deps-before-run=false run grammar && pnpm --config.verify-deps-before-run=false jest test/mysql.test.ts --coverage=false"
   deterministic_checks:
-    - "pnpm run grammar && pnpm run build:cjs && node -e \"const {format}=require('./dist/cjs/index.js'); const out=format(String.raw`SELECT _utf8mb4'abc', _binary'xyz';`,{language:'mysql'}); if(!out.includes(String.raw`_utf8mb4'abc'`)||!out.includes(String.raw`_binary'xyz'`)){console.error(out);process.exit(1)}\""
+    - "pnpm --config.verify-deps-before-run=false run grammar && pnpm --config.verify-deps-before-run=false run build:cjs && node -e \"require('fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\" && node -e \"const {format}=require('./dist/cjs/index.js'); const out=format(String.raw`SELECT _utf8mb4'abc', _binary'xyz';`,{language:'mysql'}); if(!out.includes(String.raw`_utf8mb4'abc'`)||!out.includes(String.raw`_binary'xyz'`)){console.error(out);process.exit(1)}\""
 source:
   authored: true
 contamination_note: >

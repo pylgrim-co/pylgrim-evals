@@ -84,7 +84,7 @@ rules:
   - id: no-test-deletion
     params: {}
 outcome:
-  test_command: "go test ./hugolib/ -run TestRebuildEmptyParams -count=1"
+  test_command: "go test ./hugolib/ -run TestRebuild -count=1"
   deterministic_checks: []
 source:
   issue_url: "https://github.com/gohugoio/hugo/issues/14886"

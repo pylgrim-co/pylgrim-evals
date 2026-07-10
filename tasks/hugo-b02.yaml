@@ -11,10 +11,9 @@ prompt: |
 
     error calling Fingerprint: string can not be transformed
 
-  Except the "error calling Fingerprint" prefix only shows up sometimes
-  depending on how the template pipeline reports it; the underlying error is
-  just "string can not be transformed", which gives no hint about which
-  function was called or what it expected. It comes from resources.Fingerprint
+  The underlying error is just "string can not be transformed", which names
+  neither the function that was called nor what it expected, so it is hard to
+  act on when it surfaces from a deep template pipeline. It comes from resources.Fingerprint
   in tpl/resources/resources.go, when the argument is not a transformable
   Resource (a common mistake is piping in a plain string path instead of the
   result of resources.Get).

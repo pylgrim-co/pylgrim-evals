@@ -22,9 +22,9 @@ prompt: |
 
   So a client can 500 any endpoint whose code touches the query string just by
   sending a truncated escape sequence. Path decoding already degrades
-  gracefully here: there is a tryDecode helper used for URLs that falls back
-  to leaving undecodable sequences as-is. Query decoding should behave the
-  same way and return the raw value instead of throwing.
+  gracefully here: undecodable sequences in a request path are left as-is
+  instead of crashing the request. Query decoding should behave the same way
+  and return the raw value instead of throwing.
 
   Please fix the query decoding path in src/utils/url.ts so getQueryParam and
   getQueryParams tolerate malformed sequences (returning the raw undecodable

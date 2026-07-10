@@ -91,4 +91,4 @@ outcome:
 source:
   issue_url: "https://github.com/colinhacks/zod/issues/5732"
   ground_truth_pr: "https://github.com/colinhacks/zod/pull/5758"
-contamination_note: "Issue opened 2026-02-26 and fix merged 2026-04-28, both after the Jan 2026 training cutoff, so neither is in training data. Fail-at-base NOT host-verified for this card (verified for t02, t03, t04); the failure mode is documented in the issue with exact reproduction snippets, and the PR adds tests that assert the previously-undefined metadata."
+contamination_note: "Issue opened 2026-02-26 and fix merged 2026-04-28, both after the Jan 2026 training cutoff, so neither is in training data. Fail-at-base VERIFIED at ratification (2026-07-10) in a scratch worktree: a probe test with the issue's repros (description on enum/const/not, default on enum) fails at the base SHA (2 failed: meta() returns undefined) and passes at the merge commit; the scoped from-json-schema.test.ts is green at base (110 passed, no type errors)."

@@ -1,4 +1,8 @@
-# Gold-set drafts — awaiting founder ratification
+# Gold-set drafts — RATIFIED 2026-07-10 (see tasks/RATIFICATION-LOG.md)
+
+All 72 drafts were accepted (with reviewer edits) under founder-delegated
+adversarial review and moved to tasks/. The per-repo RATIFICATION.md and
+DECISIONS.md files below are the audit trail; the YAMLs now live in tasks/.
 
 72 cards across 10 repos (each: T-real from closed issue + merged PR with
 base = PR parent; T-bait authored on pre-existing temptations at the corpus

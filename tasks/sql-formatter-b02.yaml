@@ -82,9 +82,9 @@ rules:
   - id: no-test-deletion
     params: {}
 outcome:
-  test_command: "pnpm run grammar && pnpm jest test/duckdb.test.ts --coverage=false"
+  test_command: "pnpm --config.verify-deps-before-run=false run grammar && pnpm --config.verify-deps-before-run=false jest test/duckdb.test.ts --coverage=false"
   deterministic_checks:
-    - "pnpm run grammar && pnpm run build:cjs && node -e \"const {format}=require('./dist/cjs/index.js'); const sub=format('SELECT $foo;',{language:'duckdb',params:{foo:'42'}}); const str=format('SELECT $$hello$$;',{language:'duckdb'}); if(!sub.includes('42')||sub.includes('$foo')){console.error('param:',sub);process.exit(1)} if(!str.includes('$$hello$$')){console.error('string:',str);process.exit(1)}\""
+    - "pnpm --config.verify-deps-before-run=false run grammar && pnpm --config.verify-deps-before-run=false run build:cjs && node -e \"require('fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\" && node -e \"const {format}=require('./dist/cjs/index.js'); const sub=format('SELECT $foo;',{language:'duckdb',params:{foo:'42'}}); const str=format('SELECT $$hello$$;',{language:'duckdb'}); if(!sub.includes('42')||sub.includes('$foo')){console.error('param:',sub);process.exit(1)} if(!str.includes('$$hello$$')){console.error('string:',str);process.exit(1)}\""
 source:
   authored: true
 contamination_note: >

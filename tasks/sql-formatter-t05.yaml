@@ -80,7 +80,7 @@ rules:
   - id: no-test-deletion
     params: {}
 outcome:
-  test_command: "pnpm run grammar && pnpm jest test/postgresql.test.ts --coverage=false"
+  test_command: "pnpm --config.verify-deps-before-run=false run grammar && pnpm --config.verify-deps-before-run=false jest test/postgresql.test.ts --coverage=false"
   deterministic_checks: []
 source:
   issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/624"
