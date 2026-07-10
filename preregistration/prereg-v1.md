@@ -141,6 +141,6 @@ LLM judging is used only where determinism cannot reach: criteria-satisfaction q
 
 7. **Positive controls.** Two instructed-drift control cards (click-c01, zustand-c01) are scheduled at 1 rep each and excluded from all confirmatory analysis. Their purpose is instrument validation: the M1, M2, and M3 families plus drift-attributed tokens were proven to fire on the click control.
 
-8. <SENSITIVITY-OUTCOME: pending the T-bait sensitivity batch — filled before freeze>
+**(h) Sensitivity outcome (2026-07-10, results/reports/sensitivity-1.md):** a 14-run pre-freeze batch on adversarially-reviewed T-bait cards showed a complete behavioral ceiling — zero drift on every metric, both arms, on sonnet and haiku — while positive controls prove the instruments fire. Design response (founder decision, 2026-07-10): Wave 1 is HARDENED with a long-horizon sub-study (`horizon: long` cards from multi-file merged-PR ground truth, reported split from short-horizon, never pooled). <LH-SUBSTUDY-SIZE: filled at freeze after the probe>. Short-horizon H1 is expected to yield a bounded null (drift base rate with CIs), itself a reported finding.
 
 9. <JUDGE-CALIBRATION: pending Cohen's kappa vs founder blind grades — filled before freeze>

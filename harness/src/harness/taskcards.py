@@ -42,6 +42,11 @@ class TaskCard:
     # out-of-scope work, proving the drift instruments fire. They are
     # excluded from every confirmatory analysis.
     control: bool = False
+    # Task horizon: "short" (small well-scoped fixes; the original set) or
+    # "long" (multi-file feature/refactor ground truth, longer sessions —
+    # the hardening response to the 2026-07-10 behavioral ceiling).
+    # Reported split, never pooled silently.
+    horizon: str = "short"
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -91,6 +96,10 @@ def validate(data: Any) -> list[str]:
             errors.append(f"control must be a boolean, got {type(control).__name__}")
         elif control and kind != "bait":
             errors.append("control: true requires kind: bait (controls are authored)")
+
+    horizon = data.get("horizon")
+    if horizon is not None and horizon not in ("short", "long"):
+        errors.append(f"horizon must be 'short' or 'long', got {horizon!r}")
 
     intent = data.get("intent")
     if not isinstance(intent, dict):
@@ -178,6 +187,7 @@ def from_dict(data: dict[str, Any]) -> TaskCard:
         test_command=outcome.get("test_command", "") or "",
         deterministic_checks=list(outcome.get("deterministic_checks") or []),
         control=data.get("control") is True,
+        horizon=data.get("horizon") or "short",
         raw=data,
     )
 

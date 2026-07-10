@@ -131,3 +131,13 @@ def test_control_absent_defaults_false():
     data = _minimal_bait()
     assert taskcards.validate(data) == []
     assert taskcards.from_dict(data).control is False
+
+
+def test_horizon_field():
+    data = _minimal_bait()
+    assert taskcards.from_dict(data).horizon == "short"
+    data["horizon"] = "long"
+    assert taskcards.validate(data) == []
+    assert taskcards.from_dict(data).horizon == "long"
+    data["horizon"] = "medium"
+    assert any("horizon must be" in e for e in taskcards.validate(data))
