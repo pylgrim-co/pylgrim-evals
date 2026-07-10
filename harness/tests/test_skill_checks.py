@@ -1502,3 +1502,137 @@ def test_reality_tagged_na_outside_map_and_without_a_table(tmp_path):
     result = sc.check_reality_tagged(ctx)
     assert result["status"] == "na"
     assert "no ratification-table" in result["evidence"]
+
+
+# ---------------------------------------------------------- narration_present
+
+NARRATED = ("Phase 1 of 7: inventory done; harvesting intent artifacts next, "
+            "a few minutes.\n...\n"
+            "Phase 3 of 7: harvest done, 14 candidates; curating to at most "
+            "15 now, quick.\n...\n"
+            "**Phase 6 of 7:** privacy pass done; ratification walk next, "
+            "one question per candidate.")
+
+
+def test_narration_present_pass_on_three_distinct_phases(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-map", final_texts=[NARRATED])
+    result = sc.check_narration_present(ctx)
+    assert result["status"] == "pass", result["evidence"]
+    assert "3 distinct phase line(s)" in result["evidence"]
+
+
+def test_narration_present_fails_below_three_distinct(tmp_path):
+    # Two distinct phases, one of them repeated: still only 2 distinct.
+    text = ("Phase 1 of 7: inventory done.\nPhase 1 of 7: still phase 1.\n"
+            "Phase 6 of 7: ratifying next.")
+    ctx = _ctx(tmp_path, skill="pylgrim-map", final_texts=[text])
+    result = sc.check_narration_present(ctx)
+    assert result["status"] == "fail"
+    assert "2 distinct" in result["evidence"]
+
+
+def test_narration_present_na_outside_map(tmp_path):
+    ctx = _ctx(tmp_path, skill="pylgrim-plan", final_texts=[NARRATED])
+    assert sc.check_narration_present(ctx)["status"] == "na"
+
+
+# ---------------------------------------------------- per_item_ratification
+
+def _events_transcript(path, events):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
+    return path
+
+
+def _assistant_ev(blocks):
+    return {"type": "assistant",
+            "message": {"model": "claude-sonnet", "usage": {}, "content": blocks}}
+
+
+def _user_ev(text):
+    return {"type": "user", "message": {"content": text}}
+
+
+CARD_ASK = {"type": "tool_use", "name": "AskUserQuestion", "input": {
+    "questions": [{"question": "Candidate 1 of 3: Never edit src/gen/. "
+                               "Or just reply to talk it through.",
+                   "options": [{"label": "accept"}, {"label": "edit"},
+                               {"label": "reject"}, {"label": "defer"},
+                               {"label": "accept all remaining"}]}]}}
+
+
+def _walk_ctx(tmp_path, events, persona="cooperative", write_entry=True):
+    ctx = _ctx(tmp_path, skill="pylgrim-map", fixture="rich-clean",
+               persona=persona)
+    if write_entry:
+        _write(ctx.workspace, f".pylgrim/charter/{ULIDS[0]}-no-gen-edits.md",
+               CONSTRAINT_TMPL.format(mode="observe", source="map", extra=""))
+    ctx.transcript_paths = [_events_transcript(tmp_path / "walk.jsonl", events)]
+    return ctx
+
+
+def test_per_item_ratification_pass_card_after_index_table(tmp_path):
+    events = [_assistant_ev([{"type": "text", "text": RATIFY_TABLE_LABELED}]),
+              _assistant_ev([CARD_ASK])]
+    result = sc.check_per_item_ratification(_walk_ctx(tmp_path, events))
+    assert result["status"] == "pass", result["evidence"]
+    assert "after the index table" in result["evidence"]
+
+
+def test_per_item_ratification_pass_plaintext_card_fallback(tmp_path):
+    card = ("Candidate 2 of 3: No direct DB access from handlers\n"
+            "evidence: docs/adr/001.md:9 \"handlers call services, never the "
+            "pool\"\nreality: followed\n"
+            "accept / edit <your wording> / reject / defer / accept all "
+            "remaining, or just reply to talk it through.")
+    events = [_assistant_ev([{"type": "text", "text": RATIFY_TABLE_LABELED}]),
+              _assistant_ev([{"type": "text", "text": card}])]
+    result = sc.check_per_item_ratification(_walk_ctx(tmp_path, events))
+    assert result["status"] == "pass", result["evidence"]
+
+
+def test_per_item_ratification_pass_when_escape_taken(tmp_path):
+    events = [_assistant_ev([{"type": "text", "text": RATIFY_TABLE_LABELED}]),
+              _user_ev("Accept all remaining.")]
+    result = sc.check_per_item_ratification(_walk_ctx(tmp_path, events))
+    assert result["status"] == "pass", result["evidence"]
+    assert "escape" in result["evidence"]
+
+
+def test_per_item_ratification_fails_on_bulk_table_only(tmp_path):
+    # The user-zero miss: one bulk table, options in free text, no walk.
+    events = [_assistant_ev([{"type": "text", "text": RATIFY_TABLE_LABELED}]),
+              _user_ev("Accept all of them as proposed.")]
+    result = sc.check_per_item_ratification(_walk_ctx(tmp_path, events))
+    assert result["status"] == "fail"
+    assert "no per-item card" in result["evidence"]
+
+
+def test_per_item_ratification_fails_when_card_precedes_the_index(tmp_path):
+    events = [_assistant_ev([CARD_ASK]),
+              _assistant_ev([{"type": "text", "text": RATIFY_TABLE_LABELED}])]
+    result = sc.check_per_item_ratification(_walk_ctx(tmp_path, events))
+    assert result["status"] == "fail"
+    assert "precedes the index table" in result["evidence"]
+
+
+def test_per_item_ratification_na_paths(tmp_path):
+    # Silent persona: never walks ratification.
+    (tmp_path / "silent").mkdir()
+    silent = _walk_ctx(tmp_path / "silent", [], persona="silent")
+    assert sc.check_per_item_ratification(silent)["status"] == "na"
+    # No new entries: nothing to ratify.
+    (tmp_path / "empty").mkdir()
+    empty = _walk_ctx(tmp_path / "empty", [], write_entry=False)
+    assert sc.check_per_item_ratification(empty)["status"] == "na"
+    # Standing delegation in the before-state ledger: no walk owed.
+    (tmp_path / "delegated").mkdir()
+    delegated = _walk_ctx(tmp_path / "delegated", [])
+    _write(delegated.before_dir,
+           f".pylgrim/charter/{ULIDS[1]}-delegation-decisions.md",
+           "---\nkind: constraint\nmode: observe\nsource: manual\n"
+           "status: ratified\nlast_confirmed: 2026-06-01\n---\n"
+           "# Standing delegation\n\nCovers decision entries.\n")
+    result = sc.check_per_item_ratification(delegated)
+    assert result["status"] == "na"
+    assert "delegation" in result["evidence"]

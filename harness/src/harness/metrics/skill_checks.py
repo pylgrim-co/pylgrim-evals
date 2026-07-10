@@ -1329,6 +1329,120 @@ def check_reality_tagged(ctx: SkillRunContext) -> dict[str, str]:
                    f"{len(rows)} candidate row(s) all carry exactly one label ({detail})")
 
 
+# Narration contract (map): one 'Phase N of 7:' orientation line per phase
+# transition; a run that narrates at least 3 DISTINCT phases oriented the
+# user through the sitting (the user-zero miss: silence between the 5-line
+# sketch and the final table). Leading markdown decoration tolerated.
+_NARRATION_LINE_RE = re.compile(r"^[>\s#*-]*Phase\s+(\d+)\s+of\s+7\s*:",
+                                re.IGNORECASE | re.MULTILINE)
+_NARRATION_MIN_DISTINCT = 3
+
+
+def check_narration_present(ctx: SkillRunContext) -> dict[str, str]:
+    """Map transcripts carry at least 3 distinct 'Phase N of 7:' orientation
+    lines. na for non-map skills (plan's narration is a lighter, untestable
+    shape by design)."""
+    if ctx.skill != "pylgrim-map":
+        return _result("narration_present", "na",
+                       "the Phase-N-of-7 narration shape is a map contract")
+    phases: set[str] = set()
+    for text in [*_assistant_texts(ctx), *ctx.final_texts]:
+        for match in _NARRATION_LINE_RE.finditer(text or ""):
+            phases.add(match.group(1))
+    detail = (f"{len(phases)} distinct phase line(s): "
+              + (", ".join(f"Phase {p} of 7" for p in sorted(phases)) or "(none)"))
+    if len(phases) < _NARRATION_MIN_DISTINCT:
+        return _result("narration_present", "fail",
+                       detail + f"; the contract wants >= {_NARRATION_MIN_DISTINCT}")
+    return _result("narration_present", "pass", detail)
+
+
+# Per-item ratification walk: a card question is recognizable by the mandated
+# 'accept all remaining' option (AskUserQuestion path) or the card-header
+# shape 'Candidate N of M:' (plaintext fallback path). The escape being taken
+# is an 'accept all remaining' utterance in a real user turn.
+_CARD_HEADER_RE = re.compile(
+    r"^[>\s#*-]*(?:candidate|decision|entry|item)\s+\d+\s+of\s+\d+\s*[:.]",
+    re.IGNORECASE | re.MULTILINE)
+_ACCEPT_ALL_REMAINING_RE = re.compile(r"accept all remaining", re.IGNORECASE)
+
+
+def _per_item_card_event(event: dict[str, Any]) -> bool:
+    """Does this assistant event present a per-item ratification card?"""
+    if event.get("type") != "assistant":
+        return False
+    content = (event.get("message") or {}).get("content")
+    for block in (content if isinstance(content, list) else []):
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_use" \
+                and block.get("name") == "AskUserQuestion":
+            for q in (block.get("input") or {}).get("questions") or []:
+                if not isinstance(q, dict):
+                    continue
+                for opt in q.get("options") or []:
+                    label = opt.get("label") if isinstance(opt, dict) else opt
+                    if _ACCEPT_ALL_REMAINING_RE.search(str(label or "")):
+                        return True
+        if block.get("type") == "text" \
+                and _CARD_HEADER_RE.search(str(block.get("text") or "")):
+            return True
+    return False
+
+
+def check_per_item_ratification(ctx: SkillRunContext) -> dict[str, str]:
+    """Interactive ratification happens as a per-item walk: after the index
+    table, at least one per-item card+question exchange appears in the
+    transcripts, or the user takes the accept-all-remaining escape. na for
+    personas that never reach interactive ratification (silent, refuser,
+    content), for standing-delegation fixtures, and for runs that wrote no
+    entries (write_discipline owns those)."""
+    if ctx.persona in _NO_CONSENT_PERSONAS:
+        return _result("per_item_ratification", "na",
+                       f"the {ctx.persona} persona never walks ratification")
+    if _delegated_kinds(ctx.before_dir):
+        return _result("per_item_ratification", "na",
+                       "standing delegation covers this fixture; no walk owed")
+    if not _new_entries(ctx):
+        return _result("per_item_ratification", "na",
+                       "no new entries written; nothing to ratify")
+    first_table: int | None = None
+    first_card: int | None = None
+    escape = False
+    for index, event in enumerate(_events(ctx)):
+        if first_table is None and event.get("type") == "assistant":
+            content = (event.get("message") or {}).get("content")
+            for block in (content if isinstance(content, list) else []):
+                if isinstance(block, dict) and block.get("type") == "text" \
+                        and _ratify_rows(str(block.get("text") or "")):
+                    first_table = index
+                    break
+        if first_card is None and _per_item_card_event(event):
+            first_card = index
+        if not escape and _ACCEPT_ALL_REMAINING_RE.search(_user_turn_text(event)):
+            escape = True
+    if escape:
+        detail = "the accept-all-remaining escape was taken in a user turn"
+        if first_card is not None:
+            detail += f"; first per-item card at event {first_card}"
+        return _result("per_item_ratification", "pass", detail)
+    if first_card is None:
+        return _result("per_item_ratification", "fail",
+                       "no per-item card+question exchange (AskUserQuestion "
+                       "with the accept-all-remaining option, or a "
+                       "'Candidate N of M:' card) and no escape taken")
+    if first_table is not None and first_card < first_table:
+        return _result("per_item_ratification", "fail",
+                       f"per-item card (event {first_card}) precedes the "
+                       f"index table (event {first_table}); the table is "
+                       "presented first as the index")
+    detail = f"per-item card exchange at event {first_card}"
+    detail += (f", after the index table at event {first_table}"
+               if first_table is not None
+               else "; no index table detected (reality_tagged owns table shape)")
+    return _result("per_item_ratification", "pass", detail)
+
+
 CHECKS: dict[str, Callable[[SkillRunContext], dict[str, str]]] = {
     "activated": check_activated,
     "write_discipline": check_write_discipline,
@@ -1354,6 +1468,8 @@ CHECKS: dict[str, Callable[[SkillRunContext], dict[str, str]]] = {
     "delegation_offered": check_delegation_offered,
     "delegation_honored": check_delegation_honored,
     "reality_tagged": check_reality_tagged,
+    "narration_present": check_narration_present,
+    "per_item_ratification": check_per_item_ratification,
 }
 
 

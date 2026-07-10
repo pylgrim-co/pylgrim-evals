@@ -234,6 +234,8 @@ def execute_skill_run(
     question_rounds = 0
     session_id: str | None = None
     prompt = scenario.full_prompt()
+    # Per-session persona state (the cooperative walk cycle advances here).
+    persona_state: dict[str, Any] = {}
 
     for turn in range(1, scenario.max_turns + 1):
         cli_result = headless.invoke_claude(
@@ -267,7 +269,7 @@ def execute_skill_run(
 
         if not question.asked or turn == scenario.max_turns:
             break
-        reply = personas.persona_reply(scenario.persona, question)
+        reply = personas.persona_reply(scenario.persona, question, persona_state)
         if reply is None:
             turn_meta["persona_reply"] = None
             break

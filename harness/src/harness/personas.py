@@ -14,7 +14,28 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent", "content")
+PERSONAS = ("cooperative", "cooperative-bulk", "terse", "rambler", "refuser",
+            "silent", "content")
+
+# Per-item ratification cards (the walk shipped with the map/plan skills):
+# recognized by the mandated "accept all remaining" option in every card's
+# option list, or by the card-header shape in a plaintext-fallback ask.
+_PER_ITEM_HEADER_RE = re.compile(
+    r"\b(?:candidate|decision|entry|item)\s+\d+\s+of\s+\d+\b", re.IGNORECASE)
+_ACCEPT_ALL_REMAINING_RE = re.compile(r"accept all remaining", re.IGNORECASE)
+
+# The cooperative walk cycle: deterministic per-item verdicts so the walk's
+# accept, reject, and edit branches are all exercised reproducibly; from the
+# sixth card on the persona takes the accept-all-remaining escape.
+_WALK_CYCLE = (
+    "Accept.",
+    "Accept.",
+    "Reject this one; the repo does not need it as a standing rule.",
+    "Accept.",
+    "Edit: keep the rule but reword it to start with 'Never' and name the "
+    "alternative action, then apply it.",
+)
+_WALK_ESCAPE = "Accept all remaining."
 
 # A numbered item containing a question mark anywhere (assistants often wrap
 # the question in bold or add a parenthetical after the '?'; verified live).
@@ -116,6 +137,28 @@ def detect_question(result_text: str, events: list[dict[str, Any]] | None = None
 def _mentions(text: str, *needles: str) -> bool:
     lower = text.lower()
     return any(n in lower for n in needles)
+
+
+def is_per_item_question(question: Question) -> bool:
+    """Is this one card of a per-item ratification walk? True when the
+    options carry the mandated 'accept all remaining' escape, or when the
+    question text carries the card-header shape (plaintext fallback)."""
+    for opt in question.options or []:
+        if _ACCEPT_ALL_REMAINING_RE.search(str(opt)):
+            return True
+    return bool(_PER_ITEM_HEADER_RE.search(question.text or ""))
+
+
+def _walk_reply(state: dict | None) -> str:
+    """The next deterministic verdict of the cooperative walk cycle.
+    `state` persists across a session's turns (skill_runner owns it); a
+    None state always answers like the first card."""
+    index = int(state.get("walk_index", 0)) if state is not None else 0
+    if state is not None:
+        state["walk_index"] = index + 1
+    if index < len(_WALK_CYCLE):
+        return _WALK_CYCLE[index]
+    return _WALK_ESCAPE
 
 
 def _cooperative(question: Question) -> str:
@@ -221,11 +264,22 @@ def _content(question: Question) -> str:
     return "Proceed with your suggestion."
 
 
-def persona_reply(persona: str, question: Question) -> str | None:
-    """The scripted reply for a detected question; None means no reply (end)."""
+def persona_reply(persona: str, question: Question,
+                  state: dict | None = None) -> str | None:
+    """The scripted reply for a detected question; None means no reply (end).
+
+    `state` is a per-session mutable dict (skill_runner passes one) so the
+    cooperative walk cycle advances across turns; every reply is still
+    deterministic given (persona, question, state)."""
     if persona == "silent":
         return None
-    if persona == "cooperative":
+    if persona in ("cooperative", "cooperative-bulk") \
+            and is_per_item_question(question):
+        # The per-item ratification walk: cooperative works the cycle;
+        # cooperative-bulk takes the sanctioned escape on the first card.
+        return _WALK_ESCAPE if persona == "cooperative-bulk" \
+            else _walk_reply(state)
+    if persona in ("cooperative", "cooperative-bulk"):
         return _cooperative(question)
     if persona == "terse":
         return _terse(question)

@@ -8,7 +8,8 @@ max_turns: 12
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
              never_touch_ratified, no_self_ratification, zero_network, write_surface, entry_cap_15,
              evidence_resolves, anti_padding, within_budgets,
-             reality_tagged]
+             reality_tagged,
+             narration_present, per_item_ratification]
 notes: >
   Anti-padding: six source files, zero written intent. Pass is 5 or fewer
   entries plus the honest little-written-intent line. Never pad toward 12.

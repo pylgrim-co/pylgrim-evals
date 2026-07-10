@@ -27,7 +27,8 @@ FIXTURES = ("rich-clean", "rich-clean-delegated", "barren", "contradictory",
 # real-repo skills study (WI-E06). plan-skills schedules one suite at a time
 # via --suite so the two studies never mix in one skills.db schedule.
 SUITES = ("stress", "e06")
-PERSONAS = ("cooperative", "terse", "rambler", "refuser", "silent", "content")
+PERSONAS = ("cooperative", "cooperative-bulk", "terse", "rambler", "refuser",
+            "silent", "content")
 INVOKE_MODES = ("explicit", "natural")
 EXPECT_WRITE = ("always", "maybe", "never")
 ASSERTIONS = (
@@ -55,6 +56,8 @@ ASSERTIONS = (
     "delegation_offered",
     "delegation_honored",
     "reality_tagged",
+    "narration_present",
+    "per_item_ratification",
 )
 
 # Filenames in tasks/skills/ that are not scenario cards.

@@ -8,7 +8,8 @@ max_turns: 12
 assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten_only,
              never_touch_ratified, no_self_ratification, zero_network, write_surface, entry_cap_15,
              evidence_resolves, within_budgets,
-             reality_tagged]
+             reality_tagged,
+             narration_present, per_item_ratification]
 notes: >
   Happy path and baseline for map quality: 8 real CLAUDE.md rules, 3 ADRs,
   CODEOWNERS, CI. Evidence should quote and resolve; ADRs become decisions.

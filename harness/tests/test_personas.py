@@ -205,6 +205,64 @@ def test_content_deflects_ratification_to_the_standing_delegation():
     assert "standing delegation" in reply.lower()
 
 
+def test_per_item_question_detected_from_options_and_text():
+    by_options = personas.Question(
+        True, "ask_user_question_tool",
+        "Ratify this candidate? Or just reply to talk it through.",
+        options=["accept", "edit", "reject", "defer", "accept all remaining"])
+    assert personas.is_per_item_question(by_options)
+    by_text = personas.Question(
+        True, "question_mark_in_tail",
+        "Candidate 3 of 12: Never edit src/gen/. Accept, edit, reject, defer?")
+    assert personas.is_per_item_question(by_text)
+    bulk = personas.Question(True, "options_menu",
+                             "Say accept all, or name numbers to change.")
+    assert not personas.is_per_item_question(bulk)
+
+
+def test_cooperative_walk_cycle_is_deterministic():
+    # The walk cycle: accept, accept, reject, accept, edit, then the
+    # accept-all-remaining escape for every later card.
+    q = personas.Question(
+        True, "ask_user_question_tool", "Candidate question",
+        options=["accept", "edit", "reject", "defer", "accept all remaining"])
+    state: dict = {}
+    replies = [personas.persona_reply("cooperative", q, state) for _ in range(7)]
+    assert replies[0] == replies[1] == replies[3] == "Accept."
+    assert replies[2].lower().startswith("reject")
+    assert "accept" not in replies[2].lower()  # a reject never carries consent
+    assert replies[4].lower().startswith("edit")
+    assert replies[5] == replies[6] == "Accept all remaining."
+    # Deterministic given the same state history.
+    rerun_state: dict = {}
+    assert replies == [personas.persona_reply("cooperative", q, rerun_state)
+                       for _ in range(7)]
+
+
+def test_cooperative_without_state_answers_like_the_first_card():
+    q = personas.Question(True, "x", "Candidate 1 of 5: Never commit secrets.")
+    assert personas.persona_reply("cooperative", q) == "Accept."
+
+
+def test_cooperative_bulk_takes_the_escape_and_keeps_composite_answers():
+    card = personas.Question(
+        True, "ask_user_question_tool", "Ratify?",
+        options=["accept", "edit", "reject", "defer", "accept all remaining"])
+    assert personas.persona_reply("cooperative-bulk", card, {}) \
+        == "Accept all remaining."
+    oos = personas.Question(True, "x",
+                            "Candidate out-of-scope list: confirm, edit, or add?")
+    assert "no schema changes" in personas.persona_reply("cooperative-bulk", oos)
+
+
+def test_cooperative_keeps_bulk_reply_for_non_per_item_ratification():
+    q = personas.Question(True, "options_menu",
+                          "For each, say accept, edit, reject, or defer. "
+                          "Or say accept all.")
+    assert personas.persona_reply("cooperative", q, {}) \
+        == "Accept all of them as proposed."
+
+
 def test_replies_are_deterministic():
     q = personas.Question(True, "trailing_question_mark", "Ratify all entries now?")
     for persona in ("cooperative", "terse", "rambler", "refuser", "content"):

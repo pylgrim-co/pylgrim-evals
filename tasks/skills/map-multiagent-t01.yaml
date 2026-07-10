@@ -10,7 +10,8 @@ assertions: [write_discipline, spec_valid, observe_only, source_correct, tighten
              never_touch_ratified, no_self_ratification, zero_network, write_surface,
              entry_cap_15, evidence_resolves, within_budgets,
              multi_source_evidence, conflict_surfaced, consolidation_safe,
-             reality_tagged]
+             reality_tagged,
+             narration_present, per_item_ratification]
 notes: >
   Five agent files (CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/one.mdc,
   copilot-instructions) with two planted cross-file conflicts
