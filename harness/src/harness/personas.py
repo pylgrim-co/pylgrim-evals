@@ -142,11 +142,15 @@ def _mentions(text: str, *needles: str) -> bool:
 def is_per_item_question(question: Question) -> bool:
     """Is this one card of a per-item ratification walk? True when the
     options carry the mandated 'accept all remaining' escape, or when the
-    question text carries the card-header shape (plaintext fallback)."""
+    question text carries the card-header shape or the fallback line's
+    'accept all remaining' phrase (plaintext fallback; the old bulk menus
+    say 'accept all', never 'accept all remaining')."""
     for opt in question.options or []:
         if _ACCEPT_ALL_REMAINING_RE.search(str(opt)):
             return True
-    return bool(_PER_ITEM_HEADER_RE.search(question.text or ""))
+    text = question.text or ""
+    return bool(_PER_ITEM_HEADER_RE.search(text)
+                or _ACCEPT_ALL_REMAINING_RE.search(text))
 
 
 def _walk_reply(state: dict | None) -> str:
