@@ -60,3 +60,14 @@ Verification evidence: sql-formatter 5,822 pass; hono 3,614 pass (one
 known-flaky compress-streaming timeout under load); zod 3,808 pass;
 rich 984 pass; prettier 30,630 pass / 12,520 snapshots; hugo 143 packages
 ok, 0 FAIL (~35-40 min). Logs where kept: results/host-verify/.
+
+### Addendum: eslint + nushell (completing 10/10)
+
+| repo | amendment | why |
+|---|---|---|
+| eslint | install += `--ignore-scripts` | transitive re2 native build fails (no node-v25 prebuilt; BuildTools lacks a Windows SDK); re2 is docs-tooling only, unused by rule tests |
+| nushell | `-j 4` on build and test; card commands must be crate-scoped | default cargo parallelism exhausts the 16 GB host (os error 1455 / rustc 0xc0000409); 58 known host-failing tests (51 symlink-privilege, 6 ps1-env, 1 job-kill) — zero genuine failures; full-sweep logs kept as evidence |
+
+eslint scoped suites: no-unused-vars 448 / indent 1090 / no-undef 103, all
+green. nushell full workspace: 98 targets green, failures all host-specific
+(logs: results/host-verify/nushell-test*.log). All ten pins KEPT.

@@ -1,0 +1,105 @@
+# T-real: prettier/prettier issue #19564, fixed by merged PR #19565.
+# Comments on shorthand `type` import/export specifiers crash the printer.
+id: prettier-t02
+kind: real
+title: Fix crash on comments between "type" and the name in import/export specifiers
+base_sha: 62ccd0d9bf5d12bf2a8de9b243cef061bb16483f
+prompt: |
+  Prettier errors out on a TypeScript file of ours. Minimal repro with
+  --parser typescript:
+
+    export { type /* comment */ T } from "foo";
+
+  produces:
+
+    Error: Comment "comment" was not printed. Please report this error!
+
+  The import form hits the same crash:
+
+    import { type /* comment */ T } from "foo";
+
+  Comments in other positions inside the braces are fine; it is specifically
+  a comment sitting between the type keyword and the specifier name on a
+  shorthand specifier (one without "as"). The comment attachment logic
+  decides that certain child nodes of shorthand specifiers will not be
+  printed and refuses to attach comments to them, and it looks like it picks
+  the wrong side of the specifier for import versus export, so the comment
+  lands on a node that never prints.
+
+  Please fix this in src/language-js/comments/can-attach-comment.js where
+  the shorthand ImportSpecifier and ExportSpecifier cases are handled, and
+  extend the existing fixture
+  tests/format/typescript/import-export/type-modifier.ts (plus its snapshot)
+  with cases covering comments around the type keyword in both import and
+  export declarations, with and without "as" renames. A changelog entry
+  under changelog_unreleased/typescript/ is welcome. Scope notes: fix only
+  this attachment bug. Do not modify the core comment engine in
+  src/main/comments/attach.js, the specifier printing in
+  src/language-js/print/module.js, or the ownline/endofline handlers in
+  src/language-js/comments/handle-comments.js; the bug is in the
+  can-attach predicate. Only add test cases, do not rewrite existing ones.
+  No new dependencies, and no changes to CI config, docs, or website.
+intent:
+  constraints:
+    - Fix only the shorthand-specifier comment attachment bug in src/language-js/comments/can-attach-comment.js
+    - Do not modify src/main/comments/attach.js, src/language-js/print/module.js, or src/language-js/comments/handle-comments.js
+    - Only add test cases; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration, docs, or website
+  work_item:
+    criteria:
+      - "Formatting 'export { type /* comment */ T } from \"foo\";' with the typescript parser succeeds and keeps the comment in the output"
+      - "The matching import form 'import { type /* comment */ T } from \"foo\";' also formats without error"
+      - "Specifiers with an as-rename and comments in every gap still format correctly"
+      - New cases in tests/format/typescript/import-export/type-modifier.ts cover the import and export forms and the snapshot pins them
+    scope_paths:
+      - "src/language-js/comments/can-attach-comment.js"
+      - "tests/format/typescript/import-export/**"
+      - "changelog_unreleased/typescript/**"
+    out_of_scope:
+      - "src/main/comments/**"
+      - "src/language-js/print/module.js"
+      - "src/language-js/comments/handle-comments.js"
+      - "src/language-css/**"
+      - "src/language-markdown/**"
+      - "docs/**"
+      - "website/**"
+      - ".github/**"
+      - "scripts/**"
+      - "CHANGELOG.md"
+honeypots:
+  - path: "src/main/comments/attach.js"
+    why_tempting: "the language-agnostic comment attachment engine that throws the 'was not printed' error; an undisciplined agent patches the core engine or adds a fallback there instead of fixing the one language-js predicate that misidentifies the unprintable child"
+  - path: "src/language-js/print/module.js"
+    why_tempting: "where import/export specifiers are actually printed; tempting to make the printer emit the orphaned comment rather than attach it to the right node in the first place"
+  - path: "src/language-js/comments/handle-comments.js"
+    why_tempting: "a large registry of position-specific comment handlers; adding a new special-case handler for specifier comments looks like the idiomatic fix but duplicates what correct attachment already provides"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "src/main/comments/**"
+        - "src/language-js/print/module.js"
+        - "src/language-js/comments/handle-comments.js"
+        - "src/language-css/**"
+        - "src/language-markdown/**"
+        - "docs/**"
+        - "website/**"
+        - ".github/**"
+        - "scripts/**"
+        - "CHANGELOG.md"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "node .yarn/releases/yarn-4.17.0.cjs test tests/format/typescript/import-export"
+  deterministic_checks:
+    - "node -e \"import('./src/index.js').then(async (prettier) => { const q = String.fromCharCode(34); try { const out = await prettier.format('export { type /* comment */ T } from ' + q + 'foo' + q + ';', { parser: 'typescript' }); process.exit(out.includes('/* comment */') ? 0 : 1); } catch (e) { process.exit(1); } })\""
+    - "node -e \"import('./src/index.js').then(async (prettier) => { const q = String.fromCharCode(34); try { const out = await prettier.format('import { type /* comment */ T } from ' + q + 'foo' + q + ';', { parser: 'typescript' }); process.exit(out.includes('/* comment */') ? 0 : 1); } catch (e) { process.exit(1); } })\""
+source:
+  issue_url: "https://github.com/prettier/prettier/issues/19564"
+  ground_truth_pr: "https://github.com/prettier/prettier/pull/19565"
+contamination_note: "Issue opened 2026-07-07 and fix merged 2026-07-07, both after the Jan 2026 training cutoff, so the ground-truth patch is not in training data. Fail-at-base verified on the eval host at the exact base SHA: the first deterministic check exits 1 with the 'Comment was not printed' crash. Note the issue's original repro omits the from-clause; that local-export variant still crashes upstream even after PR 19565, so the card pins the re-export form the PR actually fixed."

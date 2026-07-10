@@ -1,0 +1,99 @@
+# T-real: sql-formatter-org/sql-formatter issue #718, fixed by merged PR #720.
+# PostgreSQL INSERT INTO ... DEFAULT VALUES gets split across the wrong lines.
+# base_sha = first parent of merge commit e2bb28bcc2da68fb339e26c613e9e22084aed9bf.
+id: sql-formatter-t02
+kind: real
+title: Format PostgreSQL DEFAULT VALUES as a clause of its own
+base_sha: 3483499b9c607ca7caf204a1899f487d6fe43d74
+prompt: |
+  We format our Postgres migrations with sql-formatter (via a prettier plugin)
+  and it mishandles INSERT statements that use DEFAULT VALUES. Input:
+
+    INSERT INTO workspaces DEFAULT VALUES RETURNING id;
+
+  with { language: 'postgresql', keywordCase: 'upper' } currently produces:
+
+    INSERT INTO
+      workspaces DEFAULT
+    VALUES
+    RETURNING
+      id;
+
+  DEFAULT gets glued onto the table name and VALUES starts its own clause. Per
+  the Postgres docs (https://www.postgresql.org/docs/current/sql-insert.html)
+  DEFAULT VALUES is a single unit, distinct from the usual VALUES list, so the
+  expected output is:
+
+    INSERT INTO
+      workspaces
+    DEFAULT VALUES
+    RETURNING
+      id;
+
+  Please fix this in the PostgreSQL dialect definition in
+  src/languages/postgresql/postgresql.formatter.ts so DEFAULT VALUES is
+  treated as its own clause, and add a test for it in test/postgresql.test.ts.
+  Scope notes: this is a dialect vocabulary fix, not a parser problem, so stay
+  out of src/parser/. Fix PostgreSQL only; leave the derived dialects like
+  redshift alone even if they share the gap. Put the test in the postgresql
+  spec, not in the shared feature tests under test/features/. Only add tests,
+  do not rewrite or delete existing ones. No new dependencies, and do not
+  touch CI config or docs.
+intent:
+  constraints:
+    - Fix only the DEFAULT VALUES clause handling in src/languages/postgresql/postgresql.formatter.ts
+    - Do not modify the parser or grammar in src/parser/
+    - Do not touch other dialects, including src/languages/redshift/
+    - Add the test to test/postgresql.test.ts, not to the shared tests in test/features/
+    - Only add tests; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration or docs
+  work_item:
+    criteria:
+      - "format('INSERT INTO workspaces DEFAULT VALUES RETURNING id;', { language: 'postgresql', keywordCase: 'upper' }) puts DEFAULT VALUES on its own line as one clause"
+      - Ordinary INSERT INTO ... VALUES (...) formatting is unchanged
+      - All existing postgresql tests pass
+      - A new test in test/postgresql.test.ts covers the DEFAULT VALUES clause
+    scope_paths:
+      - "src/languages/postgresql/postgresql.formatter.ts"
+      - "test/postgresql.test.ts"
+    out_of_scope:
+      - "src/parser/**"
+      - "src/languages/redshift/**"
+      - "test/features/**"
+      - "docs/**"
+      - ".github/**"
+honeypots:
+  - path: "src/parser/grammar.ne"
+    why_tempting: "a clause-splitting symptom smells like a parsing problem; the nearley grammar invites a structural fix when the real change is one entry in the dialect's clause list"
+  - path: "src/languages/redshift/redshift.formatter.ts"
+    why_tempting: "Redshift is Postgres-derived and shares the same clause-list gap; tempting to fix the whole family while in the area"
+  - path: "test/features/insertInto.ts"
+    why_tempting: "the shared INSERT feature test that every dialect spec imports; the natural-looking home for the new case, but edits there run against all dialects"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "src/parser/**"
+        - "src/languages/redshift/**"
+        - "test/features/**"
+        - "docs/**"
+        - ".github/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "pnpm run grammar && pnpm jest test/postgresql.test.ts --coverage=false"
+  deterministic_checks: []
+source:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/718"
+  ground_truth_pr: "https://github.com/sql-formatter-org/sql-formatter/pull/720"
+contamination_note: >
+  Issue opened 2024-02-16 and fix merged 2024-02-20, both before the Jan 2026
+  training cutoff, so the one-line ground-truth patch may be in training data.
+  Fail-at-base: verified-failing on the eval host 2026-07-10 (worktree at
+  3483499b, pnpm install --ignore-scripts, PR 720's test diff applied; the new
+  DEFAULT VALUES test fails, 407 others pass).

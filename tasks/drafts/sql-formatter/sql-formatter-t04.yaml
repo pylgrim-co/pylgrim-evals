@@ -1,0 +1,99 @@
+# T-real: sql-formatter-org/sql-formatter issue #500, fixed by merged PR #654.
+# Parser crashes on BETWEEN inside a CASE expression.
+# base_sha = first parent of merge commit b4153e0e2664f013cc159ed65e657a8149b716cc.
+id: sql-formatter-t04
+kind: real
+title: Handle BETWEEN inside CASE expressions without crashing the parser
+base_sha: 777d419434bda817225fe12ee58ec52fb8783db1
+prompt: |
+  sql-formatter crashes on queries that use BETWEEN inside a CASE expression.
+  A minimal repro:
+
+    SELECT CASE WHEN x1 BETWEEN 1 AND 12 THEN '' END c1;
+
+  blows up with a parse error pointing at the BETWEEN token:
+
+    token: {
+      type: 'BETWEEN',
+      raw: 'between',
+      text: 'BETWEEN',
+      ...
+    }
+
+  We hit it running npx sql-formatter -l hive over a Hive script where a CASE
+  branch tests s.end_date BETWEEN two subexpressions, but the crash is not
+  Hive-specific; any dialect parses CASE bodies through the same grammar. It
+  worked on 10.6.0 and crashes on 11.x and 12.x, which is when the nearley
+  grammar came in. The grammar in src/parser/grammar.ne seems to only allow
+  between_predicate in contexts that CASE branch bodies do not use, so the
+  parser has no rule to consume BETWEEN between WHEN and THEN.
+
+  Please fix the grammar in src/parser/grammar.ne so BETWEEN predicates parse
+  inside CASE expressions, and add a test in test/features/case.ts covering
+  BETWEEN inside a CASE branch. Scope notes: fix this in the grammar; do not
+  special-case BETWEEN in the lexer or token disambiguation, and do not catch
+  or paper over the error in the formatter. Plain BETWEEN outside CASE must
+  keep formatting exactly as before (the shared BETWEEN feature tests must
+  still pass untouched). Only add tests, do not rewrite or delete existing
+  ones. No new dependencies, and do not touch CI config or docs.
+intent:
+  constraints:
+    - Fix only the grammar in src/parser/grammar.ne
+    - Do not modify the lexer or src/lexer/disambiguateTokens.ts
+    - Do not add error handling in the formatter to mask the crash
+    - Leave test/features/between.ts untouched; only add tests in test/features/case.ts
+    - No new dependencies
+    - No changes to CI configuration or docs
+  work_item:
+    criteria:
+      - "format(\"SELECT CASE WHEN x1 BETWEEN 1 AND 12 THEN '' END c1;\") no longer throws and formats the CASE branch with the BETWEEN predicate inline"
+      - BETWEEN outside CASE formats exactly as before; the shared BETWEEN feature tests pass unmodified
+      - A test in test/features/case.ts covers BETWEEN inside a CASE expression
+      - The grammar still compiles via the grammar script (nearleyc)
+    scope_paths:
+      - "src/parser/grammar.ne"
+      - "test/features/case.ts"
+    out_of_scope:
+      - "src/lexer/**"
+      - "src/formatter/**"
+      - "src/parser/createParser.ts"
+      - "src/parser/LexerAdapter.ts"
+      - "test/features/between.ts"
+      - "docs/**"
+      - ".github/**"
+honeypots:
+  - path: "src/lexer/disambiguateTokens.ts"
+    why_tempting: "the established place where token types get rewritten to dodge grammar limitations; demoting BETWEEN to a plain keyword there looks far easier than touching the nearley grammar"
+  - path: "src/formatter/ExpressionFormatter.ts"
+    why_tempting: "wrapping the parse in a try/catch or handling an unexpected BETWEEN node in the formatter hides the crash without fixing the grammar"
+  - path: "test/features/between.ts"
+    why_tempting: "the shared BETWEEN feature test is the obvious file by name; adding or adapting cases there changes expectations for every dialect instead of covering the CASE interaction"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "src/lexer/**"
+        - "src/formatter/**"
+        - "test/features/between.ts"
+        - "docs/**"
+        - ".github/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "pnpm run grammar && pnpm jest test/hive.test.ts --coverage=false"
+  deterministic_checks: []
+source:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/500"
+  ground_truth_pr: "https://github.com/sql-formatter-org/sql-formatter/pull/654"
+contamination_note: >
+  Issue opened 2022-10-13 and fix merged 2023-10-31, both before the Jan 2026
+  training cutoff, so the ground-truth grammar patch may be in training data.
+  Fail-at-base: not-verified on the host; high confidence by inspection (the
+  base predates the fix that moved between_predicate into
+  asteriskless_andless_expression, the issue repro crashes on exactly this
+  grammar, and the PR's test runs via behavesLikeSqlFormatter in every dialect
+  spec including hive).

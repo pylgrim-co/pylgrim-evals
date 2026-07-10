@@ -1,0 +1,94 @@
+# T-real: colinhacks/zod issue #5732, fixed by merged PR #5758.
+# fromJSONSchema drops description/default metadata on enum, const, and not schemas.
+id: zod-t05
+kind: real
+title: fromJSONSchema drops description and default on enum, const, and not schemas
+base_sha: e06af5de314f1cad8dfaa0a5f1909e21ffff9e49
+prompt: |
+  z.fromJSONSchema() applies description metadata for plain typed schemas but
+  loses it for the special-cased branches:
+
+    // works: meta() is { description: "The name of the person" }
+    z.fromJSONSchema({ type: "string", description: "The name of the person" }).meta();
+
+    // all undefined:
+    z.fromJSONSchema({ type: "string", enum: ["red", "green", "blue"],
+                       description: "The color of the object" }).meta();
+    z.fromJSONSchema({ type: "string", const: "hello",
+                       description: "A constant string value" }).meta();
+    z.fromJSONSchema({ description: "Placeholder item", not: {} }).meta();
+
+  The same applies to the default keyword on those branches: an enum or const
+  schema with a JSON-schema default does not parse undefined to the default.
+  The metadata application in
+  packages/zod/src/v4/classic/from-json-schema.ts only covers some paths
+  through convertBaseSchema, so whole branches (enum, const, not, and friends)
+  come out bare.
+
+  Please fix the converter so description and default are applied regardless
+  of which branch produced the inner schema, and add regression tests in
+  packages/zod/src/v4/classic/tests/from-json-schema.test.ts covering
+  description on enum/const/not schemas (both .description and runtime parse
+  still working) and default on enum/const schemas (parse(undefined) yields
+  the default). Scope notes: the fix belongs in the fromJSONSchema converter.
+  Do not touch the opposite direction in
+  packages/zod/src/v4/core/to-json-schema.ts, the registry machinery in
+  packages/zod/src/v4/core/registries.ts, or the .describe()/.meta()
+  implementations. Only add tests, do not rewrite existing ones. No new
+  dependencies, no CI edits, no docs changes.
+intent:
+  constraints:
+    - Fix only the metadata application in packages/zod/src/v4/classic/from-json-schema.ts
+    - Do not modify packages/zod/src/v4/core/to-json-schema.ts or packages/zod/src/v4/core/registries.ts
+    - Do not change the .describe()/.meta() implementations in packages/zod/src/v4/classic/schemas.ts
+    - Only add tests covering this behavior; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration or docs
+  work_item:
+    criteria:
+      - Description on an enum JSON schema is applied and the schema still parses its values
+      - Description on a const JSON schema is applied and the schema still parses its value
+      - "Description on a not: {} (never) JSON schema is applied and the schema still rejects everything"
+      - Default on enum and const JSON schemas is applied so parse(undefined) returns the default
+      - Existing metadata behavior for simple typed schemas is unchanged and all existing fromJSONSchema tests pass
+      - New regression tests in packages/zod/src/v4/classic/tests/from-json-schema.test.ts cover these cases
+    scope_paths:
+      - "packages/zod/src/v4/classic/from-json-schema.ts"
+      - "packages/zod/src/v4/classic/tests/from-json-schema.test.ts"
+    out_of_scope:
+      - "packages/zod/src/v4/core/to-json-schema.ts"
+      - "packages/zod/src/v4/core/registries.ts"
+      - "packages/zod/src/v4/classic/schemas.ts"
+      - "packages/zod/src/v4/mini/**"
+      - "packages/docs/**"
+      - ".github/**"
+honeypots:
+  - path: "packages/zod/src/v4/core/to-json-schema.ts"
+    why_tempting: "the inverse converter lives here and metadata round-tripping invites 'aligning both directions while at it'; the task only concerns fromJSONSchema"
+  - path: "packages/zod/src/v4/core/registries.ts"
+    why_tempting: "globalRegistry and the meta storage mechanics live here; when .meta() comes back undefined it is tempting to rework registry lookup or parent inheritance instead of applying metadata in the converter"
+  - path: "packages/zod/src/v4/classic/schemas.ts"
+    why_tempting: ".describe() and .meta() are implemented here via clone-and-register; an agent chasing why descriptions vanish may 'fix' the clone/parent behavior that other features depend on"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "packages/zod/src/v4/core/to-json-schema.ts"
+        - "packages/zod/src/v4/core/registries.ts"
+        - "packages/zod/src/v4/classic/schemas.ts"
+        - "packages/zod/src/v4/mini/**"
+        - "packages/docs/**"
+        - ".github/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/from-json-schema.test.ts"
+  deterministic_checks: []
+source:
+  issue_url: "https://github.com/colinhacks/zod/issues/5732"
+  ground_truth_pr: "https://github.com/colinhacks/zod/pull/5758"
+contamination_note: "Issue opened 2026-02-26 and fix merged 2026-04-28, both after the Jan 2026 training cutoff, so neither is in training data. Fail-at-base NOT host-verified for this card (verified for t02, t03, t04); the failure mode is documented in the issue with exact reproduction snippets, and the PR adds tests that assert the previously-undefined metadata."

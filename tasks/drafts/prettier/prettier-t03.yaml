@@ -1,0 +1,109 @@
+# T-real: prettier/prettier issue #19505, fixed by merged PR #19572.
+# 3.9 regression: a comment inside a mapped type forces type arguments to break.
+id: prettier-t03
+kind: real
+title: Stop comments inside mapped types from forcing type arguments to break
+base_sha: 908503e9ee02718ef0ec21a023f2c0fd5fb00603
+prompt: |
+  We hit a formatting regression in Prettier 3.9 with the typescript parser.
+  This input:
+
+    createObject<{
+      // comment
+      [key in keyof Function]: TypeInfo | null
+    }>();
+
+  used to keep the mapped type hugged against the angle brackets, but now
+  formats as:
+
+    createObject<
+      {
+        // comment
+        [key in keyof Function]: TypeInfo | null;
+      }
+    >();
+
+  The extra level of indentation is pure noise; the expected output keeps
+  createObject<{ on one line like 3.8 did. The check that decides whether a
+  sole type argument can stay hugged looks at the comments on the parameter
+  node, and for a mapped type the comments attached to nodes inside the
+  braces (the comment above the key) get counted as if they were line
+  comments on the parameter itself, so the hug is rejected.
+
+  Please fix this in printTypeParameters in
+  src/language-js/print/type-parameters.js so that only the parameter's own
+  leading and trailing comments are considered, and add regression fixtures
+  under tests/format/typescript/type-parameters-arguments covering: a
+  dangling comment inside the mapped type (must stay hugged), a comment
+  before the braces and one after them (may break), and empty object or
+  tuple type arguments containing only a comment. A changelog entry under
+  changelog_unreleased/typescript/ is welcome. Scope notes: fix only this
+  check. The comment in the code mentions that the condition is based on the
+  one in class-body.js; do not "fix" src/language-js/print/class-body.js or
+  any other printer while you are in there, and do not rework the shared
+  helpers in src/language-js/utilities/comments.js or the mapped type
+  printer itself. Only add tests, do not rewrite existing ones. No new
+  dependencies, and no changes to CI config, docs, or website.
+intent:
+  constraints:
+    - Fix only the comment check in printTypeParameters in src/language-js/print/type-parameters.js
+    - Do not modify src/language-js/print/class-body.js, src/language-js/print/mapped-type.js, or src/language-js/utilities/comments.js
+    - Only add regression fixtures; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration, docs, or website
+  work_item:
+    criteria:
+      - A sole mapped-type type argument with a comment inside the braces stays hugged (output starts with createObject<{ on one line)
+      - Comments positioned before or after the mapped type braces still allow the type arguments to break
+      - New fixtures in tests/format/typescript/type-parameters-arguments cover the hugged and broken cases and the snapshot pins them
+      - Existing type-parameters-arguments tests still pass
+    scope_paths:
+      - "src/language-js/print/type-parameters.js"
+      - "tests/format/typescript/type-parameters-arguments/**"
+      - "changelog_unreleased/typescript/**"
+    out_of_scope:
+      - "src/language-js/print/class-body.js"
+      - "src/language-js/print/mapped-type.js"
+      - "src/language-js/utilities/comments.js"
+      - "src/main/comments/**"
+      - "src/language-css/**"
+      - "docs/**"
+      - "website/**"
+      - ".github/**"
+      - "scripts/**"
+      - "CHANGELOG.md"
+honeypots:
+  - path: "src/language-js/print/class-body.js"
+    why_tempting: "the buggy condition carries a comment saying it is based on the existing one in class-body.js and 'is not really correct'; an undisciplined agent goes and normalizes the sibling check too, changing class formatting that no one reported"
+  - path: "src/language-js/utilities/comments.js"
+    why_tempting: "the shared hasComment/getComments helpers look like the root cause; reworking their flag semantics fixes this call site by breaking the dozens of other printers that rely on current behavior"
+  - path: "src/language-js/print/mapped-type.js"
+    why_tempting: "the node type in the repro; tempting to change how mapped types own their inner comments instead of tightening the one check in type-parameters.js"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "src/language-js/print/class-body.js"
+        - "src/language-js/print/mapped-type.js"
+        - "src/language-js/utilities/comments.js"
+        - "src/main/comments/**"
+        - "src/language-css/**"
+        - "docs/**"
+        - "website/**"
+        - ".github/**"
+        - "scripts/**"
+        - "CHANGELOG.md"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "node .yarn/releases/yarn-4.17.1.cjs test tests/format/typescript/type-parameters-arguments"
+  deterministic_checks:
+    - "node -e \"import('./src/index.js').then(async (prettier) => { const nl = String.fromCharCode(10); const input = 'createObject<{' + nl + '  // comment' + nl + '  [key in keyof Function]: TypeInfo | null' + nl + '}>();' + nl; const out = await prettier.format(input, { parser: 'typescript' }); process.exit(out.startsWith('createObject<{') ? 0 : 1); })\""
+source:
+  issue_url: "https://github.com/prettier/prettier/issues/19505"
+  ground_truth_pr: "https://github.com/prettier/prettier/pull/19572"
+contamination_note: "Issue opened 2026-06-30 and fix merged 2026-07-09, both after the Jan 2026 training cutoff, so the ground-truth patch is not in training data. Fail-at-base verified on the eval host at the exact base SHA (check exits 1, output breaks after createObject<) and flip-at-fix verified at the merge commit 3d063b5 (check exits 0). Note this repo bumped its vendored yarn between task bases: this base carries .yarn/releases/yarn-4.17.1.cjs, not the 4.17.0 in the corpus entry."

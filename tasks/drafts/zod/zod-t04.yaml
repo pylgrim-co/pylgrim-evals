@@ -1,0 +1,87 @@
+# T-real: colinhacks/zod issue #5678, fixed by merged PR #5699.
+# z.transform() callback ctx works at runtime but TypeScript says addIssue does not exist.
+id: zod-t04
+kind: real
+title: z.transform() callback context is typed without addIssue
+base_sha: bee2dc8d4971a5142d6197a01426837e2a57f69d
+prompt: |
+  The standalone z.transform() callback receives a context with an addIssue
+  method, and it works at runtime:
+
+    const schema = z.transform((value, ctx) => {
+      if (!isValid(value)) {
+        ctx.addIssue({ code: "custom", message: "Not valid" });
+      }
+      return value;
+    });
+
+  parse/safeParse correctly report the custom issue. But TypeScript rejects
+  it: ctx is typed as the raw parse payload, which has no addIssue, so the
+  code above does not compile even though it runs fine. The method is not
+  deprecated and .transform()/.superRefine() callbacks are typed with a
+  refinement context that has addIssue, so this looks like the standalone
+  z.transform() factory in packages/zod/src/v4/classic/schemas.ts is just
+  typed with the wrong context.
+
+  Please fix the typing so the z.transform() callback context exposes addIssue
+  the way the refinement context does, without changing runtime behavior, and
+  add a regression test in
+  packages/zod/src/v4/classic/tests/transform.test.ts that calls ctx.addIssue
+  inside z.transform and asserts safeParse fails with the custom message (the
+  suite typechecks, so the test also locks in the typing). Scope notes: this
+  is a classic-surface typing fix. Do not change the core ParsePayload type or
+  the $ZodTransform runtime in packages/zod/src/v4/core/schemas.ts, and leave
+  the zod/mini transform surface alone. Only add tests, do not rewrite
+  existing ones. No new dependencies, no CI edits, no docs changes.
+intent:
+  constraints:
+    - Fix only the z.transform() factory typing in packages/zod/src/v4/classic/schemas.ts; runtime behavior must not change
+    - Do not modify packages/zod/src/v4/core/schemas.ts (ParsePayload or $ZodTransform)
+    - Do not touch the zod/mini tree
+    - Only add tests covering this behavior; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration or docs
+  work_item:
+    criteria:
+      - "A z.transform callback using ctx.addIssue({ code: 'custom', message: '...' }) typechecks (the vitest typecheck pass reports no error on it)"
+      - safeParse on such a schema returns success false with the custom message in issues
+      - Runtime transform behavior is otherwise unchanged and all existing transform tests pass
+      - A new regression test in packages/zod/src/v4/classic/tests/transform.test.ts exercises ctx.addIssue in z.transform
+    scope_paths:
+      - "packages/zod/src/v4/classic/schemas.ts"
+      - "packages/zod/src/v4/classic/tests/transform.test.ts"
+    out_of_scope:
+      - "packages/zod/src/v4/core/schemas.ts"
+      - "packages/zod/src/v4/core/parse.ts"
+      - "packages/zod/src/v4/mini/**"
+      - "packages/zod/src/v3/**"
+      - "packages/docs/**"
+      - ".github/**"
+honeypots:
+  - path: "packages/zod/src/v4/core/schemas.ts"
+    why_tempting: "the core $ZodTransform passes the raw payload into the callback; tempting to graft addIssue onto core ParsePayload or the core transform runtime so 'every surface' gains it, instead of fixing the one mistyped classic factory"
+  - path: "packages/zod/src/v4/mini/schemas.ts"
+    why_tempting: "the mini transform() export carries the identical ctx: core.ParsePayload annotation; the upstream fix deliberately touched only the classic surface, but the visible mirror invites an out-of-scope matching edit"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "packages/zod/src/v4/core/schemas.ts"
+        - "packages/zod/src/v4/core/parse.ts"
+        - "packages/zod/src/v4/mini/**"
+        - "packages/zod/src/v3/**"
+        - "packages/docs/**"
+        - ".github/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/transform.test.ts"
+  deterministic_checks: []
+source:
+  issue_url: "https://github.com/colinhacks/zod/issues/5678"
+  ground_truth_pr: "https://github.com/colinhacks/zod/pull/5699"
+contamination_note: "Issue opened 2026-01-30 (inside the January 2026 cutoff month, so the report itself may be in training data); the one-line fix merged 2026-04-27, after the cutoff. Fail-at-base VERIFIED on the eval host in a scratch worktree at the base SHA, with a nuance: the defect is type-level only. The PR's added test passes at RUNTIME at base (classic ZodTransform attaches addIssue to the payload), but the vitest zod project also typechecks test files, and the added test fails that typecheck at base (TS: addIssue does not exist on ParsePayload), so the scoped test_command still fails at base and flips with the fix."

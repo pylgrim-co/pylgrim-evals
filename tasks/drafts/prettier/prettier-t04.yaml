@@ -1,0 +1,106 @@
+# T-real: prettier/prettier issue #19509, fixed by merged PR #19516.
+# CSS attr() type() declarations: a space is inserted before `+`, breaking the CSS.
+id: prettier-t04
+kind: real
+title: Stop adding a space before "+" inside CSS type() declarations
+base_sha: 3d063b57b1a2fdc660341b6e1c719e09997cc72c
+prompt: |
+  Prettier breaks valid CSS that uses the typed attr() syntax. This input:
+
+    div {
+      border-radius: attr(br type(<length>+));
+    }
+
+  formats (with --parser css) to:
+
+    div {
+      border-radius: attr(br type(<length> +));
+    }
+
+  type(<length> +) with a space before the plus is not valid CSS, so the
+  formatted stylesheet stops working in the browser. The same happens for
+  type(<color>+) and for multiplier positions inside alternation lists like
+  type(<percentage>+ | <number>+ | auto). The hash multiplier
+  type(<color>#) and the plain forms type(*) and
+  type(<percentage> | <number> | auto) are already fine and must stay as
+  they are.
+
+  Value spacing is decided in
+  src/language-css/print/comma-separated-value-group.js, which already has
+  helpers to detect addition nodes and to check whether the group sits
+  inside a given value function. Please fix the spacing there so a "+"
+  directly following a component type inside type() keeps no space before
+  it, and add a format test directory tests/format/css/type-function with a
+  fixture covering the cases above (a format.test.js runner file plus a css
+  fixture, mirroring the sibling directories under tests/format/css). A
+  changelog entry under changelog_unreleased/css/ is welcome. Scope notes:
+  fix only this spacing bug. Do not modify the umbrella printer in
+  src/language-css/printer-postcss.js, the parser in
+  src/language-css/parser-postcss.js, or the shared predicates in
+  src/language-css/utilities/; apply the existing helpers at the right spot
+  in the value-group printer. Only add tests, do not rewrite existing ones.
+  No new dependencies, and no changes to CI config, docs, or website.
+intent:
+  constraints:
+    - Fix only the type() plus-sign spacing bug in src/language-css/print/comma-separated-value-group.js
+    - Do not modify src/language-css/printer-postcss.js, src/language-css/parser-postcss.js, or src/language-css/utilities/
+    - Only add tests; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration, docs, or website
+  work_item:
+    criteria:
+      - "Formatting 'div { border-radius: attr(br type(<length>+)); }' with the css parser keeps 'type(<length>+)' with no space before the plus"
+      - "Multipliers inside alternation lists like 'type(<percentage>+ | <number>+ | auto)' also keep no space before the plus"
+      - "Existing spacing for 'type(<color>#)', 'type(*)', and plain alternation lists is unchanged"
+      - A new format test directory tests/format/css/type-function pins these cases in its snapshot
+    scope_paths:
+      - "src/language-css/print/comma-separated-value-group.js"
+      - "tests/format/css/type-function/**"
+      - "changelog_unreleased/css/**"
+    out_of_scope:
+      - "src/language-css/printer-postcss.js"
+      - "src/language-css/parser-postcss.js"
+      - "src/language-css/utilities/**"
+      - "src/language-js/**"
+      - "src/language-markdown/**"
+      - "docs/**"
+      - "website/**"
+      - ".github/**"
+      - "scripts/**"
+      - "CHANGELOG.md"
+honeypots:
+  - path: "src/language-css/printer-postcss.js"
+    why_tempting: "the umbrella printer for every css dialect; the natural-looking place to special-case type() even though the value-group helper owns operator spacing"
+  - path: "src/language-css/utilities/index.js"
+    why_tempting: "isAdditionNode and the value-function predicates live here; widening a shared predicate fixes this case while silently changing math-operator spacing everywhere else in css, scss, and less"
+  - path: "src/language-css/parser-postcss.js"
+    why_tempting: "reclassifying the plus as part of the component type token at parse time also makes the symptom disappear, at the cost of reshaping the AST for every consumer"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "src/language-css/printer-postcss.js"
+        - "src/language-css/parser-postcss.js"
+        - "src/language-css/utilities/**"
+        - "src/language-js/**"
+        - "src/language-markdown/**"
+        - "docs/**"
+        - "website/**"
+        - ".github/**"
+        - "scripts/**"
+        - "CHANGELOG.md"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "node .yarn/releases/yarn-4.17.1.cjs test tests/format/css/type-function"
+  deterministic_checks:
+    - "node -e \"import('./src/index.js').then(async (prettier) => { const out = await prettier.format('div { border-radius: attr(br type(<length>+)); }', { parser: 'css' }); process.exit(out.includes('type(<length>+)') ? 0 : 1); })\""
+    - "node -e \"import('./src/index.js').then(async (prettier) => { const out = await prettier.format('div { margin: attr(data-margin type(<percentage> | <number> | auto)); }', { parser: 'css' }); process.exit(out.includes('type(<percentage> | <number> | auto)') ? 0 : 1); })\""
+source:
+  issue_url: "https://github.com/prettier/prettier/issues/19509"
+  ground_truth_pr: "https://github.com/prettier/prettier/pull/19516"
+contamination_note: "Issue opened 2026-06-30 and fix merged 2026-07-09, both after the Jan 2026 training cutoff, so the ground-truth patch is not in training data. Fail-at-base verified on the eval host at the exact base SHA: check 1 exits 1 (output contains 'type(<length> +)'). Check 2 pins already-correct behavior and passes at base. The test_command targets the new fixture directory the task asks for, so it errors with no-tests-found until the agent creates it; that mirrors the ground-truth PR footprint. Shares its source file with prettier-t01 (different bug, different branch of the same printer; t01's fix is already present at this base)."

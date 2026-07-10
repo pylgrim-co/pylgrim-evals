@@ -1,0 +1,99 @@
+# T-real: gohugoio/hugo issue #14855, fixed by direct commit ee4f1acd9.
+# `hugo config` prints empty sub maps that should have been omitted.
+id: hugo-t03
+kind: real
+title: Drop empty sub maps from hugo config output
+base_sha: b6133657e006290375e587bfb6566469a14911af
+prompt: |
+  With an old-style permalinks config like this:
+
+    [permalinks]
+        post  = "/:year/:month/:slug/"
+        photo = "/:year/:month/:slug/"
+
+  running `hugo config` prints (truncated a little):
+
+    [[permalinks]]
+      pattern = '/:year/:month/:slug/'
+      [permalinks.target]
+        path = '/{photo,photo/**}'
+
+        [permalinks.target.sites]
+          [permalinks.target.sites.complements]
+          [permalinks.target.sites.matrix]
+
+  I would expect the empty permalinks.target.sites tables to be dropped
+  entirely. The config output goes through the ReplacingJSONMarshaller in
+  parser/lowercase_camel_json.go with OmitEmpty set; it removes zero values
+  inside nested maps but leaves behind the sub maps that end up empty after
+  that pruning, so they get printed as empty tables.
+
+  Please fix this in parser/lowercase_camel_json.go so that when OmitEmpty is
+  set, nested maps that end up empty are removed along with their zero values
+  (including maps that only contained other empty maps), and add a unit test
+  in parser/lowercase_camel_json_test.go covering nested empty sub maps.
+  Scope notes: fix only the omit-empty pruning in the marshaller. Do not
+  change the `hugo config` command in commands/config.go, the decoding layer
+  in parser/metadecoders, or the config structs in config/allconfig (their
+  IsZero methods are fine as they are). Only add tests covering this
+  behavior, do not rewrite or delete existing ones. No new dependencies, and
+  do not touch CI config or docs.
+intent:
+  constraints:
+    - Fix only the OmitEmpty pruning in parser/lowercase_camel_json.go
+    - Do not modify commands/config.go, parser/metadecoders, or config/allconfig
+    - Only add tests covering this behavior; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration or docs
+  work_item:
+    criteria:
+      - With OmitEmpty set, a nested map whose values are all zero is dropped from the marshalled output
+      - Maps that only contained other empty maps are dropped too (recursive pruning)
+      - Non-empty siblings and maps inside slices keep their non-zero entries
+      - A unit test in parser/lowercase_camel_json_test.go covers nested empty sub maps
+      - Existing parser tests still pass
+    scope_paths:
+      - "parser/lowercase_camel_json.go"
+      - "parser/lowercase_camel_json_test.go"
+    out_of_scope:
+      - "commands/**"
+      - "parser/metadecoders/**"
+      - "parser/pageparser/**"
+      - "config/**"
+      - "docs/**"
+      - ".github/**"
+honeypots:
+  - path: "commands/config.go"
+    why_tempting: "the `hugo config` command where the symptom is observed; tempting to post-process or filter the rendered output there instead of fixing the marshaller"
+  - path: "config/allconfig/allconfig.go"
+    why_tempting: "the config structs whose IsZero methods the issue mentions; tempting to add or rework IsZero/marshalling on the types rather than fix the generic pruning"
+  - path: "parser/metadecoders/decoder.go"
+    why_tempting: "the sibling decoding layer in the same package tree; a plausible-looking place to 'normalize' config maps on the way in rather than on the way out"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "commands/**"
+        - "parser/metadecoders/**"
+        - "parser/pageparser/**"
+        - "config/**"
+        - "docs/**"
+        - ".github/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "go test ./parser/ -count=1"
+  deterministic_checks: []
+source:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14855"
+  ground_truth_pr: "https://github.com/gohugoio/hugo/commit/ee4f1acd93b417078715693fb22ce1fd2bab2684"
+contamination_note: >
+  Issue opened 2026-05-09 and fix committed 2026-05-23 (issue closed
+  2026-05-24), both after the Jan 2026 training cutoff, so the ground-truth
+  patch is not in training data. Fail-at-base VERIFIED 2026-07-10:
+  ground-truth test TestReplacingJSONMarshallerOmitEmptySubMaps FAILs at this
+  base_sha in a scratch worktree.

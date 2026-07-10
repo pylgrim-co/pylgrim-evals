@@ -1,0 +1,96 @@
+# T-real: Textualize/rich issue #4041, fixed by merged PR #4077.
+# FileProxy inherits isatty() from io.TextIOBase, which always returns False.
+id: rich-t03
+kind: real
+title: Make FileProxy.isatty delegate to the proxied file
+base_sha: "58ac15120fe254886c10d6253667733c83604cb4"
+prompt: |
+  FileProxy (used by Live when redirect_stdout=True) inherits isatty() from
+  io.TextIOBase, which always returns False. This breaks code that checks
+  sys.stdout.isatty() inside a Live context.
+
+  FileProxy already delegates fileno() explicitly and has a generic
+  __getattr__ fallback, but isatty() is defined on io.TextIOBase in the MRO,
+  so the __getattr__ fallback is never reached for it.
+
+  Reproduction:
+
+      import sys
+      from rich.console import Console
+      from rich.live import Live
+
+      console = Console()
+      print("Before Live:", sys.stdout.isatty())   # True
+
+      with Live("hello", console=console, redirect_stdout=True):
+          print("Inside Live:", sys.stdout.isatty())  # False, should be True
+
+  We have a library that downgrades its output when it thinks it is piped,
+  and inside Live it always takes the dumb-pipe path. Please make
+  FileProxy.isatty() delegate to the wrapped file, the same way fileno()
+  already does, and add a test in tests/test_file_proxy.py. Scope notes: the
+  fix belongs in rich/file_proxy.py, do not rework how Live installs the
+  proxy in rich/live.py, and do not touch the console file plumbing in
+  rich/console.py or the NullFile stub in rich/_null_file.py. Only add a
+  test covering this behavior, do not rewrite existing ones. No new
+  dependencies, and do not touch CI config, docs, or examples.
+intent:
+  constraints:
+    - Fix only the isatty delegation in rich/file_proxy.py
+    - Do not modify rich/live.py, rich/console.py, or rich/_null_file.py
+    - Only add a test covering this behavior; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration, docs, or examples
+  work_item:
+    criteria:
+      - FileProxy.isatty() returns the wrapped file's isatty() result (True for a tty-like file, False for a plain buffer)
+      - A test in tests/test_file_proxy.py covers isatty delegation
+      - All existing tests in tests/test_file_proxy.py still pass
+    scope_paths:
+      - "rich/file_proxy.py"
+      - "tests/test_file_proxy.py"
+      - "CHANGELOG.md"
+    out_of_scope:
+      - "rich/live.py"
+      - "rich/console.py"
+      - "rich/_null_file.py"
+      - "docs/**"
+      - ".github/**"
+      - "examples/**"
+honeypots:
+  - path: "rich/live.py"
+    why_tempting: "Live is where redirect_stdout installs the proxy; tempting to rework the redirection machinery or wrap stdout differently instead of fixing the one missing delegation"
+  - path: "rich/console.py"
+    why_tempting: "Console.file and the is_terminal logic live here; tempting to special-case terminal detection at the console layer"
+  - path: "rich/_null_file.py"
+    why_tempting: "NullFile is the sibling file stub with its own hardcoded isatty; tempting to 'align' or refactor both file-like classes while in the area"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "rich/live.py"
+        - "rich/console.py"
+        - "rich/_null_file.py"
+        - "docs/**"
+        - ".github/**"
+        - "examples/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "uv run pytest tests/test_file_proxy.py -q"
+  deterministic_checks:
+    - "uv run python -c \"from rich.file_proxy import FileProxy; from rich.console import Console; f = type('TTYFile', (), {'isatty': lambda self: True})(); assert FileProxy(Console(), f).isatty() is True\""
+    - "uv run python -c \"import io; from rich.file_proxy import FileProxy; from rich.console import Console; assert FileProxy(Console(), io.StringIO()).isatty() is False\""
+source:
+  issue_url: "https://github.com/Textualize/rich/issues/4041"
+  ground_truth_pr: "https://github.com/Textualize/rich/pull/4077"
+contamination_note: >
+  Issue opened 2026-03-22 and fix merged 2026-04-12, both after the Jan 2026
+  training cutoff, so the ground-truth patch is not in training data.
+  Fail-at-base verified on this host 2026-07-10: at the base SHA the
+  deterministic check fails (isatty returned False) while the existing
+  tests/test_file_proxy.py passes (3 tests).

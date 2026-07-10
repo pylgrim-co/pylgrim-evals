@@ -133,9 +133,16 @@ repos:
     language: JavaScript
     license: MIT
     stratum: large
-    install: "npm install"
+    install: "npm install --ignore-scripts"
     test: "npx mocha tests/lib/rules/<scoped>.js"
-    host_verified: false
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10. AMENDED install: plain npm install fails on this
+      host (transitive re2 native build: no node-v25 prebuilt, VS BuildTools
+      lacks a Windows SDK); --ignore-scripts skips it, and re2 is
+      docs-tooling only (metascraper), unused by rule tests. Scoped rule
+      suites verified green: no-unused-vars 448, indent 1090, no-undef 103,
+      zero failures. Card test commands substitute the <scoped> template.
   - name: nushell
     url: https://github.com/nushell/nushell
     preserve: [target]
@@ -143,9 +150,19 @@ repos:
     language: Rust
     license: MIT
     stratum: large
-    install: "cargo build"
-    test: "cargo test --workspace"
-    host_verified: false
+    install: "cargo build -j 4"
+    test: "cargo test --workspace -j 4 --no-fail-fast"
+    host_verified: true
+    host_notes: >
+      Verified 2026-07-10. AMENDED: -j 4 is mandatory on this 16 GB host
+      (default parallelism dies: os error 1455 paging-file / rustc
+      0xc0000409). Full-workspace result: 98 targets green; 59 failures
+      across 5 targets, none genuine — 51 need SeCreateSymbolicLinkPrivilege
+      (Developer Mode off), 6 ps1-execution + 1 job-kill are host-env, 1
+      AV-flake passed on re-run. Task cards MUST use scoped test commands
+      (cargo test -p <crate> <filter> -j 4) chosen to avoid the
+      symlink/ps1-dependent tests; the workspace sweep is corpus evidence,
+      not a per-run oracle. Logs: results/host-verify/nushell-test*.log.
   - name: hugo
     url: https://github.com/gohugoio/hugo
     preserve: []

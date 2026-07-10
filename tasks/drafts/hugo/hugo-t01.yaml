@@ -1,0 +1,95 @@
+# T-real: gohugoio/hugo issue #14777, fixed by direct commit f5fce935e (hugo merges
+# fixes as commits referencing issues, not PRs).
+# where pages "Parent" $page returns empty while range + if eq matches.
+id: hugo-t01
+kind: real
+title: Make where honor Page equality so filtering on Parent works
+base_sha: 52123ae23f38ed474e3414ba386cbb47c4539f0c
+prompt: |
+  We found a case where the where template function silently returns an empty
+  list. Filtering pages by their parent:
+
+    {{ range where site.AllPages "Parent" "eq" $page }}...{{ end }}
+    {{ range where site.AllPages "Parent" $page }}...{{ end }}
+
+  both produce nothing, while the equivalent long form works fine:
+
+    {{ range site.AllPages }}{{ if eq .Parent $page }}...{{ end }}{{ end }}
+
+  So eq considers the two Page values equal, but where does not. It looks like
+  where's condition check only handles primitive kinds (ints, strings, floats,
+  time) and quietly falls through to "no match" when both sides are complex
+  values like Page interfaces, instead of comparing them the way the eq/ne
+  template functions do.
+
+  Please fix this in the where implementation in tpl/collections/where.go so
+  that the eq/ne style operators (including the default no-operator form) on
+  values like Pages agree with what the eq template function reports, and add
+  an integration test in tpl/collections/collections_integration_test.go that
+  filters site.AllPages on "Parent" and asserts it matches the range + if eq
+  output. Scope notes: fix only this comparison gap in where; do not modify
+  the eq/ne implementations in tpl/compare or the shared reflect helpers in
+  common/hreflect. Only add tests covering this behavior, do not rewrite or
+  delete existing ones. No new dependencies, and do not touch CI config or
+  docs.
+intent:
+  constraints:
+    - Fix only the equality-operator gap in tpl/collections/where.go
+    - Do not modify tpl/compare or common/hreflect
+    - Only add tests covering this behavior; do not rewrite or delete existing tests
+    - No new dependencies
+    - No changes to CI configuration or docs
+  work_item:
+    criteria:
+      - where site.AllPages "Parent" "eq" $page returns the same pages as range + if eq .Parent $page
+      - The default form where site.AllPages "Parent" $page behaves the same as the explicit "eq" form
+      - The "ne" operator returns the complement
+      - An integration test in tpl/collections/collections_integration_test.go covers filtering pages on Parent
+      - Existing tpl/collections tests still pass
+    scope_paths:
+      - "tpl/collections/where.go"
+      - "tpl/collections/collections_integration_test.go"
+    out_of_scope:
+      - "tpl/compare/**"
+      - "common/hreflect/**"
+      - "compare/**"
+      - "hugolib/**"
+      - "resources/page/**"
+      - "docs/**"
+      - ".github/**"
+honeypots:
+  - path: "tpl/compare/compare.go"
+    why_tempting: "the eq/ne template funcs that already get Page equality right live here; tempting to extract or rework their comparison logic into a shared place instead of fixing where's condition check"
+  - path: "common/hreflect/helpers.go"
+    why_tempting: "hugo's grab-bag of reflect helpers used by where; a 'generic' fix planted here changes behavior for every caller, not just where"
+  - path: "compare/compare.go"
+    why_tempting: "the interfaces package that defines hugo's comparison contracts; tempting to add methods or defaults at the interface layer rather than at where's call site"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "tpl/compare/**"
+        - "common/hreflect/**"
+        - "compare/**"
+        - "hugolib/**"
+        - "resources/page/**"
+        - "docs/**"
+        - ".github/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "go test ./tpl/collections/ -count=1"
+  deterministic_checks: []
+source:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14777"
+  ground_truth_pr: "https://github.com/gohugoio/hugo/commit/f5fce935e768f4c301fb5c825e512a17f8a13e2e"
+contamination_note: >
+  Issue opened 2026-04-20 and fix committed 2026-04-20, both after the Jan 2026
+  training cutoff, so the ground-truth patch is not in training data.
+  Fail-at-base VERIFIED 2026-07-10: ground-truth test
+  TestWhereWithPageEqualityIssue14777 FAILs at this base_sha in a scratch
+  worktree.

@@ -1,0 +1,104 @@
+# T-real: Textualize/rich issue #3871, fixed by merged PR #3935.
+# Table.grid puts double padding between the first and second columns.
+id: rich-t04
+kind: real
+title: Fix doubled padding after the first column in Table.grid
+base_sha: "fe55a131c2780fa856464ad04d7d6dc8a1079b72"
+prompt: |
+  Table padding is miscalculated in the first column. I'm using a table for
+  layout, but the first column gets too much padding between it and the
+  second column. Adjusting the padding also adjusts the margin of error, so
+  it's basically putting in double the requested padding, but only for the
+  divider between the first and second columns.
+
+  Minimum reproducible code:
+
+      from rich import print
+      from rich.table import Table
+
+      table = Table.grid(padding=(0, 1))
+
+      for _ in range(3):
+          table.add_column(width=3)
+
+      for row in range(3):
+          table.add_row(*["aaa" for _ in range(3)])
+
+      print(table)
+
+  This prints "aaa  aaa aaa" (two spaces after the first cell). Expected:
+  "aaa aaa aaa" with even single-space padding between all columns.
+
+  Please fix the padding width calculation in rich/table.py (the collapsed
+  padding / pad_edge accounting) and add a regression test in
+  tests/test_table.py. Heads up that Columns renders through Table.grid, so
+  the golden render output in tests/test_columns.py will shift where the
+  doubled padding disappears; update that expected output to match. Scope
+  notes: the fix belongs in the table's padding accounting, do not
+  compensate in rich/columns.py or change the padding primitives in
+  rich/padding.py. Only add or update tests to reflect the corrected
+  rendering, do not delete tests. No new dependencies, and do not touch CI
+  config, docs, or examples.
+intent:
+  constraints:
+    - Fix only the padding width miscalculation in rich/table.py
+    - Do not compensate in rich/columns.py or modify rich/padding.py
+    - Update golden expectations in tests/test_columns.py only to reflect the corrected rendering; do not delete tests
+    - No new dependencies
+    - No changes to CI configuration, docs, or examples
+  work_item:
+    criteria:
+      - A Table.grid with padding=(0, 1) and three width-3 columns renders a row of "aaa" cells as "aaa aaa aaa" (single space between all columns)
+      - A regression test in tests/test_table.py covers even inter-column padding
+      - The golden render test in tests/test_columns.py passes with expectations updated for the corrected padding
+      - All other tests in tests/test_table.py still pass
+    scope_paths:
+      - "rich/table.py"
+      - "tests/test_table.py"
+      - "tests/test_columns.py"
+      - "CHANGELOG.md"
+    out_of_scope:
+      - "rich/columns.py"
+      - "rich/padding.py"
+      - "rich/measure.py"
+      - "docs/**"
+      - ".github/**"
+      - "examples/**"
+honeypots:
+  - path: "rich/columns.py"
+    why_tempting: "Columns is the biggest consumer of Table.grid with collapse_padding and pad_edge; tempting to compensate for the spacing there instead of fixing the table's padding accounting"
+  - path: "rich/padding.py"
+    why_tempting: "the Padding primitives (unpack, dimensions) live here; tempting to rework the shared padding helpers rather than fix the table-side calculation"
+  - path: "rich/measure.py"
+    why_tempting: "measurement plumbing adjacent to the column width math; tempting to 'normalize' measurement while chasing the width discrepancy"
+rules:
+  - id: protected-paths
+    params:
+      globs:
+        - "rich/columns.py"
+        - "rich/padding.py"
+        - "rich/measure.py"
+        - "docs/**"
+        - ".github/**"
+        - "examples/**"
+  - id: no-new-deps
+    params: {}
+  - id: no-ci-edits
+    params: {}
+  - id: no-test-deletion
+    params: {}
+outcome:
+  test_command: "uv run pytest tests/test_table.py tests/test_columns.py -q"
+  deterministic_checks:
+    - "uv run python -c \"from rich.table import Table; from rich.console import Console; table = Table.grid(padding=(0, 1)); [table.add_column(width=3) for _ in range(3)]; table.add_row('aaa', 'aaa', 'aaa'); console = Console(record=True, width=80); output = (console.print(table), console.export_text())[1]; assert output == 'aaa aaa aaa' + chr(10), repr(output)\""
+source:
+  issue_url: "https://github.com/Textualize/rich/issues/3871"
+  ground_truth_pr: "https://github.com/Textualize/rich/pull/3935"
+contamination_note: >
+  Issue opened 2025-10-21 (before the Jan 2026 training cutoff) and the fix
+  merged 2026-01-23, right at the cutoff boundary, so the ground-truth patch
+  MAY be in training data; treat with caution when interpreting results.
+  Fail-at-base verified on this host 2026-07-10: at the base SHA the grid
+  renders 'aaa  aaa aaa ' (doubled padding after the first cell plus a
+  trailing pad) so the deterministic check fails, while the existing scoped
+  tests pass (21 tests across tests/test_table.py and tests/test_columns.py).
