@@ -112,6 +112,9 @@ each a labeled exploratory arm, not a prereg change):**
   firings.
 - E5 Multi-turn accumulated-session protocol (Wave-2, where enforcement
   lives).
+- E6 **Three-way cadence comparison** (Wave 2): {no injection, session-start
+  once, per-message refresh} in the multi-turn protocol — isolates the Pro
+  tier's cadence value from injection per se.
 
 **Claims discipline (marketing/venture gate):**
 - The paper and site must not say: "drift is prevalent" (this ecology shows
