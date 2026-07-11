@@ -88,3 +88,26 @@ errors across the final 82).
 
 This card set becomes frozen at the pre-registration commit (prereg-v1.md +
 sha256 manifest). Any later change goes through the amendments log.
+
+## Amendment 1 (2026-07-11, pre-analysis): fail-at-base disclosure corrected
+
+The "Evidence upgrades" section above overstates: "Fail-at-base is now
+EXECUTED (not inspected) for all 48 T-real cards." Audited against the
+reviewers' own DECISIONS.md files, the correct accounting is:
+
+- EXECUTED fail-at-base (bug-repro or test-based): 45 of 48 short T-real
+  cards + click-l01.
+- NOT executed, disclosed by the reviewers and accepted with rationale:
+  hugo-t04 (quota), hugo-t05 (deliberate: OOM/hang risk), nushell-t05
+  ("expected but unproven" at the corrected base).
+- Additionally, 9 frozen contamination notes lag their DECISIONS.md
+  verification upgrades (sql-formatter-t03/t04/t05 among them): the frozen
+  YAML says not-verified where the reviewer later executed the check. The
+  DECISIONS.md files are authoritative for verification status; frozen card
+  text is NOT edited post-freeze for this (cards stay byte-identical to the
+  manifest); this amendment is the reconciliation of record.
+- Related analysis rule: 28/83 cards have do-nothing-green outcome oracles
+  (suite green at base, no fix-asserting deterministic check); M5 is
+  analyzed split by oracle class per analysis-plan-addendum-1.md R3.
+
+Source: four-lens bias audit, results/reports/bias-audit-1.md.
