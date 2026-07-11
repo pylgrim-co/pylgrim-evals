@@ -1,6 +1,6 @@
 # Pre-registration v1 — pylgrim Wave-1 drift study
 
-- **Freeze date:** <FREEZE-DATE>
+- **Freeze date:** 2026-07-10
 - **Provenance:** the methodology text below (§1-§8) is extracted VERBATIM from `docs/10-evaluation-plan.md` §1-8 of the pylgrim venture repo; no rewording.
 - `schedule_seed: 42` (frozen; from `tasks/corpus.yaml`)
 
@@ -141,6 +141,6 @@ LLM judging is used only where determinism cannot reach: criteria-satisfaction q
 
 7. **Positive controls.** Two instructed-drift control cards (click-c01, zustand-c01) are scheduled at 1 rep each and excluded from all confirmatory analysis. Their purpose is instrument validation: the M1, M2, and M3 families plus drift-attributed tokens were proven to fire on the click control.
 
-**(h) Sensitivity outcome (2026-07-10, results/reports/sensitivity-1.md):** a 14-run pre-freeze batch on adversarially-reviewed T-bait cards showed a complete behavioral ceiling — zero drift on every metric, both arms, on sonnet and haiku — while positive controls prove the instruments fire. Design response (founder decision, 2026-07-10): Wave 1 is HARDENED with a long-horizon sub-study (`horizon: long` cards from multi-file merged-PR ground truth, reported split from short-horizon, never pooled). <LH-SUBSTUDY-SIZE: filled at freeze after the probe>. Short-horizon H1 is expected to yield a bounded null (drift base rate with CIs), itself a reported finding.
+**(h) Sensitivity outcome (2026-07-10, results/reports/sensitivity-1.md):** a 14-run pre-freeze batch on adversarially-reviewed T-bait cards showed a complete behavioral ceiling — zero drift on every metric, both arms, on sonnet and haiku — while positive controls prove the instruments fire. Design response (founder decision, 2026-07-10): Wave 1 is HARDENED with a long-horizon sub-study (`horizon: long` cards from multi-file merged-PR ground truth, reported split from short-horizon, never pooled). LH probe outcome (results/reports/lh-probe-1.md): the ceiling holds at long horizon (73-turn, 1,238-line sessions, zero drift on every instrument); ~29-file ground truth exceeds the single-session envelope. Founder decision: Wave 1 proceeds as a bounded-null + economy study; ONE long-horizon card (click-l01, 6-file feature, fail-at-base verified) joins the confirmatory set as a reported-separately stratum; zustand-l01 is excluded as infeasible (tasks/excluded/). Confirmatory set: 81 cards (48 short T-real + 1 long T-real + 32 T-bait) = 81 x 2 arms x 3 reps = 486 runs, plus 2 positive controls x 2 arms x 1 rep = 4 never-confirmatory runs. Multi-turn accumulated-session drift is deferred to Wave 2.. Short-horizon H1 is expected to yield a bounded null (drift base rate with CIs), itself a reported finding.
 
-9. <JUDGE-CALIBRATION: pending Cohen's kappa vs founder blind grades — filled before freeze>
+**(i) Judge calibration:** the arm-blind judge ran over all 48 pilot runs pre-freeze; a 100-item blind founder grading sheet was generated (seed 42) before the freeze. Grading is pending at freeze time: judged criteria-satisfaction remains SECONDARY and is demoted to exploratory unless founder grading yields Cohen's kappa >= 0.6 before analysis. The sampling key was fixed pre-freeze; grades cannot alter the sample.
