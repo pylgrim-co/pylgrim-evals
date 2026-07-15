@@ -32,7 +32,7 @@ class _FakeProc:
         self.returncode = returncode
         self._stdout = stdout
 
-    def communicate(self, timeout=None):
+    def communicate(self, input=None, timeout=None):
         return self._stdout, ""
 
 
@@ -60,11 +60,25 @@ def test_munge_cwd_replaces_non_alphanumerics():
 
 def test_build_command_resume_flag(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda _: "claude")
-    base = headless.build_command("hi", "haiku")
+    base, base_stdin = headless.build_command("hi", "haiku")
     assert "-r" not in base
-    resumed = headless.build_command("hi", "haiku", resume_session="sess-123")
+    assert base_stdin is None
+    resumed, _ = headless.build_command("hi", "haiku", resume_session="sess-123")
     assert resumed[-2:] == ["-r", "sess-123"]
     assert resumed[:len(base)] == base
+
+
+def test_build_command_long_prompt_goes_via_stdin(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "claude")
+    long_prompt = "x" * (headless.STDIN_PROMPT_THRESHOLD + 1)
+    cmd, stdin_payload = headless.build_command(long_prompt, "sonnet")
+    assert stdin_payload == long_prompt
+    assert long_prompt not in cmd
+    assert cmd[:2] == ["claude", "-p"]
+    # short prompts keep the proven argv path
+    short_cmd, short_stdin = headless.build_command("hi", "sonnet")
+    assert short_stdin is None
+    assert "hi" in short_cmd
 
 
 def test_looks_rate_limited():

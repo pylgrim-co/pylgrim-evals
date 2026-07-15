@@ -88,15 +88,28 @@ def scrub_env() -> dict[str, str]:
     return env
 
 
-def build_command(prompt: str, model: str, resume_session: str | None = None) -> list[str]:
-    """Assemble the headless CLI invocation; `resume_session` continues a session."""
+# Windows CreateProcess caps the whole command line at 32,767 chars; prompts
+# past this threshold (judge prompts embed whole diffs) go via stdin instead.
+STDIN_PROMPT_THRESHOLD = 20_000
+
+
+def build_command(
+    prompt: str, model: str, resume_session: str | None = None
+) -> tuple[list[str], str | None]:
+    """Assemble the headless CLI invocation; `resume_session` continues a session.
+
+    Returns (argv, stdin_payload). Short prompts ride argv (the proven path);
+    prompts past STDIN_PROMPT_THRESHOLD are piped to `claude -p` on stdin,
+    which accepts the prompt there when no positional prompt is given.
+    """
     claude = shutil.which("claude")
     if claude is None:
         raise RuntimeError("claude CLI not found on PATH")
+    via_stdin = len(prompt) > STDIN_PROMPT_THRESHOLD
     cmd = [
         claude,
         "-p",
-        prompt,
+        *([] if via_stdin else [prompt]),
         "--output-format",
         "json",
         "--model",
@@ -105,7 +118,7 @@ def build_command(prompt: str, model: str, resume_session: str | None = None) ->
     ]
     if resume_session:
         cmd += ["-r", resume_session]
-    return cmd
+    return cmd, (prompt if via_stdin else None)
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -252,11 +265,12 @@ def invoke_claude(
     Raises RateLimited on rate/usage-limit failures, RuntimeError otherwise.
     `resume_session` continues a prior session (`claude -p -r <session_id>`).
     """
-    cmd = build_command(prompt, model, resume_session)
+    cmd, stdin_payload = build_command(prompt, model, resume_session)
     proc = subprocess.Popen(
         cmd,
         cwd=str(workspace_dir),
         env=scrub_env(),
+        stdin=subprocess.PIPE if stdin_payload is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -264,7 +278,7 @@ def invoke_claude(
         errors="replace",
     )
     try:
-        stdout, stderr = proc.communicate(timeout=timeout_s)
+        stdout, stderr = proc.communicate(input=stdin_payload, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
         raise RuntimeError(f"claude run timed out after {timeout_s}s")
