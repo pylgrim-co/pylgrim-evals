@@ -1,0 +1,2949 @@
+# Vague-prompt artifact v1 (Wave 1.5, prereg-v2-ext).
+# Rule: source issue title + body VERBATIM from the GitHub API,
+# joined title\n\nbody, truncated at 8000 chars on the last
+# paragraph boundary. Mechanical; no human editing. Frozen at the
+# prereg-v2-ext tag; never edited after.
+# Fetched: 2026-07-15 via gh api.
+# Excluded from the vague row (fetch failed): none
+
+click-l01:
+  issue_url: "https://github.com/pallets/click/issues/2983"
+  fetched: "2026-07-15"
+  sha256: "956da3f1b4f129043a2e29fe7e5a61d25dfc821823dbd00662cebcddb98b0e3a"
+  prompt: |-
+    Add `help` to argument parameter
+
+    We are now open to a PR for adding a help kwarg to arguments in the same way that there is for options and adjusting the help pages to account for this.
+
+    [Help Pages](https://click.palletsprojects.com/en/stable/documentation/#help-pages)
+
+
+    ```
+    @click.command()
+    @click.argument('name', help='The name to print')
+    @click.option('--count', default=1, help='number of greetings')
+    def hello(name: str, count: int):
+        """This script prints hello and a name one or more times."""
+        for x in range(count):
+            if name:
+                click.echo(f"Hello {name}!")
+            else:
+                click.echo("Hello!")
+    ```
+
+click-t01:
+  issue_url: "https://github.com/pallets/click/issues/3572"
+  fetched: "2026-07-15"
+  sha256: "b4c440f8575ad528e8715664df818f13d2b893daa7cf4ece89a5ad6d3f523918"
+  prompt: |-
+    ANSI codes not stripped from click.confirm after upgrading to click 8.4
+
+    <!--
+    This issue tracker is a tool to address bugs in Click itself. Please use
+    GitHub Discussions or the Pallets Discord for questions about your own code.
+
+    Replace this comment with a clear outline of what the bug is.
+    -->
+    I had failing unit tests after upgrading to click 8.4.1. I was able to address some
+    by using `runner.invoke(cmd, color=False)`, but that didn't help for commands
+    that use `click.confirm()`
+
+    <!--
+    Describe how to replicate the bug.
+
+    Include a minimal reproducible example that demonstrates the bug.
+    Include the full traceback if there was an exception.
+    -->
+
+    This test script `test_repro.py` replicates the issue.
+    ```
+    import click
+    from click.testing import CliRunner
+
+
+    @click.command()
+    def cmd():
+        click.echo(click.style('Hello World!', fg='green'))
+
+
+    @click.command()
+    def cmd_confirm():
+        click.confirm(click.style('Hello World!', fg='green'), abort=True)
+
+
+    def test_echo_strips_ansi_with_color_false():
+        runner = CliRunner()
+        result = runner.invoke(cmd, color=False)
+        assert result.output == "Hello World!\n"
+
+
+    def test_confirm_strips_ansi_with_color_false():
+        runner = CliRunner()
+        result = runner.invoke(cmd_confirm, input="Y", color=False)
+        assert result.output == "Hello World! [y/N]: Y\n"  # FAILS: ANSI codes present
+    ```
+
+    With click 8.3.3 both tests pass. With click 8.4.0 and 8.4.1, the `test_confirm_strips_ansi_with_color_false` test fails:
+
+    ```
+    uvx --with click==8.4 pytest test_repro.py
+    ...
+    ================================================ FAILURES ================================================
+    _______________________________ test_confirm_strips_ansi_with_color_false ________________________________
+
+        def test_confirm_strips_ansi_with_color_false():
+            runner = CliRunner()
+            result = runner.invoke(cmd_confirm, input="Y", color=False)
+    >       assert result.output == "Hello World! [y/N]: Y\n"  # FAILS: ANSI codes present
+    ```
+
+    <!--
+    Describe the expected behavior that should have happened but didn't.
+    -->
+    The ansi codes should be stripped when running click.confirm, as they are for click.echo.
+
+    Environment:
+
+    - Python version: 3.13
+    - Click version: 8.4.1
+    - MacOS
+
+click-t02:
+  issue_url: "https://github.com/pallets/click/issues/3015"
+  fetched: "2026-07-15"
+  sha256: "f29cdb974ac4b128f245758a2ec43436ead31ad3bd6c4875de39ba0159cf7b84"
+  prompt: |-
+    Choice autocomplete incorrect for enums
+
+    When using enums, the autocomplete doesn't give a value that works, as it doesn't use the same code to normalize.
+
+    Use an enum like
+    ```
+    import enum
+
+    class MyEnum(enum.Enum):
+        foo = "bar"
+    ```
+
+    with
+
+    ```
+    @click.choice(MyEnum)
+    ```
+
+    The accepted value for the argument will be "foo", but the autocompleted value is "MyEnum.foo"
+
+    Environment:
+
+    - Python version: 3.13.4
+    - Click version: 8.2.1
+
+    I think I know how to fix it roughly, so I can open a PR.
+
+click-t03:
+  issue_url: "https://github.com/pallets/click/issues/3360"
+  fetched: "2026-07-15"
+  sha256: "f4540118f9986396fa6190875d1df0e968659ccc9bf423150fac83b84da27356"
+  prompt: |-
+    Empty output from `HelpFormatter.write_usage` for a program without arguments
+
+    If no `args` are passed to `HelpFormatter.write_usage`, the Usage line is not printed.
+
+    ### Reproduction
+
+    ```python
+    import click
+
+    f = click.HelpFormatter()
+    f.write_usage("program")
+    print(f.getvalue())
+    ```
+    <!--
+    Describe how to replicate the bug.
+
+    Include a minimal reproducible example that demonstrates the bug.
+    Include the full traceback if there was an exception.
+    -->
+
+    ### Expected output
+    ```
+    Usage: program
+    ```
+
+    ### Actual output
+    (an empty line)
+
+    ### Environment
+
+    - Python version: 3.12.3
+    - Click version: 8.3.1
+
+    ### Additional information
+
+    We use `click` for a CLI program with interactive mode. We are about to use `click.HelpFormatter` to print help for internal commands, some of which do not accept any arguments (`exit`, for example).
+
+click-t05:
+  issue_url: "https://github.com/pallets/click/issues/3487"
+  fetched: "2026-07-15"
+  sha256: "3a3a11e7f43f68eb40da84d1eb30caa79bce50e6d7d42f1b6d281e3b3a02819b"
+  prompt: |-
+    Echoing empty bytes or bytearray raises TypeError
+
+    Hopefully this isn't too frivolous but I think it's an easy fix: echoing an empty byte string will cause a crash if `nl=True`.
+
+    To replicate:
+
+    ```shell
+    $ python -c "import io; import click; click.echo(b'', io.BytesIO(), nl=True)"
+
+    Traceback (most recent call last):
+      File "<string>", line 1, in <module>
+      File "/myproject/click/src/click/utils.py", line 337, in echo
+        file.write(out)  # type: ignore
+        ^^^^^^^^^^^^^^^
+    TypeError: a bytes-like object is required, not 'str'
+    ```
+
+    Expected behaviour:
+
+    We expect `b"\n"` to be written to the stream and for `TypeError` not to be thrown.
+
+    Environment:
+
+    - Python version: 3.11.2
+    - Click version: 8.5.0.dev0
+
+    Suggested fix:
+
+    Change https://github.com/pallets/click/blob/dbf4d14c712750c31e15916b659925683150533b/src/click/utils.py#L297
+
+    ```diff
+        if nl:
+    -      out = out or ""
+    +      out = "" if out is None else out
+           if isinstance(out, str):
+                out += "\n"
+            else:
+                out += b"\n"
+    ```
+
+eslint-t01:
+  issue_url: "https://github.com/eslint/eslint/issues/20950"
+  fetched: "2026-07-15"
+  sha256: "107dc5533d51d20eab283f98616620e4cb1e4624fb67fb63f5cd56df5a49f8c9"
+  prompt: |-
+    Bug: use-isnan false positive on shadowed NaN/Number
+
+    ### Environment
+
+    Node version: v24.15.0
+    npm version: v11.12.1
+    Local ESLint version: v10.4.1
+    Global ESLint version: Not installed
+    Operating System: Windows
+
+
+    ### What parser are you using?
+
+    Default (Espree)
+
+    ### What did you do?
+
+    <details>
+    <summary>Configuration</summary>
+
+    ```js
+    {
+        "rules": {
+            "use-isnan": ["error", {
+                "enforceForIndexOf": true
+            }]
+        }
+    }
+    ```
+    </details>
+
+    ```js
+    // 1. Shadowing NaN in a local scope
+    let NaN = 5;
+    if (x === NaN) {}
+
+    // 2. Shadowing Number in a function parameter
+    function f(Number) {
+        return x === Number.NaN;
+    }
+
+    // 3. Shadowing NaN in a switch case
+    function testSwitch(foo) {
+        let NaN = 5;
+        switch (foo) {
+            case NaN: break;
+        }
+    }
+
+    // 4. Shadowing NaN inside an Array.prototype.indexOf argument
+    function foo(NaN) {
+        return arr.indexOf(NaN);
+    }
+    ```
+
+
+    ### What did you expect to happen?
+
+    I expected no errors to be reported.
+
+    In the provided cases, the NaN and Number identifiers are explicitly shadowed by local variables or function parameters. Because they no longer reference the built-in global NaN, comparing against them is perfectly valid JavaScript. The rule should use scope analysis to ensure it only flags references to the true global object.
+
+
+
+    ### What actually happened?
+
+    ESLint incorrectly reported false positives for all the shadowed bindings because it matched them by name only.
+
+    ```text
+       3:5  error  Use the isNaN function to compare with NaN.  local/use-isnan
+       7:12  error  Use the isNaN function to compare with NaN.  local/use-isnan
+       14:9  error  'case NaN' can never match. Use Number.isNaN before the switch.  local/use-isnan
+       20:12  error  Array prototype method 'indexOf' cannot find NaN.  local/use-isnan
+    ✖ 4 problems (4 errors, 0 warnings)
+    ```
+
+
+    ### Link to Minimal Reproducible Example
+
+    https://eslint.org/play/#eyJ0ZXh0IjoiLy8gMS4gU2hhZG93aW5nIE5hTiBpbiBhIGxvY2FsIHNjb3BlXG5sZXQgTmFOID0gNTtcbmlmICh4ID09PSBOYU4pIHt9XG5cbi8vIDIuIFNoYWRvd2luZyBOdW1iZXIgaW4gYSBmdW5jdGlvbiBwYXJhbWV0ZXJcbmZ1bmN0aW9uIHRlc3ROdW1iZXIoTnVtYmVyKSB7XG4gICAgcmV0dXJuIHggPT09IE51bWJlci5OYU47XG59XG5cbi8vIDMuIFNoYWRvd2luZyBOYU4gaW4gYSBzd2l0Y2ggY2FzZVxuZnVuY3Rpb24gdGVzdFN3aXRjaChmb28pIHtcbiAgICBsZXQgTmFOID0gNTtcbiAgICBzd2l0Y2ggKGZvbykge1xuICAgICAgICBjYXNlIE5hTjogYnJlYWs7XG4gICAgfVxufVxuXG4vLyA0LiBTaGFkb3dpbmcgTmFOIGluc2lkZSBhbiBBcnJheS5wcm90b3R5cGUuaW5kZXhPZiBhcmd1bWVudFxuZnVuY3Rpb24gdGVzdEluZGV4T2YoTmFOKSB7XG4gICAgcmV0dXJuIGFyci5pbmRleE9mKE5hTik7XG59Iiwib3B0aW9ucyI6eyJydWxlcyI6eyJ1c2UtaXNuYW4iOlsiZXJyb3IiLHsiZW5mb3JjZUZvckluZGV4T2YiOnRydWV9XX0sImxhbmd1YWdlT3B0aW9ucyI6eyJwYXJzZXJPcHRpb25zIjp7ImVjbWFGZWF0dXJlcyI6e319fX19
+
+    ### Participation
+
+    - [x] I am willing to submit a pull request for this issue.
+
+    ### AI acknowledgment
+
+    - [x] I did not use AI to generate this issue report.
+    - [ ] (If the above is not checked) I have reviewed the AI-generated content before submitting.
+
+    ### Additional comments
+
+    _No response_
+
+eslint-t02:
+  issue_url: "https://github.com/eslint/eslint/issues/20913"
+  fetched: "2026-07-15"
+  sha256: "26b99e018c57da0a5750d31851c4ccc9b7c16bd2b3e8ad2edc122b79a083cdad"
+  prompt: |-
+    Bug: prefer-arrow-callback autofix breaks async + multi-line comment
+
+    ### Environment
+
+    - ESLint version: `v10.4.0`
+    - Node.js version: `v24.15.0`
+    - npm version: `11.12.1`
+    - Operating System: Windows 11
+
+    ### What parser are you using?
+
+    Default (Espree)
+
+    ### What did you do?
+
+    Running `--fix` on an async function callback that has a multi-line block comment between `function` and the parameter list (`repro.js`):
+
+    ```js
+    foo(async function /*
+    */ () { return 1; });
+    ```
+
+    Config:
+
+    ```json
+    { "rules": { "prefer-arrow-callback": ["error"] } }
+    ```
+
+    Command (local clone at commit `9067f9492`):
+
+
+
+    ### What did you expect to happen?
+
+    The autofix should give back valid JavaScript. If it can't do that safely (like in this case), it should skip the fix and just report the warning instead.
+
+    ### What actually happened?
+
+
+
+    The autofix turned `repro.js` into this:
+
+    ```js
+    foo(async  /*
+    */ () => { return 1; });
+    ```
+
+    This is broken — it doesn't parse anymore. The ESLint homepage says "ESLint fixes are syntax-aware so you won't experience errors introduced by traditional find-and-replace algorithms." but that's exactly what happened here.
+
+    The failure shows up in two ways:
+
+    **1. ESLint itself reports a parse error on the same `--fix` run (exit code 1):**
+
+    ```
+    repro.js
+      2:7  error  Parsing error: Unexpected token =>
+
+    ✖ 1 problem (1 error, 0 warnings)
+    ```
+
+    **2. Espree also chokes on the post-fix file:**
+
+    ```bash
+    node -e "require('espree').parse(require('fs').readFileSync('repro.js','utf8'),{ecmaVersion:'latest',sourceType:'module'})"
+    ```
+
+    ```
+    SyntaxError: Unexpected token => (2:7)
+    ```
+
+    perfectly valid JS to something that can't even be parsed.
+
+
+
+
+
+
+    ### Link to Minimal Reproducible Example
+
+    https://eslint.org/play/#eyJ0ZXh0IjoiZm9vKGFzeW5jIGZ1bmN0aW9uIC8qXG4qLyAoKSB7IHJldHVybiAxOyB9KTsiLCJvcHRpb25zIjp7InJ1bGVzIjp7InByZWZlci1hcnJvdy1jYWxsYmFjayI6WyJlcnJvciJdfSwibGFuZ3VhZ2VPcHRpb25zIjp7InBhcnNlck9wdGlvbnMiOnsiZWNtYUZlYXR1cmVzIjp7fX19fX0=
+
+    ### Participation
+
+    - [x] I am willing to submit a pull request for this issue.
+
+    ### AI acknowledgment
+
+    - [ ] I did not use AI to generate this issue report.
+    - [x] (If the above is not checked) I have reviewed the AI-generated content before submitting.
+
+    ### Additional comments
+
+    **Why the post-fix output is invalid (spec reference)**
+
+    The `AsyncArrowFunction` production in the spec says:
+
+    > `async [no LineTerminator here] AsyncArrowBindingIdentifier [no LineTerminator here] => AsyncConciseBody`
+
+    The `CoverCallExpressionAndAsyncArrowHead` variant has the same `[no LineTerminator here]` between `async` and the arrow head. A block comment that has `\n` in it counts as a LineTerminator for this rule. In the fixed output, the comment `/* \n */` sits between `async` and `()`, so it puts a line break where one isn't allowed.
+
+    Spec link: https://tc39.es/ecma262/#prod-AsyncArrowFunction
+
+eslint-t03:
+  issue_url: "https://github.com/eslint/eslint/issues/20209"
+  fetched: "2026-07-15"
+  sha256: "91703f1fcb48ec939e4452505b83f93b1b740261aad827f7bae06d50714aeec1"
+  prompt: |-
+    Bug: [no-var] Fix causes ReferenceError
+
+    ### Environment
+
+    ESLint Playground (eslint version v9.37.0).
+
+    Also locally tested on eslint v8.57.1 with similar change of `var` to `let` without moving its location (tested on a more complicated setup though, not this minimised example).
+
+    ### What parser are you using?
+
+    Default (Espree)
+
+    ### What did you do?
+
+    ### Playground Code
+    ```js
+    export function a() {
+        console.log(o);
+        var o;
+        return o;
+    }
+    ```
+
+    ### ESLint Configuration
+    <details>
+     <summary> Tap to see full config </summary>
+
+    ```js
+    undefined
+    export default [
+        {
+            "rules": {
+                "no-var": [
+                    "error"
+                ]
+            }
+        }
+    ];
+    ```
+     </details>
+
+    ### ESLint Output
+    ```
+    3:5 Unexpected var, use let or const instead. (no-var)
+    ```
+
+    Now press "Fix".
+
+
+    ### What did you expect to happen?
+
+    ```js
+    export function a() {
+        let o;
+        console.log(o);
+        return o;
+    }
+    ```
+
+    ### What actually happened?
+
+    ```js
+    export function a() {
+        console.log(o);
+        let o;
+        return o;
+    }
+    ```
+
+    This code leads to a ReferenceError as the `let` is not moved above the usage point of `o`.
+
+    ### Link to Minimal Reproducible Example
+
+    https://eslint.org/play/#eyJ0ZXh0IjoiZXhwb3J0IGZ1bmN0aW9uIGEoKSB7XG4gICAgY29uc29sZS5sb2cobyk7XG4gICAgdmFyIG87XG4gICAgcmV0dXJuIG87XG59Iiwib3B0aW9ucyI6eyJydWxlcyI6eyJuby12YXIiOlsiZXJyb3IiXX0sImxhbmd1YWdlT3B0aW9ucyI6eyJwYXJzZXJPcHRpb25zIjp7ImVjbWFGZWF0dXJlcyI6e319fX19
+
+    ### Participation
+
+    - [ ] I am willing to submit a pull request for this issue.
+
+    ### Additional comments
+
+    Similar old closed issue: https://github.com/eslint/eslint/issues/7950
+
+eslint-t04:
+  issue_url: "https://github.com/eslint/eslint/issues/20451"
+  fetched: "2026-07-15"
+  sha256: "c3023d9caeaaa9ed0d77c5de180e7905c0f98e59b8233aed9e3f91fc985e2d2b"
+  prompt: |-
+    Bug: In-line disabling of the strict rule requires the comment to be the first line of the file (regression in ESLint v10)
+
+    ### Environment
+
+    Node version: v25.3.0
+    npm version: 11.7.0
+    Local ESLint version: 10.0.0-rc.0
+    Global ESLint version: N/A
+    Operating System: Mac 26.2
+
+
+    ### What parser are you using?
+
+    Default (Espree)
+
+    ### What did you do?
+
+    <details>
+    <summary>Configuration</summary>
+
+    ```js
+    export default [
+      {
+        files: ["*.js"],
+        languageOptions: {
+          sourceType: "script",
+        },
+        rules: {
+          strict: ["error", "global"],
+        }
+      }
+    ]
+    ```
+    </details>
+
+    ```js
+    /* Copyright message, or comment explaning why strict is disabled. */
+    /* eslint-disable strict */
+
+    function foo() {
+      console.log(foo);
+    }
+    ```
+
+
+    ### What did you expect to happen?
+
+    No errors
+
+    ### What actually happened?
+
+    ```
+      1:1  error    Use the global form of 'use strict'                                        strict
+      2:1  warning  Unused eslint-disable directive (no problems were reported from 'strict')
+    ```
+
+    ### Link to Minimal Reproducible Example
+
+    https://github.com/Standard8/eslint-strict-mode-comment-location
+
+    ### Participation
+
+    - [ ] I am willing to submit a pull request for this issue.
+
+    ### Additional comments
+
+    If the `/* eslint-disable strict */` line is on the very first line of the file, then it works. However, if it is not on the very first line then it fails, even if it is before any code.
+
+    This prevents situations like shown in the example, where we want to have a copyright message at the start of the file, or even a comment as to why strict mode is being disabled in the file.
+
+    This is a regression in the Eslint 10.0.0 series (I checked the alpha & beta and they failed also). Eslint 9.39.2 works fine.
+
+eslint-t05:
+  issue_url: "https://github.com/eslint/eslint/issues/21012"
+  fetched: "2026-07-15"
+  sha256: "17db3ceb321c42ac03ef177cef1df43d775e202a2dea486d0b8beb93af58188d"
+  prompt: |-
+    Rule Change: Report invalid signed numeric radix literals in radix
+
+    ### What rule do you want to change?
+
+    radix
+
+    ### What change do you want to make?
+
+    Generate more warnings
+
+    ### How do you think the change should be implemented?
+
+    A new default behavior
+
+    ### Example code
+
+    ```js
+    /* eslint radix: "error" */
+
+    parseInt("10", -1);
+    parseInt("10", +37);
+    parseInt("10", -0);
+    ```
+
+    ### What does the rule currently do for this code?
+
+    The rule currently does not report any errors for these calls.
+
+    ### What will the rule do after it's changed?
+
+    The rule will report these calls as invalid radix values, because the effective radix values are not integers between 2 and 36.
+
+    ### Participation
+
+    - [x] I am willing to submit a pull request to implement this change.
+
+    ### AI acknowledgment
+
+    - [x] I did not use AI to generate this issue report.
+    - [ ] (If the above is not checked) I have reviewed the AI-generated content before submitting.
+
+    ### Additional comments
+
+    _No response_
+
+hono-t01:
+  issue_url: "https://github.com/honojs/hono/issues/4325"
+  fetched: "2026-07-15"
+  sha256: "c46db122c215d86e0f18fa1c70fc69ad212926ae13843ecb71650c40e62887ee"
+  prompt: |-
+    Hono throws when using optional catch-all route
+
+    ### What version of Hono are you using?
+
+    latest
+
+    ### What runtime/platform is your app running on? (with version if possible)
+
+    Bun
+
+    ### What steps can reproduce the bug?
+
+    The following code can reproduce the issue:
+    ```ts
+    import { Hono } from 'hono'
+
+    const app = new Hono().basePath('/files')
+
+    app.get('/:wildcard{.*}?', (c) => {
+      const { wildcard } = c.req.param()
+
+      return c.text(`You requested the path: ${wildcard || '/'}`)
+    });
+
+    export default app
+    ```
+
+    Hono only throws when hitting the root with a trailing slash, e.g. `http://localhost:3000/files/`.
+
+    There is no issue with `http://localhost:3000/files`, `http://localhost:3000/files/a` or even `http://localhost:3000/files/a/`
+
+    ### What is the expected behavior?
+
+    I didn't expect an error here, since it works without basePath set, but also works on `http://localhost:3000/files/a/`
+
+    ### What do you see instead?
+
+    ```
+    181 |       matchResult,
+    182 |       env,
+    183 |       executionCtx,
+    184 |       notFoundHandler: this.#notFoundHandler
+    185 |     });
+    186 |     if (matchResult[0].length === 1) {
+                              ^
+    TypeError: undefined is not an object (evaluating 'matchResult[0].length')
+    ```
+
+    ### Additional information
+
+    If the Hono App doesn't utilize `basePath` then there is no issues at all.
+
+hono-t02:
+  issue_url: "https://github.com/honojs/hono/issues/4295"
+  fetched: "2026-07-15"
+  sha256: "595aa7bee5056509cb26b451411a4bd94b57500f0c324e2bae98063982e261af"
+  prompt: |-
+    Context.redirect doesn't accept a URL which contains multibyte characters
+
+    ### What version of Hono are you using?
+
+    4.8.5
+
+    ### What runtime/platform is your app running on? (with version if possible)
+
+    Node v20.19.2
+
+    ### What steps can reproduce the bug?
+
+    ```
+    app.get("/", (c) => {
+      return c.redirect("https://ja.wikipedia.org/wiki/小麦粉");
+    });
+    ```
+
+    Here is the reproduction repo: https://github.com/yayugu/hono-bug-report/tree/2025-07-22-redirect
+
+    ```bash
+    $ pnpm i
+    $ pnpm dev
+    # Then access to http://localhost:3000
+    ```
+
+
+    ### What is the expected behavior?
+
+    Just redirect to the page.
+
+    ### What do you see instead?
+
+    The error output:
+    ```
+    TypeError: Cannot convert argument to a ByteString because the character at index 30 has a value of 23567 which is greater than 255.
+        at webidl.converters.ByteString (node:internal/deps/undici/undici:3889:17)
+        at _Headers.set (node:internal/deps/undici/undici:8921:35)
+        at Context.header (file:///home/yayugu/hono-bug-report/node_modules/.pnpm/hono@4.8.5/node_modules/hono/dist/context.js:100:15)
+        at Context.redirect (file:///home/yayugu/hono-bug-report/node_modules/.pnpm/hono@4.8.5/node_modules/hono/dist/context.js:167:10)
+        at Array.<anonymous> (/home/yayugu/hono-bug-report/src/index.tsx:7:12)
+        at #dispatch (file:///home/yayugu/hono-bug-report/node_modules/.pnpm/hono@4.8.5/node_modules/hono/dist/hono-base.js:188:38)
+        at fetch (file:///home/yayugu/hono-bug-report/node_modules/.pnpm/hono@4.8.5/node_modules/hono/dist/hono-base.js:214:26)
+        at Server.<anonymous> (file:///home/yayugu/hono-bug-report/node_modules/.pnpm/@hono+node-server@1.17.1_hono@4.8.5/node_modules/@hono/node-server/dist/index.mjs:487:13)
+        at Server.emit (node:events:524:28)
+        at parserOnIncoming (node:_http_server:1141:12)
+    ```
+
+    ### Additional information
+
+    #### Necessity
+    I found this during implementing the dynamic redirect, for example:
+
+    ```javascript
+    const paramA = c.req.param("paramA");
+    c.redirect(`/new-url/${paramA}`);
+    ```
+
+    Type check didn't help and found the bug after released the code. It's easy to wrap with encodeURI(), by it would super nice if redirect() function cares the encoding.
+
+    #### Cause and Design of the Fix
+    Node's Header object doesn't accept multibyte characters https://github.com/nodejs/node/issues/42579.
+
+    Context.redirect() is currently just by pass the value. It should accept any valid URL and encode that if necessary.
+    The complicated thing is if the path / URI is already encoded, it must not re-encode that. The pseudo code would be
+
+    ```javascript
+    if (path.hasNonASCII() {
+      path = encodeURI(path);
+    }
+    header.set(path);
+    ```
+
+hono-t03:
+  issue_url: "https://github.com/honojs/hono/issues/4806"
+  fetched: "2026-07-15"
+  sha256: "2bc567a43813e6e2fc90291fcc545e1fe202111b9026bafca260e8d969780905"
+  prompt: |-
+    parseBody() breaks subsequent text()/json() calls with TypeError
+
+    ### What version of Hono are you using?
+
+    4.12.8
+
+    ### What runtime/platform is your app running on? (with version if possible)
+
+    Node.js v22 (also reproducible on any runtime)
+
+    ### What steps can reproduce the bug?
+
+    Calling `parseBody()` followed by `text()` or `json()` on the same request throws `TypeError: bodyCache[anyCachedKey].then is not a function`.
+
+    This happens when `Content-Type` is **not** `multipart/form-data` or `application/x-www-form-urlencoded` (e.g., `application/json` or no Content-Type header).
+
+    **Root cause:**
+    `parseBody()` stores a resolved plain object in `bodyCache.parsedBody` (via `??= await parseBody(...)`). When Content-Type is not a form type, `parseBody()` returns `{}` immediately without going through `formData()`, so `parsedBody` is the only key in `bodyCache`.
+
+    `#cachedBody()` then picks it up via `Object.keys(bodyCache)[0]` and calls `.then()` on it, assuming every cache entry is a `Promise`.
+
+    When Content-Type **is** a form type, `parseBody()` internally calls `request.formData()` which goes through `#cachedBody('formData')`, caching a `Promise` under `bodyCache.formData` first — so `Object.keys()[0]` is `'formData'` and `.then()` succeeds.
+
+    **Reproduction:**
+
+    ```typescript
+    import { HonoRequest } from 'hono/request'
+
+    const req = new HonoRequest(
+      new Request('http://localhost', {
+        method: 'POST',
+        body: JSON.stringify({ event: 'push' }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    await req.parseBody()  // returns {}, caches plain object in bodyCache.parsedBody
+    await req.text()       // TypeError: bodyCache[anyCachedKey].then is not a function
+    ```
+
+    ### What is the expected behavior?
+
+    `text()` should return the raw request body text regardless of whether `parseBody()` was called first.
+
+    ### What do you see instead?
+
+    `TypeError: bodyCache[anyCachedKey].then is not a function`
+
+    ### Additional information
+
+    **Use case:** A middleware that tries to extract form data if present (without checking Content-Type upfront), then a downstream handler needs the raw body for signature verification:
+
+    ```typescript
+    app.use('*', async (c, next) => {
+      const body = await c.req.parseBody()
+      if (Object.keys(body).length > 0) {
+        c.set('formData', body)
+      }
+      await next()
+    })
+
+    app.post('/webhook', async (c) => {
+      const raw = await c.req.text()  // TypeError — even though parseBody() returned {}
+      verify(raw, c.req.header('X-Signature'))
+    })
+    ```
+
+    Note: This is related to but distinct from #3881 — that issue did not identify the root cause (non-Promise value in bodyCache) or the Content-Type dependency.
+
+hono-t04:
+  issue_url: "https://github.com/honojs/hono/issues/3952"
+  fetched: "2026-07-15"
+  sha256: "75a4abab596654b4ae68ded7818b183489a6451096a21d01662251f17d230bea"
+  prompt: |-
+    prettyJSON throws on invalid query parameters
+
+    ### What version of Hono are you using?
+
+    4.7.2
+
+    ### What runtime/platform is your app running on? (with version if possible)
+
+    NodeJS v20.16.0
+
+    ### What steps can reproduce the bug?
+
+    prettyJSON calls `HonoRequest.query()` without a try clause, so when an invalid query parameter is passed, it throws the `URIError: URI Malformed` error.
+
+    Here is the code:
+
+    ```
+    import { serve } from '@hono/node-server'
+    import { Hono } from 'hono'
+    import { prettyJSON } from "hono/pretty-json";
+
+    const app = new Hono()
+    app.use("*", prettyJSON());
+
+    app.get('/', (c) => {
+      return c.text('Hello Hono!')
+    })
+
+    serve({
+      fetch: app.fetch,
+      port: 3000
+    }, (info) => {
+      console.log(`Server is running on http://localhost:${info.port}`)
+    })
+    ```
+
+    This code was obtained by running `npm create hono@latest` and adding two lines for importing and using prettyJSON.
+
+    ### What is the expected behavior?
+
+    It should not throw an error
+
+    ### What do you see instead?
+
+    Making requests to the server throws the error as follows:
+
+    ```
+    lincolnbergeson@Lincolns-MacBook-Pro-2 ~ % curl 'localhost:3000'
+    Hello Hono!%
+    lincolnbergeson@Lincolns-MacBook-Pro-2 ~ % curl 'localhost:3000?%E0%A4%A'
+    Internal Server Error%
+    ```
+
+    And the server logs:
+
+    ```
+    Server is running on http://localhost:3000
+    URIError: URI malformed
+        at decodeURIComponent (<anonymous>)
+        at _decodeURI (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/utils/url.js:132:38)
+        at _getQueryParam (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/utils/url.js:171:14)
+        at HonoRequest.query (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/request.js:41:12)
+        at prettyJSON2 (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/middleware/pretty-json/index.js:5:26)
+        at dispatch (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/compose.js:22:23)
+        at file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/compose.js:5:12
+        at file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/hono-base.js:195:31
+        at #dispatch (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/hono-base.js:205:7)
+        at fetch (file:///Users/lincolnbergeson/Documents/GitHub/hono-demo/node_modules/hono/dist/hono-base.js:208:26)
+    ```
+
+    ### Additional information
+
+    _No response_
+
+hono-t05:
+  issue_url: "https://github.com/honojs/hono/issues/4265"
+  fetched: "2026-07-15"
+  sha256: "91da1ee2b3a030760a48fc2624ffea04a7916fde3673247d1dffc6c5d14c6fdb"
+  prompt: |-
+    In Hono client, removeIndexString should also be applied when calling $url
+
+    ### What version of Hono are you using?
+
+    4.8.3
+
+    ### What runtime/platform is your app running on? (with version if possible)
+
+    Node 24
+
+    ### What steps can reproduce the bug?
+
+    I'm suing the Hono client's `$url` to generate my URL. For the most part, its working perfectly but the generation of the `index` URL omits to remove the "index".
+
+    For example:
+    ```ts
+     hc<MyApp>("http://fake/").index.$url().href
+    ```
+    generates `http://fake/index` where it should be `http://fake/`.
+
+    On the other side:
+    ```ts
+     hc<MyApp>("http://fake/").index.$get(...)
+    ```
+    will properly fetch the `http://fake` URL.
+
+    I think I identified the issue. While for the "fetch" methods (like `$get`), the `index` string is removed:
+    https://github.com/honojs/hono/blob/407d1bdf64048c4876b883bc1b5cf270e12791e7/src/client/client.ts#L102
+
+    it is omitted for the `$url` method:
+    https://github.com/honojs/hono/blob/407d1bdf64048c4876b883bc1b5cf270e12791e7/src/client/client.ts#L159-L169
+
+    ### What is the expected behavior?
+
+    _No response_
+
+    ### What do you see instead?
+
+    _No response_
+
+    ### Additional information
+
+    _No response_
+
+hugo-t01:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14777"
+  fetched: "2026-07-15"
+  sha256: "3ac3947813ec5a14ded86ddb01427b3339b5099a6df2ede4a1337f1da94cc5c0"
+  prompt: |-
+    where statement doesn't match result of if statement when used to check page parent
+
+    <!--
+    Please do not use the issue queue for questions or troubleshooting. Unless you are certain that your issue is a software defect, use the forum:
+
+    https://discourse.gohugo.io
+    -->
+
+    <!-- Please answer these questions before submitting your issue. Thanks! -->
+
+    ### What version of Hugo are you using (`hugo version`)?
+
+    <pre>
+    $ hugo version
+    hugo v0.160.0+extended+withdeploy linux/amd64 BuildDate=unknown
+    </pre>
+
+    ### Does this issue reproduce with the latest release?
+    Yes
+
+    The following snippets:
+    ```
+    where site.AllPages "Parent" "eq" $page
+    ```
+
+    ```
+    where site.AllPages "Parent" $page
+    ```
+
+    Results in an empty list, wheras the following works fine:
+    ```
+    {{ range site.AllPages }}
+      {{- if eq .Parent $page -}}
+        ...
+      {{- end -}}
+    {{- end -}}
+    ```
+
+hugo-t02:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14715"
+  fetched: "2026-07-15"
+  sha256: "5887404255d73dccc8f385b631c3494ccca98603f2f902556302494b8528032a"
+  prompt: |-
+    Possible regression: ampersands in Markdown link URLs getting double-escaped: &amp;amp;
+
+    I just upgraded to v0.159.2 (brew, macOS 26.3.1(a)) and noticed double-escaping in Markdown links.
+
+    reprex:
+
+    - hugo.toml: `baseURL = "http://example.com/"`
+    - content/_index.md: `[foo](https://a.com/?a=1&b=2)`
+    - layouts/index.html: `{{ .Content }}`
+
+    `public/index.html` renders as `<a href="https://a.com/?a=1&amp;amp;b=2">foo</a>`
+
+    Previous versions rendered `<a href="https://a.com/?a=1&amp;b=2">foo</a>` as exepcted.
+
+hugo-t03:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14855"
+  fetched: "2026-07-15"
+  sha256: "f5bdea22fbd3baace0b0b25481587232950a340afe2dc02dafde6ca5f59cd87e"
+  prompt: |-
+    In "hugo config", don't print empty sub maps
+
+    E.g.
+
+    With old style permalinks config like this:
+
+    ```toml
+    [permalinks]
+        post  = "/:year/:month/:slug/"
+        photo = "/:year/:month/:slug/"
+    ```
+
+    Running `hugo config`, you get (something like, I have truncated it a little) this:
+
+    ```toml
+    [[permalinks]]
+      pattern = '/:year/:month/:slug/'
+      [permalinks.target]
+        path = '/{photo,photo/**}'
+
+        [permalinks.target.sites]
+          [permalinks.target.sites.complements]
+
+          [permalinks.target.sites.matrix]
+    ```
+
+    I would expect/prefer this:
+
+    ```toml
+    [[permalinks]]
+      pattern = '/:year/:month/:slug/'
+      [permalinks.target]
+        path = '/{photo,photo/**}'
+    ```
+
+    The `permalinks.target.sites` have a `IsZero` method that should drop it from the output. Not sure why that don't happens.
+
+hugo-t04:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14886"
+  fetched: "2026-07-15"
+  sha256: "e0e8d4727dd48790b234b6b9d4b9bdc8df9128f88dbc0a69c1be0e4411f9708f"
+  prompt: |-
+    Confusing error when frontmatter contains unknown key/Panic when `hugo server` reloads on fix
+
+    <!--
+    Please do not use the issue queue for questions or troubleshooting. Unless you are certain that your issue is a software defect, use the forum:
+
+    https://discourse.gohugo.io
+    -->
+
+    If the frontmatter contains an unrecognized key , `hugo build` fails with a rather unhelpful error message:
+
+    ```md
+    ---
+    params:
+    featuredImage: featured.png # forgot to indent
+    ---
+    ```
+
+    ```
+    € hugo build -D
+    Start building sites …
+    hugo v0.161.1+extended+withdeploy linux/amd64 BuildDate=unknown VendorInfo=nixpkgs
+
+    Total in 33 ms
+    ERROR error building site: assemble: failed to create page from pageMetaSource /news: "[redacted]/website/content/news/_index.md:1:1": unable to cast <nil> of type <nil> to map[string]interface {}
+    ```
+
+    When running `hugo server` and fixing the error, the server panics:
+
+    To reproduce:
+    1. Correctly indent `featuredImage`.
+    2. Start `hugo server`
+    3. Unindent `featuredImage`, and save
+    4. Get the error above
+    5. Reindent, fixing the error, and save
+    6. Server panics, while calling `hugo server` again works as expected
+
+    ```sh
+    € hugo server -D
+    # ...
+
+    # 1.
+    Built in 105 ms
+    Environment: "development"
+    Serving pages from disk
+    Running in Fast Render Mode. For full rebuilds on change: hugo server --disableFastRender
+    Web Server is available at http://localhost:1313/ (bind address 127.0.0.1)
+    Press Ctrl+C to stop
+
+    # 3.
+    Change detected, rebuilding site (#1).
+    2026-05-14 01:20:35.566 +0200
+    Source changed /news/_index.md
+    ERROR Rebuild failed: assemble: failed to create page from pageMetaSource /news: "[redacted]/content/news/_index.md:1:1": unable to cast <nil> of type <nil> to map[string]interface {}
+    Web Server is available at http://localhost:1313/ (bind address 127.0.0.1)
+    Total in 1 ms
+
+    # 5.
+    Change detected, rebuilding site (#2).
+    2026-05-14 01:20:38.066 +0200
+    Source changed /news/_index.md
+    Web Server is available at http://localhost:1313/ (bind address 127.0.0.1)
+    Total in 0 ms
+    panic: interface conversion: *hugolib.pageMetaSource is not hugolib.contentNodeLookupContentNode: missing method lookupContentNode
+
+    goroutine 68 [running]:
+    github.com/gohugoio/hugo/hugolib.contentNodes.lookupContentNode(...)
+            github.com/gohugoio/hugo/hugolib/content_map_page_contentnode.go:198
+    github.com/gohugoio/hugo/hugolib.(*contentNodeShifter).Shift(0xcb3487721e0?, {0x3466e58, 0xcb349a00888}, {0x1, 0x0, 0x0}, 0x0)
+            github.com/gohugoio/hugo/hugolib/content_map_page_contentnodeshifter.go:158 +0xd3
+    github.com/gohugoio/hugo/hugolib/doctree.(*NodeShiftTree[...]).shift(...)
+            github.com/gohugoio/hugo/hugolib/doctree/nodeshifttree.go:653
+    github.com/gohugoio/hugo/hugolib/doctree.(*NodeShiftTreeWalker[...]).toT(0x1000000010000?, 0xcb3483bede0?, {0x3466e58?, 0xcb349a00888?})
+            github.com/gohugoio/hugo/hugolib/doctree/nodeshifttree.go:640 +0x68
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).withPage.(*HugoSites).withPage.(*HugoSites).allSites.func3.(*HugoSites).withPage-range1.(*NodeShiftTreeWalker[...]).Walk.func5.1({0x3466e58, 0xcb349a00888})
+            github.com/gohugoio/hugo/hugolib/doctree/nodeshifttree.go:551 +0x125
+    github.com/gohugoio/hugo/hugolib/doctree.(*walkHandler[...]).Handle(0x163c965?, {0xcb3483bede0?, 0xcb348ea4e70?}, {0x3466e58?, 0xcb349a00888?})
+            github.com/gohugoio/hugo/hugolib/doctree/nodeshifttree.go:501 +0x38
+    github.com/gohugoio/go-radix.recursiveWalk[...](0xcb3493a89c0, {0x3466db8, 0xcb34974e2c0})
+            github.com/gohugoio/go-radix@v1.2.0/radix.go:604 +0x89
+    github.com/gohugoio/go-radix.recursiveWalk[...](0xcb3493a8990, {0x3466db8, 0xcb34974e2c0})
+            github.com/gohugoio/go-radix@v1.2.0/radix.go:622 +0x15c
+    github.com/gohugoio/go-radix.recursiveWalk[...](0xcb3486c6c30, {0x3466db8, 0xcb34974e2c0})
+            github.com/gohugoio/go-radix@v1.2.0/radix.go:622 +0x15c
+    github.com/gohugoio/go-radix.(*Tree[...]).Walk(0x7d148288b528?, {0x3466db8?, 0xcb34974e2c0?})
+            github.com/gohugoio/go-radix@v1.2.0/radix.go:504 +0x27
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).withPage.(*HugoSites).withPage.(*HugoSites).allSites.func3.(*HugoSites).withPage-range1.(*NodeShiftTreeWalker[...]).Walk.func5({0x347d960, 0x581ca20}, 0xcb3489e5bc0, 0x34b3300)
+            github.com/gohugoio/hugo/hugolib/doctree/nodeshifttree.go:621 +0x225
+    github.com/gohugoio/hugo/hugolib/doctree.(*NodeShiftTreeWalker[...]).Walk(...)
+            github.com/gohugoio/hugo/hugolib/doctree/nodeshifttree.go:632
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).withPage-range1(...)
+            github.com/gohugoio/hugo/hugolib/hugo_sites.go:602
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).withPage.(*HugoSites).allSites.func3(...)
+            github.com/gohugoio/hugo/hugolib/hugo_sites.go:174
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).withPage(0x3476ca0?, 0xcb3489e5b90)
+            github.com/gohugoio/hugo/hugolib/hugo_sites.go:591 +0x192
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).resolveAndResetDependententPageOutputs(0xcb348c01688, {0x347d960, 0x581ca20}, {0xcb34952b340, 0x1, 0x1})
+            github.com/gohugoio/hugo/hugolib/content_map_page.go:1143 +0x2ca
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).resolveAndClearStateForIdentities.func5()
+            github.com/gohugoio/hugo/hugolib/content_map_page.go:1051 +0x136
+    github.com/gohugoio/hugo/common/loggers.TimeTrackfn(0xcb3482be7d8)
+            github.com/gohugoio/hugo/common/loggers/logger.go:394 +0x35
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).resolveAndClearStateForIdentities(0xcb348c01688, {0x347d960, 0x581ca20}, {0x3495370, 0xcb3491b5680}, 0x0, {0xcb34952b340, 0x1, 0x1})
+            github.com/gohugoio/hugo/hugolib/content_map_page.go:1046 +0x772
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).processPartialFileEvents(0xcb348c01688, {0x347d960, 0x581ca20}, {0x3495370, 0xcb3491b5680}, 0xcb349584100, 0xcb3482bf558, {0xcb349610140, 0x2, 0x2})
+            github.com/gohugoio/hugo/hugolib/hugo_sites_build.go:1190 +0x201c
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).process(0xcb348c01688, {0x347d960, 0x581ca20}, {0x3495370?, 0xcb3491b5680?}, 0xcb349584100, 0xcb3482bf558, {0xcb349610140, 0x2, 0x2})
+            github.com/gohugoio/hugo/hugolib/hugo_sites_build.go:288 +0x265
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).Build.func6(...)
+            github.com/gohugoio/hugo/hugolib/hugo_sites_build.go:170
+    github.com/gohugoio/hugo/hugolib.(*HugoSites).Build(0xcb348c01688, {0x0, 0x0, 0x0, 0x0, 0xcb34888ed80, 0x0, 0x1, 0x0}, {0xcb349610140, ...})
+            github.com/gohugoio/hugo/hugolib/hugo_sites_build.go:186 +0x831
+    github.com/gohugoio/hugo/commands.(*hugoBuilder).rebuildSites(0xcb348e45280, {0xcb349610140, 0x1, 0x2})
+            github.com/gohugoio/hugo/commands/hugobuilder.go:1146 +0x1ed
+    github.com/gohugoio/hugo/commands.(*hugoBuilder).handleEvents.func7(0xcb348e45280, 0xcb349594060)
+            github.com/gohugoio/hugo/commands/hugobuilder.go:949 +0x79
+    github.com/gohugoio/hugo/commands.(*hugoBuilder).handleEvents(0xcb348e45280, 0xcb349363590, 0xcb3492b6890, {0xcb348b6a3c0, 0x5, 0x8}, 0xcb349371c80)
+            github.com/gohugoio/hugo/commands/hugobuilder.go:952 +0x1b85
+    github.com/gohugoio/hugo/commands.(*hugoBuilder).newWatcher.func2()
+            github.com/gohugoio/hugo/commands/hugobuilder.go:393 +0x2aa
+    created by github.com/gohugoio/hugo/commands.(*hugoBuilder).newWatcher in goroutine 1
+            github.com/gohugoio/hugo/commands/hugobuilder.go:364 +0x4d4
+    ```
+
+    ### What version of Hugo are you using (`hugo version`)?
+
+    <pre>
+    $ hugo version
+    hugo v0.161.1+extended+withdeploy linux/amd64 BuildDate=unknown VendorInfo=nixpkgs
+    </pre>
+
+    ### Does this issue reproduce with the latest release?
+    Yes
+
+hugo-t05:
+  issue_url: "https://github.com/gohugoio/hugo/issues/14550"
+  fetched: "2026-07-15"
+  sha256: "16c1e802c08ce6d90cd38f852c54643e30cf6f4c2655db464f0a254223d3b8fe"
+  prompt: |-
+    `.Ancestors` hangs indefinitely when `disableKinds = []` is set alongside taxonomies
+
+    <!--
+    Please do not use the issue queue for questions or troubleshooting. Unless you are certain that your issue is a software defect, use the forum:
+
+    https://discourse.gohugo.io
+    -->
+
+    <!-- Please answer these questions before submitting your issue. Thanks! -->
+
+    ### What version of Hugo are you using (`hugo version`)?
+
+    <pre>
+    hugo v0.156.0-9d914726dee87b0e8e3d7890d660221bde372eec linux/amd64
+    BuildDate=2026-02-18T16:39:55Z VendorInfo=gohugoio
+    GOOS="linux"
+    GOARCH="amd64"
+    GOVERSION="go1.25.4"
+
+    Linux 6.12.73+deb13-amd64 (Debian Trixie) x86_64
+    RAM: 32 GB (24 GB available at test time)
+    </pre>
+
+    ### Does this issue reproduce with the latest release?
+
+    Yes v0.156.0 and v0.155.3.
+
+
+    ## Description
+
+    Calling `.Ancestors` in any template causes Hugo to hang indefinitely and consume all available memory when `disableKinds = []` is present in `hugo.toml`. The process is eventually killed by the OOM killer (exit 137) or by a timeout (exit 124).
+
+    This happens even with a **single content page** and a **single taxonomy**.
+
+    `disableKinds = []` is semantically a no-op (empty list = disable nothing), so it should have no effect on behavior. Without this line, the exact same site builds in ~17 ms.
+
+    ## Steps to reproduce
+
+    ### 1. Create the minimal site (4 files)
+
+    ```
+    hugo-bug/
+      hugo.toml
+      content/posts/hello.md
+      themes/test/layouts/_default/single.html
+      themes/test/layouts/_default/list.html
+    ```
+
+    **hugo.toml**
+    ```toml
+    baseURL = 'http://example.com/'
+    title = 'Bug repro'
+    theme = "test"
+
+    [taxonomies]
+      tag = "tags"
+
+    disableKinds = []
+    ```
+
+    **content/posts/hello.md**
+    ```markdown
+    ---
+    title: Hello
+    tags: [demo]
+    ---
+    Hello.
+    ```
+
+    **themes/test/layouts/_default/single.html**
+    ```
+    {{ .Ancestors }}
+    ```
+
+    **themes/test/layouts/_default/list.html**
+    ```
+    {{ .Title }}
+    ```
+
+    ### 2. Build
+
+    ```sh
+    hugo --source hugo-bug
+    ```
+
+    ### Expected behavior
+
+    Build completes successfully (10 pages, ~17 ms).
+
+    ### Actual behavior
+
+    Hugo hangs at "Start building sites…". Debug log shows memory growing uncontrollably before the process is killed:
+
+    ```
+    INFO  build:  step process duration 1.096148ms
+    INFO  build:  step assemble duration 780.626µs
+    INFO  dynacache: adjusted partitions' max size evicted 305 numGC 35 limit 7.77 GB alloc 17.39 GB totalAlloc 43.44 GB
+    ```
+
+    The process allocates 17+ GB (`alloc`) with 43+ GB total allocated (`totalAlloc`), indicating a tight allocation loop. It is then killed by the OOM killer (SIGKILL, exit 137).
+
+    ### 3. Remove `disableKinds = []` and rebuild
+
+    ```sh
+    # Remove the disableKinds line, then:
+    hugo --source hugo-bug
+    # → Total in 17 ms, exit 0
+    ```
+
+    ## Workarounds
+
+    1. **Remove `disableKinds = []`** from config — it is a no-op and should not be present.
+
+    2. **Replace `.Ancestors`** with a manual `.Parent` chain that avoids the recursive resolution:
+
+    ```html
+    {{- $current := . -}}
+    {{- $crumbs := slice -}}
+    {{- range seq 10 -}}
+      {{- if $current.Parent -}}
+        {{- $current = $current.Parent -}}
+        {{- $crumbs = $crumbs | append $current -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if gt (len $crumbs) 0 }}
+    <nav>
+      <ol>
+        {{- range ($crumbs | collections.Reverse) }}
+        <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+        {{- end }}
+        <li>{{ .Title }}</li>
+      </ol>
+    </nav>
+    {{- end }}
+    ```
+
+nushell-t01:
+  issue_url: "https://github.com/nushell/nushell/issues/17640"
+  fetched: "2026-07-15"
+  sha256: "3b117ab80ec67a4577cb1d8dea238f0588f5af9a40bac8664800a23fc971e21c"
+  prompt: |-
+    http post/patch: --content-type flag is ignored for JSON bodies, always sends application/json
+
+    ## Description
+
+    When using `http post` or `http patch` with `--content-type` set to a JSON-variant type (e.g. `application/json-patch+json`), Nushell ignores the flag and always sends `Content-Type: application/json; charset=utf-8` instead.
+
+    ## Steps to Reproduce
+
+    Start a local echo server (e.g. `python3 -m http.server`) or use any endpoint that reflects headers, then run:
+
+    ```python
+    import http.server, json
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def handle_request(self):
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode()
+            print(f"\n--- {self.command} {self.path}")
+            print(f"Content-Type: {self.headers.get('Content-Type')}")
+            print(f"Authorization: {self.headers.get('Authorization', '')[:20]}...")
+            print(f"Body: {body}")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"id": 99999, "fields": {}}')
+
+        def do_POST(self): self.handle_request()
+        def do_PATCH(self): self.handle_request()
+        def do_GET(self): self.handle_request()
+        def log_message(self, *a): pass
+    ```
+
+    ```nu
+    let body = [{op: "add", path: "/foo", value: "bar"}]
+    http post "http://localhost:8000/test" --content-type "application/json-patch+json" ($body | to json)
+    ```
+
+    Observe the actual `Content-Type` header received by the server.
+
+    ## Expected Behavior
+
+    The request is sent with `Content-Type: application/json-patch+json` as specified.
+
+    ## Actual Behavior
+
+    The request is sent with `Content-Type: application/json; charset=utf-8`, overriding the user-specified value.
+
+    This affects any API that requires a JSON-variant content type distinct from `application/json`, such as:
+    - `application/json-patch+json` (RFC 6902 — JSON Patch)
+    - `application/merge-patch+json` (RFC 7396)
+
+    ## Workaround
+
+    Embed the `Content-Type` header directly in the `--headers` list instead of using `--content-type`:
+
+    ```nu
+    let headers = [Authorization "Bearer ..." "Content-Type" "application/json-patch+json"]
+    http post $url --headers $headers ($body | to json)
+    ```
+
+    ## Environment
+
+    ```
+    Nushell version: 0.110.0
+    OS: Linux (WSL2)
+    ```
+
+nushell-t02:
+  issue_url: "https://github.com/nushell/nushell/issues/13271"
+  fetched: "2026-07-15"
+  sha256: "fd31206aeea7cda96e2c90c571d4b1fcf9ddbf08f9f250b96e5af79440be1c03"
+  prompt: |-
+    `flatten` does not rename conflicting column if parent's conflicting column appears after column to be flattened
+
+    ### Describe the bug
+
+    Nushell's `flatten` command has an undocumented feature that it automatically renames a column in format `{parent's}_{child's}` if name conflict happens. But as of 0.53.0, renaming *does not* happen if the parent's conflicting column appears after the column to be flattened:
+
+    ```nu
+    > [[a, b]; [1, [[a]; [9]]]] | flatten -a b  # Renaming happens
+    ╭───┬───┬─────╮
+    │ # │ a │ b_a │
+    ├───┼───┼─────┤
+    │ 0 │ 1 │   9 │
+    ╰───┴───┴─────╯
+
+    > [[b, a]; [[[a]; [9]], 1]] | flatten -a b  # Renaming does not happens
+    ╭───┬───╮
+    │ # │ a │
+    ├───┼───┤
+    │ 0 │ 9 │
+    ╰───┴───╯
+    ```
+
+    I expect the renaming happens regardless of the order of column.
+
+    ### How to reproduce
+
+    1. Prepare a table which meets the conditions below:
+       - It has a nested table.
+       - The nested table must have a column with the same name as a column in the parent table.
+       - The outer table's column with conflicting name appears **after** the column having the nested table.
+    2. Apply `flatten` to the column containing the nested table.
+
+    ### Expected behavior
+
+    The column with conflicting name was renamed on flattening.
+
+    ### Screenshots
+
+    _No response_
+
+    ### Configuration
+
+    | key                | value                                                         |
+    | ------------------ | ------------------------------------------------------------- |
+    | version            | 0.95.0                                                        |
+    | major              | 0                                                             |
+    | minor              | 95                                                            |
+    | patch              | 0                                                             |
+    | branch             |                                                               |
+    | commit_hash        | f93c6680bd5ae158190556eb1afc924b0290b52f                      |
+    | build_os           | linux-x86_64                                                  |
+    | build_target       | x86_64-unknown-linux-gnu                                      |
+    | rust_version       | rustc 1.77.2 (25ef9e3d8 2024-04-09)                           |
+    | rust_channel       | 1.77.2-x86_64-unknown-linux-gnu                               |
+    | cargo_version      | cargo 1.77.2 (e52e36006 2024-03-26)                           |
+    | build_time         | 2024-06-25 18:38:46 +00:00                                    |
+    | build_rust_channel | release                                                       |
+    | allocator          | mimalloc                                                      |
+    | features           | default, sqlite, static-link-openssl, system-clipboard, trash |
+    | installed_plugins  |                                                               |
+
+    ### Additional context
+
+    The same thing happens for records too.
+
+nushell-t03:
+  issue_url: "https://github.com/nushell/nushell/issues/16563"
+  fetched: "2026-07-15"
+  sha256: "80dd4a5aafdb339dd004a7757f6042111c06fc86defe49a08e4038bdafdb4472"
+  prompt: |-
+    `math` subcommands error out ungracefully on values larger than 64-bit integers
+
+    ### Bug report form
+
+    - [x] I have done a basic search of the issue tracker to find any existing issues that are similar.
+    - [x] I have checked that my version is at least the latest stable release available via my installation method.
+
+    ### Describe the bug
+
+    I encountered this issue while performing some analytics on the [Retraction Watch Dataset CSV](https://gitlab.com/crossref/retraction-watch-data/-/blob/main/retraction_watch.csv). The errors are inconsistent based on the input datatype and the command used, but seem limited to operations that involve a running computation. Errors change depending upon if the input is a `list<duration>` or a `table<columnname: duration>`.
+
+    Commands that work (both list and table):
+    - `math min`
+    - `math max`
+    - `math median`
+    - `math mode`
+
+    Commands that error:
+    - `math avg` (`nu::shell::unsupported_input` for table, `nu::shell::operator_overflow` for list)
+    - `math stddev` (`nu::shell::unsupported_input` for table, `nu::shell::only_supports_this_input_type` for list)
+    - `math product` (`nu::shell::unsupported_input` for table, `nu::shell::only_supports_this_input_type` for list)
+    - `math sum` (`nu::shell::unsupported_input` for table, `nu::shell::operator_overflow` for list)
+    - `math variance` (`nu::shell::unsupported_input` for table, `nu::shell::only_supports_this_input_type` for list)
+
+    At first I thought this was because of the length of the list I was working from was too large, but chunking down the list revealed that these are all operator overflow errors.
+
+    ### How to reproduce
+
+    1. `let good_and_bad = [[[distance]; [521769600000000000ns], [523843200000000000ns], [526089600000000000ns], [529635600000000000ns], [534816000000000000ns], [537580800000000000ns], [538617600000000000ns], [543974400000000000ns], [544665600000000000ns], [554774400000000000ns], [554947200000000000ns], [565059600000000000ns], [583808400000000000ns], [595209600000000000ns]], [[distance]; [618019200000000000ns], [650422800000000000ns], [652579200000000000ns], [657849600000000000ns], [660873600000000000ns], [662342400000000000ns], [664416000000000000ns], [667782000000000000ns], [669855600000000000ns], [673311600000000000ns], [675903600000000000ns], [677462400000000000ns], [681609600000000000ns], [683766000000000000ns]]]` - this creates two lists, one under the limit and the other over the limit.
+    2. `$good_and_bad.0 | select distance | math avg` - works. `$good_and_bad.0 | get distance | math avg` - works.
+    3. `$good_and_bad.1 | select distance | math avg` - unsupported input error. `$good_and_bad.1 | get distance | math avg` - operator overflow error.
+    4. repeat steps 2 and 3 with different `math` subcommands to validate.
+
+    ### Expected behavior
+
+    In an ideal world, I'd like for `math` subcommands to have access to rust's `i128` primitive, at least under the hood for calculations on large 64 bit ints. This may be an unrealistic request, and is likely a niche situation.
+
+    Instead, I would expect that both table and list of durations properly report back the operator overflow error, and/or provide more helpful error messages indicating the bounds of operations, similar to the error message for `bit-shl`/`bit-shr`:
+
+    ```nu
+    ❯ : 1 bit-shl 65
+    Error: nu::shell::operator_overflow
+
+      × Operator overflow.
+       ╭─[entry #261:1:3]
+     1 │ 1 bit-shl 65
+       ·   ───┬───
+       ·      ╰── right operand to bit-shl exceeds available bits in underlying data
+       ╰────
+      help: Limit operand to 0 <= rhs < 64
+    ```
+
+    ### Configuration
+
+    | key                  | value                                                                                               |
+    | -------------------- | --------------------------------------------------------------------------------------------------- |
+    | version              | 0.106.1                                                                                             |
+    | major                | 0                                                                                                   |
+    | minor                | 106                                                                                                 |
+    | patch                | 1                                                                                                   |
+    | branch               |                                                                                                     |
+    | commit_hash          |                                                                                                     |
+    | build_os             | macos-aarch64                                                                                       |
+    | build_target         | aarch64-apple-darwin                                                                                |
+    | rust_version         | rustc 1.88.0 (6b00bc388 2025-06-23) (Homebrew)                                                      |
+    | cargo_version        | cargo 1.88.0 (Homebrew)                                                                             |
+    | build_time           | 2025-07-30 08:45:40 -05:00                                                                          |
+    | build_rust_channel   | release                                                                                             |
+    | allocator            | standard                                                                                            |
+    | features             | default, plugin, rustls-tls, sqlite, trash-support                                                  |
+    | installed_plugins    | formats 0.106.1, gstat 0.106.1, highlight 1.4.8+0.106.0, inc 0.106.1, polars 0.106.1, query 0.106.1 |
+    | experimental_options | example=false, reorder-cell-paths=false                                                             |
+
+nushell-t04:
+  issue_url: "https://github.com/nushell/nushell/issues/18564"
+  fetched: "2026-07-15"
+  sha256: "73f10be527af9af0f05beb03fc357fa693b9b66baa738eddbaf924f1ec272ccf"
+  prompt: |-
+    closure's input type is inherited from the surrounding block
+
+    > [!TIP]
+    > Reported by `@jeromed` on discord
+
+    > Hi all! I have seen the new typing system which looks really interesting, and I might have felt on a corner case
+    >
+    > ```
+    > Error: nu::parser::operator_unsupported_type
+    >
+    >   × The '+' operator does not work on values of type 'nothing'.
+    >     ╭─[/home/.../Documents/server-check.nu:20:20]
+    >  19 │ def run_check [server: string, --prev-id: oneof<string, nothing>]: nothing -> oneof<string, nothing> {
+    >  20 │   let kb_to_fs = { $in + "kB" | into filesize }
+    >     ·                    ─┬─ ┬
+    >     ·                     │  ╰── does not support 'nothing'
+    >     ·                     ╰── nothing
+    >  21 │
+    >     ╰────
+    > ```
+    >
+    > This is a closure inside a function. Replacing the closure by a standalone function fixed the issue but I wanted to report it to check with you if it is the expected behavior.
+    > A few thoughts:
+    > - may `$in` incorrectly refer to `run_check`'s `$in` which is `nothing`?
+    > - ~~is `$in` unknown at this point so the parser assumes `nothing` type?~~ I guess it assumes `any` type IIUC the release notes.
+    > - can it infer a type depending on the usage of the closure? (It is a `string` coming from a long pipeline so I'm not sure what the parser sees at closure call site)
+
+nushell-t05:
+  issue_url: "https://github.com/nushell/nushell/issues/17413"
+  fetched: "2026-07-15"
+  sha256: "7bffce5bca1330b0ba0cf3588d4e26638f565e3a8ce04f4330d4cadfbb64c86b"
+  prompt: |-
+    overshadowing of immutable variables breaks aliases and functions
+
+    ### Bug report form
+
+    - [x] I have done a basic search of the issue tracker to find any existing issues that are similar.
+    - [x] I have checked that my version is at least the latest stable release available via my installation method.
+
+    ### Describe the bug
+
+    if a variable is used in an alias, and later the variable is redefined with another `let`, alias breaks.
+
+    ### How to reproduce
+
+    <img width="469" height="343" alt="Image" src="https://github.com/user-attachments/assets/11490055-8d24-4999-a33d-7f27e7f0120d" />
+
+    ### Expected behavior
+
+    If a variable exists, alias should be able to access it.
+
+    I am not sure about scope, though - should alias display the latest value of `$x` or the value when the alias was defined?
+
+    But in any case, `variable not found` is not the right thing.
+
+    ### Configuration
+
+    | key                  | value                                                                                     |
+    | -------------------- | ----------------------------------------------------------------------------------------- |
+    | version              | 0.110.0                                                                                   |
+    | major                | 0                                                                                         |
+    | minor                | 110                                                                                       |
+    | patch                | 0                                                                                         |
+    | branch               |                                                                                           |
+    | commit_hash          | d40e191d8efad32a174d85b2a45f7ba4796cff84                                                  |
+    | build_os             | windows-x86_64                                                                            |
+    | build_target         | x86_64-pc-windows-msvc                                                                    |
+    | rust_version         | rustc 1.90.0 (1159e78c4 2025-09-14)                                                       |
+    | rust_channel         | 1.90.0-x86_64-pc-windows-msvc                                                             |
+    | cargo_version        | cargo 1.90.0 (840b83a10 2025-07-30)                                                       |
+    | build_time           | 2026-01-18 02:12:43 +00:00                                                                |
+    | build_rust_channel   | release                                                                                   |
+    | allocator            | standard                                                                                  |
+    | features             | default, mcp, network, plugin, rustls-tls, sqlite, trash-support                          |
+    | installed_plugins    |                                                                                           |
+    | experimental_options | example=false, reorder-cell-paths=true, pipefail=false, enforce-runtime-annotations=false |
+
+prettier-t01:
+  issue_url: "https://github.com/prettier/prettier/issues/19498"
+  fetched: "2026-07-15"
+  sha256: "de155c2aec9373d9e8b6876d36ecf1066dbe0f9c62f018c0d8ee180be3b5ba47"
+  prompt: |-
+    Incorrect formatting of LESS map lookup
+
+    **Prettier 651ddd333**
+    [Playground link](https://prettier.io/playground/?version=next#N4Igxg9gdgLgprEAuEBDABMAAgEwE5LoDEANhBANYCuADgEwDaWAbqngLoDcAviADQgINGAEtoAZ2Sg2eCAHcACmwSSUqEnNQBPSQIBGeVGApwYAZVQBbOABkRUOMgBm68XAEQ9AKzhgYAdUMaZBAaPDg3PGZHfUNjUzMaI3sAc2QYPCp3EDdLEXTM7LgADxo4PBFrWHUAeTLDGAg8BQhxEVFoEIQcfhAS+sqEGHUAFXKoNhEI51dstqgUkjgARSoIeBmSNwEvcWKzVKXV9cckFy3sgEc1+AVZGlU0cQBaBzgcd96M1BESVIBhCCWSyoELqEi9eaLOAAQRgGREeiot3Kdgcm22IAAFjBLCR-Fj2hEkmA4GYVO0RMx2loQmBxLoQMwsgBJKAfWBmMAVYQw9lmGBaJYY7JhVpwQKoYIoMIRcrRXrdGpONGnEAkJy9eyRGB3VApEEigRJPCREJLBm9ML2AIiHAwLHIAAcAAYBOFriJwnqDaCzrMBMM9P47Q7kHQBFQ3CNUHpVOdMXBLHp3h8cDZUAsqPq4AAxJog+GpMHIiAgbjcIA)
+    <!-- prettier-ignore -->
+    ```sh
+    --parser less
+    ```
+
+    **Input:**
+    <!-- prettier-ignore -->
+    ```less
+    a {@dr: #lookup2[@var];}
+    ```
+
+    **Output:**
+    <!-- prettier-ignore -->
+    ```less
+    a {
+      @dr: #lookup2[ @var];
+    }
+
+    ```
+
+    **Expected output:**
+    <!-- prettier-ignore -->
+    ```less
+    a {
+      @dr: #lookup2[@var];
+    }
+    ```
+
+    **Why?**
+
+    <!-- short explanation of expected output -->
+
+    Note: test already exists.
+
+prettier-t02:
+  issue_url: "https://github.com/prettier/prettier/issues/19564"
+  fetched: "2026-07-15"
+  sha256: "83b5887440f562deca0237c9c9916329aaa4ae8a73d3dee8e253cc54c6c23a95"
+  prompt: |-
+    prettier errors on comment in export declaration
+
+    **Prettier v3.9.4**
+    [Playground link](https://prettier.io/playground/#N4Igxg9gdgLgprEAuEcAeAHCAnGACYPGATwzjwHoAqAMwgjyorwBU8BfAbhABoQIMMAJbQAzslABDbNggB3AArSE4lJIA2cycXF8ARtklgA1nBgBlSQFs4AGSFQ4yGhtFw+EPQCs4YGAHVDDGQQDGw4N2wANyd9QxMzcwwjBwBzZBhsAFd3EDcrIQzs3PQybCEbWA0AeTLJGBwFCFEhYWgQhAATXlRMOHLKmA0WfqhpIQjnV1yWqFT1OABFLIh4KfU3Pi9RNHM0heXVpyQXDdyARxX4BVkMVRBJUQBaRzhOt57MySF1NIBhCBWKySEIadQ9WbzOAAQRgmSEeiy1369kc602IAAFjArOp-JjWhFkmA4OYVK0hFFWsQQmBRLoQFEcgBJKDvWDmMDlQTQtnmEgLdG5MLNOCBSTBFBhCL9GI9LrVGio44gdQ0HoOSIwG6SVLAoV8ZLYSIhEhkURcoSCHphBwBISdGCY5AADgADHxwpchOEdXqQSdpnwhnp-A6ncgAEx8LJuFiSPSqU4YuBWPRvd6dWySOZZXVwABiOGBcLSoKREBA7HYQA)
+    <!-- prettier-ignore -->
+    ```sh
+    --parser typescript
+    ```
+
+    **Input:**
+    <!-- prettier-ignore -->
+    ```tsx
+    export { type /*foo */ T };
+    ```
+
+    **Output:**
+    <!-- prettier-ignore -->
+    ```tsx
+    Error: Comment "foo" was not printed. Please report this error!
+        at mn (https://prettier.io/lib/stable/prettier/standalone.mjs:12:5693)
+        at Ve (https://prettier.io/lib/stable/prettier/standalone.mjs:22:1451)
+        at async pu (https://prettier.io/lib/stable/prettier/standalone.mjs:22:6146)
+        at async Dr (https://prettier.io/lib/stable/prettier/standalone.mjs:27:681)
+        at async Module.<anonymous> (https://prettier.io/lib/stable/prettier/standalone.mjs:29:789)
+        at async formatCode (https://prettier.io/worker.mjs?version=stable:295:12)
+        at async handleFormatMessage (https://prettier.io/worker.mjs?version=stable:184:24)
+        at async self.onmessage (https://prettier.io/worker.mjs?version=stable:106:14)
+    ```
+
+    **Second Output:**
+    <!-- prettier-ignore -->
+    ```tsx
+    SyntaxError: Unexpected keyword or identifier. (1:8)
+    > 1 | Error: Comment "foo" was not printed. Please report this error!
+        |        ^
+      2 |     at mn (https://prettier.io/lib/stable/prettier/standalone.mjs:12:5693)
+      3 |     at Ve (https://prettier.io/lib/stable/prettier/standalone.mjs:22:1451)
+      4 |     at async pu (https://prettier.io/lib/stable/prettier/standalone.mjs:22:6146)
+    ```
+
+    **Expected output:**
+    <!-- prettier-ignore -->
+    ```tsx
+    export { type /*foo */ T };
+    ```
+
+    **Why?**
+
+    <!-- short explanation of expected output -->
+
+prettier-t03:
+  issue_url: "https://github.com/prettier/prettier/issues/19505"
+  fetched: "2026-07-15"
+  sha256: "4b1c9ea268b3358a81b79c8a4abdadb9672626a6cedf4c301411c38507260674"
+  prompt: |-
+    Regresion in 3.9: Forcing `TSTypeParameterInstantiation` with `TSMappedType` to break
+
+    **Prettier v3.9.4**
+    [Playground link](https://prettier.io/playground/#N4Igxg9gdgLgprEAucAnOBDeB5ARgKzjBgB5gAdKAAhtpoHp6q4BnAGwEtYBaAEw5YZcbONyhwAHjG6dxVAAIwAngAdWYVBxXTWsmPSgRuAVyiCAZqPOniHaN2Vqq3blQ4BzQ+kp06AbQBrOCU3aiClCHMqADEbGDsoAF0kKgAVVTgASShzCCoAHyooYzY2H1oAXwA+EAAaEAhtBJZkUAxUVAgAdwAFdoQWlAw2LowlFvrcVAwwIJgAZQwAWzgAGS44ZHNhljh6iAIiGAB1aZVkEBV0XdQAN03J6dm4BZUZrndkGFRjPZBdpYcL4-P6SNSaFawYbYcFYCCoHoQFgceLQC4IXh1EBguAQhAwYapXFQdocVhbHZ-ZFQdwiACKxgg8ApbF29XwLAk8w+9MZzKQ21ZfwAjny4D1OipBiAMCwxHA4LxFVjvhgOLJ3ABhCBLJYYC7DNhY6m0uAAQRg3w4uGM8B6uPW4hZbJAAAsYEs2MdXSjWG8wHB5gMURxbiilBcwCwJiBbr9skrYPMNFoYGaoLx5soRM6-lckXBThhzigrqxcfcsRjsOZHZsUGxzFiuDcYBKMO49bn6m9UDcLo51JptFirlwThxeDBXcgABwABnq6FFHHQ7c7+oFlPqBNwx0n0+QACZ6sZdqkhINBS64EtcIqlbxVhgacYO3BovC9ZaPgbbRAQAqCogA)
+    <!-- prettier-ignore -->
+    ```sh
+    --parser typescript
+    ```
+
+    **Input:**
+    <!-- prettier-ignore -->
+    ```tsx
+    createObject<{
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- ignore
+            [key in keyof Function]: TypeInfo | null
+        }>
+    ```
+
+    **Output:**
+    <!-- prettier-ignore -->
+    ```tsx
+    createObject<
+      {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- ignore
+        [key in keyof Function]: TypeInfo | null;
+      }
+    >;
+
+    ```
+
+    **Expected output:**
+    <!-- prettier-ignore -->
+    ```tsx
+    createObject<{
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- ignore
+      [key in keyof Function]: TypeInfo | null
+    }>
+    ```
+
+    **Why?**
+
+    <!-- short explanation of expected output -->
+
+prettier-t04:
+  issue_url: "https://github.com/prettier/prettier/issues/19509"
+  fetched: "2026-07-15"
+  sha256: "e6f046b0685f8b9817703922099ec4ff30c52e6ce2b09959e137a5d0fc3e1884"
+  prompt: |-
+    CSS type(<number>+) adds a space that breaks the css functionality
+
+    <!--
+
+    BEFORE SUBMITTING AN ISSUE:
+
+    1.  Search for your issue on GitHub: https://github.com/prettier/prettier/issues
+        A large number of opened issues are duplicates of existing issues.
+        If someone has already opened an issue for what you are experiencing,
+        you do not need to open a new issue — please add a 👍 reaction to the
+        existing issue instead.
+
+    2.  We get a lot of requests for adding options, but Prettier is
+        built on the principle of being opinionated about code formatting.
+        This means we add options only in the case of strict technical necessity.
+        Find out more: https://prettier.io/docs/option-philosophy
+
+    Don't fill the form below manually! Let a program create a report for you:
+
+    1. Go to https://prettier.io/playground
+    2. Paste your code and set options
+    3. Press the "Report issue" button in the lower right
+
+    -->
+
+    **Prettier 3.9.4**
+    [Playground link](https://prettier.io/playground/#N4Igxg9gdgLgprEAuEATAlgNwATADpTbYBGEATqnGQLRkCGGArgM5LZ0wxkAUxZ2MAJ4AHONwA8AGwQBzGAAsAfAGoAlKoDc2AgF8QAGhARhMdNGbJQdMmQgB3AArWEFlHUl26gi4b50wANZwMADKdAC2cAAy6FBwyABm7sxwhhDEAFZwYDAA6vTCyCDCZHApZJjxvvSBwSHC-rEyyFyMqSAp4egtZG2GcAAeomTokbDuAPLDHOQOEMzoptBFCKgGIIPDowgw7gAqVFDW6GWJye0LUDLSAIqMEPBnkimGGcwDIU23949ISc-tACOPzgDlswlcIDozGocTglDWhi4dHQkiaAGEIOFwnQiu5JOtLtc4ABBTgjYiMeAOKgxOJPF4geQwcKSXLyRZlBpgOAhFyLLCLQRFMDMHwgTBtACSUEosBCYBGJhJspCQmkDPaJXmcHydEKKBKZSolXWqwmCTp8RQkgS61i5RgYLoMhxmsMDTI5RFYvWJVieXQqAUyAAHAAGQylYHoUrO124v7nJF0Yi5IMhpAAJkMLDge1Trn+jLg4WI8IRUToV0YLrgADFyDjOE08VSICAdDogA)
+
+    ```sh
+    # Options (if any):
+    --parser css
+    ```
+
+    **Input:**
+
+    ```css
+    div {
+      border-radius: attr(br type(<length>+));
+    }
+    ```
+
+    **Output:**
+
+    ```css
+    div {
+      border-radius: attr(br type(<length> +));
+    }
+    ```
+
+    **Expected output:**
+    ```css
+    div {
+      border-radius: attr(br type(<length>+));
+    }
+    ```
+    There should be no space between the `>` and the `+`
+
+    **Why?**
+
+    <!-- short explanation of expected output -->
+    The `type(<length>+)` is only valid with no space between the `>` and the `+` so having the space breaks the functionality. See [MDN article on type()](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/type) or [CSSWG spec](https://drafts.csswg.org/css-values-5/#typedef-syntax)
+
+prettier-t05:
+  issue_url: "https://github.com/prettier/prettier/issues/19535"
+  fetched: "2026-07-15"
+  sha256: "35cf7732e6d221ec59d7bb9cfe5c00813e7f3475efb7b0da48c3a3b3101614be"
+  prompt: |-
+    `getStringWidth` overestimates non-spacing Unicode marks outside `U+0300..U+036F`
+
+    **Prettier v3.9.4**
+    [Playground link](https://prettier.io/playground#N4Igxg9gdgLgprEAuEcAeAHCAnGACAEzgDMBDAVwBt8BbCGhGAOiOIEso4AZCMUyuAAoAOiABGEUQBo8wYVDx46sABYBnAMoqcMJPMWLRgfXhAzfCBoeACMAfVNmATDfMBmR2YAsrgKyuAbK4DsrgAcrgCcrhYADBHWthZ2okxqGJRsMCIgVqIAlFLyAL7ZANwgUiAQGDBs0GrIoKTY2BAA7gAKDQi1KPzNpACetWVi2KRgANZwMBqkDFwccMhklGpwZRBiAFZwYDAA6iMYyCAY2HAr2ABuC0Mj45MaGKMcAObIMNjkqyArNGxvH190Bg4Ng2AxYPwAPLAkYwHCtCBqNLVKBHBAEUqoTAgsGMfgAFRBUAabDOi34KzKSKgzwEAEVyBB4OTll8Nmo0BoXvTGcykEtKSAAI68uCtJoYLogUhqAC0nDgRAxZXepDYqRpAGF6DRSEd+JRMdTaXAAIIwd5sMTkeCtEFzTgswUqGA0Si7FRpM6PMBwDSdZEXNJ9I5gNSDEAXT4ASSgRFgGjAoMqprjGhgfQETq+J0RcH2pEOKBOZxBV0x6MhxAdCxQlGImI45xg4tIz112bKj2w5yOYlIYjghq7oNguzYBBgKmQQUiZVOIrYp1b7b1-IpXxgA-Hk+nSDsZXIK3xA66AsBNEHBCVXFINPIbbgADEcLqLS99TaICB8vkgA)
+    <!-- prettier-ignore -->
+    ```sh
+    --parser babel
+    ```
+
+    **Input:**
+    <!-- prettier-ignore -->
+    ```jsx
+    export default moment.defineLocale("bo", {
+      monthsShort:
+        "ཟླ་1_ཟླ་2_ཟླ་3_ཟླ་4_ཟླ་5_ཟླ་6_ཟླ་7_ཟླ་8_ཟླ་9_ཟླ་10_ཟླ་11_ཟླ་12".split("_"),
+    });
+    ```
+
+    **Output:**
+    <!-- prettier-ignore -->
+    ```jsx
+    export default moment.defineLocale("bo", {
+      monthsShort:
+        "ཟླ་1_ཟླ་2_ཟླ་3_ཟླ་4_ཟླ་5_ཟླ་6_ཟླ་7_ཟླ་8_ཟླ་9_ཟླ་10_ཟླ་11_ཟླ་12".split("_"),
+    });
+
+    ```
+
+    **Expected output:**
+    <!-- prettier-ignore -->
+    ```jsx
+    export default moment.defineLocale("bo", {
+      monthsShort: "ཟླ་1_ཟླ་2_ཟླ་3_ཟླ་4_ཟླ་5_ཟླ་6_ཟླ་7_ཟླ་8_ཟླ་9_ཟླ་10_ཟླ་11_ཟླ་12".split("_"),
+    });
+    ```
+
+    **Why?**
+
+    `getStringWidth` currently treats only combining marks in `U+0300..U+036F` as zero-width, so nonspacing marks from other scripts, such as Tibetan `U+0FB3` in `ཟླ,` are counted as visible columns. This can cause Prettier to break lines even when the rendered text fits within printWidth.
+
+    (Note, [Oxc has the desired behavior](https://github.com/oxc-project/oxc/issues/23863#issuecomment-4881454798))
+
+rich-t01:
+  issue_url: "https://github.com/Textualize/rich/issues/3958"
+  fetched: "2026-07-15"
+  sha256: "10c7b2a6429a6d7bf7a481f6927d228f5a163d10da24e15abedba64207d24fb6"
+  prompt: |-
+    [BUG] Strings with ANSI escape sequences can cause `Console.print()` to hang
+
+    - [x] I've checked [docs](https://rich.readthedocs.io/en/latest/introduction.html) and [closed issues](https://github.com/Textualize/rich/issues?q=is%3Aissue+is%3Aclosed) for possible solutions.
+    - [x] I can't find my issue in the [FAQ](https://github.com/Textualize/rich/blob/master/FAQ.md).
+
+    **Describe the bug**
+
+    While testing a rich-click app I discovered an issue I first reported (including example code) there: https://github.com/ewels/rich-click/issues/325
+
+    I was inadvertently passing a string containing ANSI escape sequences (generated via rich-click) into `Console.print()`. Prior to the latest rich 14.3.2 this would print a mostly unformatted string including ANSI escape sequences (I understand that `Text.from_ansi()` would be required to handle the ANSI formatting).
+
+    With the latest "ZWJy release" 14.3.2, this now results in a hang as ANSI escape characters such as \x1b return a 0 from `cells.get_character_cell_size()`, resulting in an infinite loop in `cells.split_graphemes()`. Previously, \x1b would return a 1 and the string would print without hanging.
+
+    **Platform**
+    <details>
+    <summary>Click to expand</summary>
+
+    What platform (Win/Linux/Mac) are you running on? What terminal software are you using?
+
+    Windows 11, git-bash in Windows Terminal and VS Code Terminal. Python 3.14.3.
+
+    ```shell
+    $ python -m rich.diagnose
+    ╭───────────────────────── <class 'rich.console.Console'> ─────────────────────────╮
+    │ A high level console interface.                                                  │
+    │                                                                                  │
+    │ ╭──────────────────────────────────────────────────────────────────────────────╮ │
+    │ │ <console width=120 ColorSystem.TRUECOLOR>                                    │ │
+    │ ╰──────────────────────────────────────────────────────────────────────────────╯ │
+    │                                                                                  │
+    │     color_system = 'truecolor'                                                   │
+    │         encoding = 'utf-8'                                                       │
+    │             file = <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'> │
+    │           height = 30                                                            │
+    │    is_alt_screen = False                                                         │
+    │ is_dumb_terminal = False                                                         │
+    │   is_interactive = True                                                          │
+    │       is_jupyter = False                                                         │
+    │      is_terminal = True                                                          │
+    │   legacy_windows = False                                                         │
+    │         no_color = False                                                         │
+    │          options = ConsoleOptions(                                               │
+    │                        size=ConsoleDimensions(width=120, height=30),             │
+    │                        legacy_windows=False,                                     │
+    │                        min_width=1,                                              │
+    │                        max_width=120,                                            │
+    │                        is_terminal=True,                                         │
+    │                        encoding='utf-8',                                         │
+    │                        max_height=30,                                            │
+    │                        justify=None,                                             │
+    │                        overflow=None,                                            │
+    │                        no_wrap=False,                                            │
+    │                        highlight=None,                                           │
+    │                        markup=None,                                              │
+    │                        height=None                                               │
+    │                    )                                                             │
+    │            quiet = False                                                         │
+    │           record = False                                                         │
+    │         safe_box = True                                                          │
+    │             size = ConsoleDimensions(width=120, height=30)                       │
+    │        soft_wrap = False                                                         │
+    │           stderr = False                                                         │
+    │            style = None                                                          │
+    │         tab_size = 8                                                             │
+    │            width = 120                                                           │
+    ╰──────────────────────────────────────────────────────────────────────────────────╯
+    ╭── <class 'rich._windows.WindowsConsoleFeatures'> ───╮
+    │ Windows features available.                         │
+    │                                                     │
+    │ ╭─────────────────────────────────────────────────╮ │
+    │ │ WindowsConsoleFeatures(vt=True, truecolor=True) │ │
+    │ ╰─────────────────────────────────────────────────╯ │
+    │                                                     │
+    │ truecolor = True                                    │
+    │        vt = True                                    │
+    ╰─────────────────────────────────────────────────────╯
+    ╭────── Environment Variables ───────╮
+    │ {                                  │
+    │     'CLICOLOR': None,              │
+    │     'COLORTERM': None,             │
+    │     'COLUMNS': None,               │
+    │     'JPY_PARENT_PID': None,        │
+    │     'JUPYTER_COLUMNS': None,       │
+    │     'JUPYTER_LINES': None,         │
+    │     'LINES': None,                 │
+    │     'NO_COLOR': None,              │
+    │     'TERM_PROGRAM': None,          │
+    │     'TERM': 'xterm-256color',      │
+    │     'TTY_COMPATIBLE': None,        │
+    │     'TTY_INTERACTIVE': None,       │
+    │     'VSCODE_VERBOSE_LOGGING': None │
+    │ }                                  │
+    ╰────────────────────────────────────╯
+    platform="Windows"
+
+    $ pip freeze | grep rich
+    rich==14.3.2
+    rich-click==1.9.7
+    ```
+
+
+
+
+
+
+    </details>
+
+rich-t02:
+  issue_url: "https://github.com/Textualize/rich/issues/3577"
+  fetched: "2026-07-15"
+  sha256: "c680cd74fd26d8d0486c6bfd563a3e5e72cf2105f975f0309ce033fd8270d953"
+  prompt: |-
+    [BUG] Trailing line break removed by Text.from_ansi().
+
+    - [x] I've checked [docs](https://rich.readthedocs.io/en/latest/introduction.html) and [closed issues](https://github.com/Textualize/rich/issues?q=is%3Aissue+is%3Aclosed) for possible solutions.
+    - [x] I can't find my issue in the [FAQ](https://github.com/Textualize/rich/blob/master/FAQ.md).
+
+    **Describe the bug**
+
+    If the string passed to `Text.from_ansi()` ends with a newline, it is removed.
+
+    Simply put : `Text("\n") != Text.from_ansi("\n")`
+
+    **Example**
+    ```Python
+    from rich.text import Text
+
+    print(Text.from_ansi("text").__repr__())
+    print(Text.from_ansi("text\n").__repr__())
+    print(Text.from_ansi("text\n\n").__repr__())
+    ```
+
+    **Output**
+    ```Console
+    <text 'text' [] ''>
+    <text 'text' [] ''>
+    <text 'text\n' [] ''>
+    ```
+
+    **Expected Output**
+    ```Console
+    <text 'text' [] ''>
+    <text 'text\n' [] ''>
+    <text 'text\n\n' [] ''>
+    ```
+
+    **Platform**
+    <details>
+    <summary>Click to expand</summary>
+
+    What platform (Win/Linux/Mac) are you running on? What terminal software are you using?
+    Linux
+
+    ```Console
+    (.venv) user@host:~/source/rich$ python -m rich.diagnose
+
+    ╭───────────────────────── <class 'rich.console.Console'> ─────────────────────────╮
+    │ A high level console interface.                                                  │
+    │                                                                                  │
+    │ ╭──────────────────────────────────────────────────────────────────────────────╮ │
+    │ │ <console width=237 None>                                                     │ │
+    │ ╰──────────────────────────────────────────────────────────────────────────────╯ │
+    │                                                                                  │
+    │     color_system = None                                                          │
+    │         encoding = 'utf-8'                                                       │
+    │             file = <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'> │
+    │           height = 54                                                            │
+    │    is_alt_screen = False                                                         │
+    │ is_dumb_terminal = False                                                         │
+    │   is_interactive = False                                                         │
+    │       is_jupyter = False                                                         │
+    │      is_terminal = False                                                         │
+    │   legacy_windows = False                                                         │
+    │         no_color = False                                                         │
+    │          options = ConsoleOptions(                                               │
+    │                        size=ConsoleDimensions(width=237, height=54),             │
+    │                        legacy_windows=False,                                     │
+    │                        min_width=1,                                              │
+    │                        max_width=237,                                            │
+    │                        is_terminal=False,                                        │
+    │                        encoding='utf-8',                                         │
+    │                        max_height=54,                                            │
+    │                        justify=None,                                             │
+    │                        overflow=None,                                            │
+    │                        no_wrap=False,                                            │
+    │                        highlight=None,                                           │
+    │                        markup=None,                                              │
+    │                        height=None                                               │
+    │                    )                                                             │
+    │            quiet = False                                                         │
+    │           record = False                                                         │
+    │         safe_box = True                                                          │
+    │             size = ConsoleDimensions(width=237, height=54)                       │
+    │        soft_wrap = False                                                         │
+    │           stderr = False                                                         │
+    │            style = None                                                          │
+    │         tab_size = 8                                                             │
+    │            width = 237                                                           │
+    ╰──────────────────────────────────────────────────────────────────────────────────╯
+    ╭─── <class 'rich._windows.WindowsConsoleFeatures'> ────╮
+    │ Windows features available.                           │
+    │                                                       │
+    │ ╭───────────────────────────────────────────────────╮ │
+    │ │ WindowsConsoleFeatures(vt=False, truecolor=False) │ │
+    │ ╰───────────────────────────────────────────────────╯ │
+    │                                                       │
+    │ truecolor = False                                     │
+    │        vt = False                                     │
+    ╰───────────────────────────────────────────────────────╯
+    ╭────── Environment Variables ───────╮
+    │ {                                  │
+    │     'TERM': 'xterm-256color',      │
+    │     'COLORTERM': None,             │
+    │     'CLICOLOR': None,              │
+    │     'NO_COLOR': None,              │
+    │     'TERM_PROGRAM': None,          │
+    │     'COLUMNS': None,               │
+    │     'LINES': None,                 │
+    │     'JUPYTER_COLUMNS': None,       │
+    │     'JUPYTER_LINES': None,         │
+    │     'JPY_PARENT_PID': None,        │
+    │     'VSCODE_VERBOSE_LOGGING': None │
+    │ }                                  │
+    ╰────────────────────────────────────╯
+    platform="Linux"
+
+    (.venv) user@host:~/source/rich$ pip freeze | grep rich
+    rich==13.9.4
+    ```
+
+    </details>
+
+rich-t03:
+  issue_url: "https://github.com/Textualize/rich/issues/4041"
+  fetched: "2026-07-15"
+  sha256: "83e4e3ca4f37585a09de4fa15d66b8e3d0974efaa23c5daa39ce44c34bf604b8"
+  prompt: |-
+    `FileProxy.isatty()` always returns `False` instead of delegating to the proxied file
+
+    - [x] I've checked [docs](https://rich.readthedocs.io/en/latest/introduction.html) and [closed issues](https://github.com/Textualize/rich/issues?q=is%3Aissue+is%3Aclosed) for possible solutions.
+    - [x] I can't find my issue in the [FAQ](https://github.com/Textualize/rich/blob/master/FAQ.md).
+
+    `FileProxy` (used by `Live` when `redirect_stdout=True`) inherits `isatty()` from `io.TextIOBase`, which always returns `False`. This breaks code that checks `sys.stdout.isatty()` inside a `Live` context.
+
+    `FileProxy` already delegates `fileno()` (line 56-57) and has a generic `__getattr__` fallback (line 25-26), but `isatty()` is defined on `io.TextIOBase` in the MRO, so `__getattr__` is never reached for it.
+
+    ### Reproduction
+
+    ```python
+    import sys
+    from rich.console import Console
+    from rich.live import Live
+
+    console = Console()
+    print("Before Live:", sys.stdout.isatty())  # True
+
+    with Live("hello", console=console, redirect_stdout=True):
+        print("Inside Live:", sys.stdout.isatty())  # False (should be True)
+
+    print("After Live:", sys.stdout.isatty())  # True
+    ```
+
+    ### Impact
+
+    Any code running inside a `Live` context with `redirect_stdout=True` that branches on `isatty()` gets the wrong answer. This is particularly problematic for applications that use `Live` for streaming display while also executing callbacks/tools that check whether stdout is a terminal.
+
+    ### Suggested fix
+
+    Add an `isatty()` method to `FileProxy` that delegates to the underlying file, consistent with how `fileno()` is already handled:
+
+    ```python
+    def isatty(self) -> bool:
+        return self.__file.isatty()
+    ```
+
+rich-t04:
+  issue_url: "https://github.com/Textualize/rich/issues/3871"
+  fetched: "2026-07-15"
+  sha256: "0ce5bf3c8be2c799854decccba8e7a8287a964862ca0c888620acd2d09071d98"
+  prompt: |-
+    [BUG] Table padding is miscalculated in first column
+
+    - [x] I've checked [docs](https://rich.readthedocs.io/en/latest/introduction.html) and [closed issues](https://github.com/Textualize/rich/issues?q=is%3Aissue+is%3Aclosed) for possible solutions.
+    - [x] I can't find my issue in the [FAQ](https://github.com/Textualize/rich/blob/master/FAQ.md).
+
+    **Table padding is miscalculated in first column**
+
+    I'm using a table for layout, but the first column has too much padding between it and the second column. When I investigated, I found that adjusting the padding also adjusts the margin of error, meaning that it's basically putting in double the requested amount of padding, but only for the divider between the first and second columns.
+
+    **Minimum reproduceable code**
+    ```python
+    from rich import print
+    from rich.table import Table
+
+    table = Table.grid(padding=(0, 1))
+
+    for _ in range(3):
+        table.add_column(width=3)
+
+    for row in range(3):
+        table.add_row(*["a" * 3 for _ in range(3)])
+
+    print(table)
+    ```
+
+    <img width="232" height="124" alt="Image" src="https://github.com/user-attachments/assets/535a79c7-b470-4392-9ce9-79d76b5e8b22" />
+
+    **Platform**
+    Terminal: Windows Terminal (the new one from the Windows Store, not cmd.exe nor powershell.exe)
+    Environment: WSL2 on Windows 10
+    OS: (in WSL2) Ubuntu 24.04
+    Rich version: 14.2.0
+
+    **Diagnostic Output**
+    ```
+    ╭───────────────────────── <class 'rich.console.Console'> ─────────────────────────╮
+    │ A high level console interface.                                                  │
+    │                                                                                  │
+    │ ╭──────────────────────────────────────────────────────────────────────────────╮ │
+    │ │ <console width=194 ColorSystem.EIGHT_BIT>                                    │ │
+    │ ╰──────────────────────────────────────────────────────────────────────────────╯ │
+    │                                                                                  │
+    │     color_system = '256'                                                         │
+    │         encoding = 'utf-8'                                                       │
+    │             file = <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'> │
+    │           height = 49                                                            │
+    │    is_alt_screen = False                                                         │
+    │ is_dumb_terminal = False                                                         │
+    │   is_interactive = True                                                          │
+    │       is_jupyter = False                                                         │
+    │      is_terminal = True                                                          │
+    │   legacy_windows = False                                                         │
+    │         no_color = False                                                         │
+    │          options = ConsoleOptions(                                               │
+    │                        size=ConsoleDimensions(width=194, height=49),             │
+    │                        legacy_windows=False,                                     │
+    │                        min_width=1,                                              │
+    │                        max_width=194,                                            │
+    │                        is_terminal=True,                                         │
+    │                        encoding='utf-8',                                         │
+    │                        max_height=49,                                            │
+    │                        justify=None,                                             │
+    │                        overflow=None,                                            │
+    │                        no_wrap=False,                                            │
+    │                        highlight=None,                                           │
+    │                        markup=None,                                              │
+    │                        height=None                                               │
+    │                    )                                                             │
+    │            quiet = False                                                         │
+    │           record = False                                                         │
+    │         safe_box = True                                                          │
+    │             size = ConsoleDimensions(width=194, height=49)                       │
+    │        soft_wrap = False                                                         │
+    │           stderr = False                                                         │
+    │            style = None                                                          │
+    │         tab_size = 8                                                             │
+    │            width = 194                                                           │
+    ╰──────────────────────────────────────────────────────────────────────────────────╯
+    ╭─── <class 'rich._windows.WindowsConsoleFeatures'> ────╮
+    │ Windows features available.                           │
+    │                                                       │
+    │ ╭───────────────────────────────────────────────────╮ │
+    │ │ WindowsConsoleFeatures(vt=False, truecolor=False) │ │
+    │ ╰───────────────────────────────────────────────────╯ │
+    │                                                       │
+    │ truecolor = False                                     │
+    │        vt = False                                     │
+    ╰───────────────────────────────────────────────────────╯
+    ╭────── Environment Variables ───────╮
+    │ {                                  │
+    │     'CLICOLOR': '1',               │
+    │     'COLORTERM': None,             │
+    │     'COLUMNS': None,               │
+    │     'JPY_PARENT_PID': None,        │
+    │     'JUPYTER_COLUMNS': None,       │
+    │     'JUPYTER_LINES': None,         │
+    │     'LINES': None,                 │
+    │     'NO_COLOR': None,              │
+    │     'TERM_PROGRAM': None,          │
+    │     'TERM': 'xterm-256color',      │
+    │     'TTY_COMPATIBLE': None,        │
+    │     'TTY_INTERACTIVE': None,       │
+    │     'VSCODE_VERBOSE_LOGGING': None │
+    │ }                                  │
+    ╰────────────────────────────────────╯
+    platform="Linux"
+
+    ❯ pip freeze | grep rich
+    rich==14.2.0
+    ```
+
+rich-t05:
+  issue_url: "https://github.com/Textualize/rich/issues/3841"
+  fetched: "2026-07-15"
+  sha256: "63b5b7b263724818d132f65dcf3cb40ae24d49a795e69b43ef4367bc03ff819b"
+  prompt: |-
+    [BUG] Trailing background color is trimmed when soft wrapping is enabled
+
+    - [x] I've checked [docs](https://rich.readthedocs.io/en/latest/introduction.html) and [closed issues](https://github.com/Textualize/rich/issues?q=is%3Aissue+is%3Aclosed) for possible solutions.
+    - [x] I can't find my issue in the [FAQ](https://github.com/Textualize/rich/blob/master/FAQ.md).
+
+    **Describe the bug**
+    I was using the Windows Terminal initially. There is another bug with background leaking in our software with soft wrapping enabled, reproducible on both stable v1.23 and canary v1.25, with the code example below on Rich v14.1.0. But that is specific to Windows Terminal and is not related to the main issue, and I have confirmed, that unlike the background leak, the trailing background trimming is a Rich-specific issue, as it is present in various Terminal applications from Debian 13.
+
+    **Code Example**
+    ```python
+    from rich.console import Console
+    from rich.text import Text
+
+    # Force soft_wrap by narrow width
+    console = Console(soft_wrap=True, width=80)
+
+    text = Text()
+    text.append("x" * 60, style="white")
+    text.append(" | ", style="white")
+    text.append(" test str ", style="green on black")
+    text.append(" | ", style="white")
+    text.append(" another str ", style="yellow on black")
+
+    console.print(text)
+    ```
+
+    <img width="1117" height="160" alt="Image" src="https://github.com/user-attachments/assets/efa57ac1-ea1b-40c6-8f49-47313ae14450" />
+    If you look closely, you can see that there is no trailing black space after the "another str" text.
+
+    ## **Offtopic** (Windows terminal leaking black background)
+    <details>
+    <summary>Click to expand</summary>
+
+    <img width="715" height="204" alt="Image" src="https://github.com/user-attachments/assets/7637abf0-ce84-4f61-bbfc-d972e2a807d1" />
+
+    In most cases you can make it leak by resizing the window when it alters the text and it's background, and then resize it back again afterwards. Sometimes though, it gets leaked by itself when you align the terminal width in a specific size, probably related to #3838:
+
+    <img width="1312" height="154" alt="Image" src="https://github.com/user-attachments/assets/fa58e2b5-f157-4ac4-b8f0-a2f601d5f265" />
+
+    </details>
+
+sql-formatter-t01:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/943"
+  fetched: "2026-07-15"
+  sha256: "db2d568c227fecd0eba6b73621358d1506300b68b4e9792e5577cde362de2e2e"
+  prompt: |-
+    Problem with $p() syntax in SQLite
+
+    **Input data**
+
+    Which SQL and options did you provide as input?
+
+    ```sql
+    select $p(x=y);
+    ```
+
+    **Expected Output**
+
+    ```sql
+    select $p(x=y);
+    ```
+
+    **Actual Output**
+
+    ```sql
+    select $p (x=y);
+    ```
+
+    **Usage**
+
+    - How are you calling / using the library?
+    cli
+    - What SQL language(s) does this apply to?
+    sqlite
+    - Which SQL Formatter version are you using? (The exact version number.)
+    15.6.10
+
+    I'm not 100% sure but I think in the tcl `$()` param syntax sqlite supports requires the variable name and following parens to be touching (no space). At least, from manual testing in the cli that seemed to be the case.
+
+sql-formatter-t02:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/718"
+  fetched: "2026-07-15"
+  sha256: "bceb4e1f7a3e32b6b4ca2f720f646a850da271e31f52cec3906f29038b049374"
+  prompt: |-
+    [FORMATTING] `DEFAULT VALUES` not properly supported in INSERT statement
+
+    **Input data**
+
+    Which SQL and options did you provide as input?
+
+    ```sql
+    INSERT INTO workspaces DEFAULT VALUES RETURNING id;
+    ```
+
+    options:
+    ```js
+    { language: 'postgresql', paramTypes: { named: ['$'] } }
+    ```
+
+    **Expected Output**
+
+    The main issue is that `DEFAULT VALUES` [should be treated as a unit](https://www.postgresql.org/docs/current/sql-insert.html), as it is distinct from the usual `VALUES` or the query that typically follows `INSERT INTO`.
+
+    ```sql
+    INSERT INTO
+      workspaces
+    DEFAULT VALUES
+    RETURNING
+      id;
+    ```
+
+    **Actual Output**
+
+    ```sql
+    INSERT INTO
+      workspaces DEFAULT
+    VALUES
+    RETURNING
+      id;
+    ```
+
+    **Usage**
+
+    - How are you calling / using the library?
+        - I'm using prettier, and we created a [custom prettier plugin](https://github.com/PrairieLearn/PrairieLearn/blob/master/packages/prettier-plugin-sql/src/index.ts) that uses sql-formatter to format the file.
+    - What SQL language(s) does this apply to?
+        - This is specifically for Postgres.
+    - Which SQL Formatter version are you using?
+        - 15.2.0
+
+sql-formatter-t03:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/747"
+  fetched: "2026-07-15"
+  sha256: "c21d12c98d30f15939b6e01fc1ecd2551644305430d0740388d22cce5cb233ed"
+  prompt: |-
+    [FORMATTING] TransactSQL incorrectly formats some block comments, leading to broken statements
+
+    **Input data**
+
+    ```sql
+    /** block comment **/
+    ```
+
+    **Expected Output**
+
+    ```sql
+    /** block comment **/
+    ```
+
+    **Actual Output**
+
+    ```sql
+    / * * block comment * * /
+    ```
+
+    **Usage**
+
+    This example reproduces on the sql-formatter playground. The only option that fixes the bug is enabling "dense operators", which produces this output:
+
+    ```sql
+    /**block comment**/
+    ```
+
+sql-formatter-t04:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/500"
+  fetched: "2026-07-15"
+  sha256: "167a9bb6a4a4d1b5d32769583a67fc9a40fc00ddfbb0d4f00b71482f0339d916"
+  prompt: |-
+    Crash with BETWEEN inside CASE expression
+
+    **Describe the bug**
+
+    ```
+    with
+      p as (
+        SELECT distinct
+          s.id,
+          case
+            when s.end_date between (
+              CASE
+                WHEN CURRENT_DATE >= 12 THEN 13
+              end
+            ) and (
+              CASE
+                WHEN CURRENT_DATE >= 12 THEN 13
+              end
+            )  then year(current_date) + 1
+
+          end as s_u,
+        FROM
+          table_name s
+          )
+    ```
+
+
+    **Actual behavior**
+
+    Crash:
+    ```
+    token: {
+        type: 'BETWEEN',
+        raw: 'between',
+        text: 'BETWEEN',
+        start: 81,
+        precedingWhitespace: ' '
+      }
+    }
+    ```
+
+    **Usage**
+    ```
+    npx sql-formatter -l hive provoke.hql
+    ```
+
+    Crash does not occur on 10.6.0
+    Exists in 11.0.2 and 12.0.0-beta.1
+
+sql-formatter-t05:
+  issue_url: "https://github.com/sql-formatter-org/sql-formatter/issues/624"
+  fetched: "2026-07-15"
+  sha256: "997fc9022c794185a4d6875d7a9a62cd2a045a49b835d4a776fe920b56714aa5"
+  prompt: |-
+    Parsing of Postgres array slice operator throw error
+
+    **Input data**
+
+    ```sql
+    select (array_agg("test"))[:5] as "test" from "user"
+    ```
+
+    **Actual Output**
+
+    ```
+    Parse error: Unexpected ":5] as "te" at line 1 column 28```
+    ```
+    **Usage**
+
+    - How are you calling / using the library?
+    https://github.com/wirekang/kysely-playground/issues/11
+
+    - What SQL language(s) does this apply to?
+    Postgres
+
+    - Which SQL Formatter version are you using?
+    12.2.0, 12.2.3
+
+zod-t01:
+  issue_url: "https://github.com/colinhacks/zod/issues/5944"
+  fetched: "2026-07-15"
+  sha256: "0d62e092e3f66f22e827dac9238a415a14caecf3436f0290f87d15c5fc87f240"
+  prompt: |-
+    cidrv6 JSON schema emits an incomplete pattern that rejects valid IPv6 CIDRs
+
+    `z.string().cidrv6()` correctly validates IPv6 CIDRs at runtime using `new URL()`, but the `pattern` emitted by `z.toJSONSchema()` rejects many valid inputs.
+
+    **Affected version:** 4.4.3 (current main)
+
+    ## What happens
+
+    ```ts
+    import { z } from "zod";
+
+    // Runtime validation — correct
+    z.string().cidrv6().safeParse("2001:db8::/32").success;    // true
+    z.string().cidrv6().safeParse("2001:db8:1::/48").success;  // true
+
+    // JSON schema — incorrect pattern
+    z.toJSONSchema(z.string().cidrv6());
+    // {
+    //   "$schema": "...",
+    //   "type": "string",
+    //   "format": "cidrv6",
+    //   "pattern": "^(([0-9a-fA-F]{1,4}:){7}...|([0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4}:?){0,6})\\/..."
+    // }
+    ```
+
+    The exported `pattern` — `regexes.cidrv6` in `src/v4/core/regexes.ts` — only allows **0 or 1 groups before `::`** via `([0-9a-fA-F]{1,4})?::`. Valid CIDRs with 2+ groups before `::` are not matched:
+
+    | Input | Zod runtime | JSON schema `pattern` |
+    |-------|-------------|----------------------|
+    | `2001:db8::/32` | ✅ valid | ❌ no match |
+    | `2001:db8:1::/48` | ✅ valid | ❌ no match |
+    | `2001:0db8:85a3::/64` | ✅ valid | ❌ no match |
+    | `fe80::/10` | ✅ valid | ✅ matches |
+    | `::/0` | ✅ valid | ✅ matches |
+
+    `2001:db8::/32` is the canonical documentation prefix (RFC 3849) and appears in virtually every IPv6 tutorial and RFC example.
+
+    ## Why it matters
+
+    The `pattern` field is consumed by OpenAPI validators, API gateways, and frontend validation libraries. Any system that applies the Zod-generated JSON schema directly will reject addresses that Zod itself accepts, silently breaking interoperability.
+
+    ## Root cause
+
+    `$ZodCIDRv6` correctly overrides `inst._zod.check` to use `new URL()`, but `def.pattern` is still set to the incomplete `regexes.cidrv6` before calling `$ZodStringFormat.init()`. `$ZodCheckStringFormat.init()` then adds that pattern to `bag.patterns`, which `stringProcessor` in `json-schema-processors.ts` emits as the `pattern` field.
+
+    The runtime check and the schema metadata diverge at `src/v4/core/schemas.ts:885`:
+
+    ```ts
+    def.pattern ??= regexes.cidrv6; // not used for validation
+    ```
+
+    The comment acknowledges the disconnect but the pattern still leaks into the JSON schema output.
+
+    ## Possible fixes
+
+    1. **Fix `regexes.cidrv6`** to correctly cover all compressed forms (similar to how `regexes.ipv6` enumerates eight alternatives).
+    2. **Don't set `def.pattern`** for `$ZodCIDRv6` at all, so no `pattern` is emitted in the JSON schema. Validators that need a regex would have to rely on `format: "cidrv6"`.
+
+zod-t02:
+  issue_url: "https://github.com/colinhacks/zod/issues/5296"
+  fetched: "2026-07-15"
+  sha256: "b1db8467e5c3ebef23b3cdc5f6befd94615403df85361adf9a51256cfa151e9f"
+  prompt: |-
+    Records do not transform keys, even though the Typescript types says it does.
+
+    Consider the following schema:
+
+    ```typescript
+    z.record(
+      z.literal("a").transform(() => "b" as const),
+      z.string(),
+    );
+    ```
+    (playground: https://zod-playground.vercel.app?appdata=N4IgzgxgFgpgtgQxALhALwHQCcYQPZYAmAFADoB2ABJZgDYCWALjFgrWSAqSAJQaOtyYAGYE4xYj0oBeAHyVuAI26UEYSviGMeAGgrVMYAfXIBzSXvJ8BCIaKzjCCRgkoB6AFSVklAEq4CQgAeJW4dSiMsE1N5DzcZeScXHgBuChAdEAA3NgBXGDAUAG0QYAQfbgApPChybgBfEABdTKyWMHo8chQQABYMAEZBgYyQejAALTxCAFkTehRhNjAYeqA)
+
+    I would expect it to transform the `a` key of the input into a `b`, but it doesn’t. Is it expected?
+
+    Maybe it is a design decision, but in that case there is still something wrong because when chaining a transform, the input type for the transforming function is `Record<"b", string>`, so it looks like it assumes the keys get transformed.
+
+zod-t03:
+  issue_url: "https://github.com/colinhacks/zod/issues/5826"
+  fetched: "2026-07-15"
+  sha256: "7d22a96f95f683b94453baad9978873ad421450d6632cda64e384bccc3f2d487"
+  prompt: |-
+    `.default()` shallow-copies
+
+    When using the `default()` functionality, zod appears to return a shallow-copy of the schema's default value. So, when the default value is a Map, or Set, etc. - operating on that default value later on makes for surprising results, because it means that the parser's output is no longer the same for the same input.
+
+    If this is desired, please add this caveat to the `default` documentation. Or, even better, allow the `default` function to return only `function` or primitive types. However, I find this to be a very surprising and incorrect result.
+
+    Min repro [Node 24]
+
+    ```ts
+    import { z } from 'zod';
+
+    const itemParser = z.map(z.string(), z.number()).default(new Map());
+
+    type Item = { field: Map<string, number> | undefined };
+
+    const items: Item[] = [{ field: undefined }, { field: undefined }];
+
+    for (const item of items) {
+      console.log(item);
+      const itemsMap = itemParser.parse(item.field);
+      console.log(itemsMap.size);
+      itemsMap.set('HELLO', 1);
+    }
+    ```
+
+    outputs
+
+    ```
+    { field: undefined }
+    0
+    { field: undefined }
+    1
+    ```
+
+zod-t04:
+  issue_url: "https://github.com/colinhacks/zod/issues/5678"
+  fetched: "2026-07-15"
+  sha256: "905498c2cc62b1aae24fd036d87d46dd68b90425c9fb361be4fa757b4b6e5952"
+  prompt: |-
+    `transform` callback `ctx.addIssue` not in Typescript
+
+    According to the source (and various articles) I can see that a transform callback receives a context object containing an `addIssue` method:
+
+    ```ts
+    const schema = z.transform((value, ctx) => {
+      if(isNotValid(value)) {
+        ctx.addIssue({
+          code: "invalid_element",
+          message: "Not valid",
+        });
+      }
+      return value;
+    });
+
+    schema.parse(someValue);
+    ```
+
+    This work at runtime. However, in Typescript I get an error telling me `addIssue` doesn't exist.
+
+    Is this method deprecated? It certainly wasn't removed, and TS doesn't mark it as deprecated, but rather absent completely.
+
+    Confirmed in Zod v4.2.1 and v4.3.6 (presumably between as well).
+
+    -----
+
+    Resolution:
+
+    A. If the method is deprecated, the Typescript needs to be updated to indicate that it's deprecated, but not absent (until it is in fact removed).
+
+    B. If the method is *not* deprecated, it needs to be added to the Typescript definition.
+
+zod-t05:
+  issue_url: "https://github.com/colinhacks/zod/issues/5732"
+  fetched: "2026-07-15"
+  sha256: "5cf51090b3d73fca785880490645b61bdb1bef3de5d86a5d80144a90d2460639"
+  prompt: |-
+    `z.fromJSONSchema()` does not support metadata for enums, literals and not/never
+
+    Related to #5564 (closed by #5586)
+
+    While for the simple cases metadata parsing was added, they do not seem to be parsed for all of the special cases in `convertBaseSchema`, such as enums and literals.
+
+    ```ts
+    // Will equal { description: "The name of the person" }
+    const stringMeta = z.fromJSONSchema({
+      type: "string",
+      description: "The name of the person",
+    }).meta();
+
+    // But all of these will be undefined
+    const enumMeta = z.fromJSONSchema({
+      type: "string",
+      enum: ["red", "green", "blue"],
+      description: "The color of the object",
+    }).meta();
+    const literalMeta = z.fromJSONSchema({
+      type: "string",
+      const: "hello",
+      description: "A constant string value",
+    }).meta();
+    const notMeta = z.fromJSONSchema({
+      description: "Placeholder item",
+      not: {},
+    }).meta();
+    ```
+
+zustand-l01:
+  issue_url: "https://github.com/pmndrs/zustand/issues/2329"
+  fetched: "2026-07-15"
+  sha256: "63cb377ef98c79ffcf7195466d8a86388dbf2ceff7f10583e62871f875ce8bbe"
+  prompt: |-
+    RFC: How is v5-alpha/beta?
+
+    Zustand v5 is being developed #2138 and some alpha versions have been published.
+
+    We need more feedback before going beta, and releasing it finally.
+
+    `npm i zustand@next`
+
+    Please add reactions to this issue:
+    👍 : I tested v5-alpha in my project and it works fine.
+    👎 : I tested v5-alpha in my project and it fails. < Comment below!
+    👀 : I'm going to try it ASAP.
+
+zustand-t01:
+  issue_url: "https://github.com/pmndrs/zustand/discussions/3204"
+  fetched: "2026-07-15"
+  sha256: "4efb8d4ae8f29258c9ec4205cc69aaf45c6c37b4cb399e881d3ad465089440c2"
+  prompt: |-
+    `shallow` function does not work properly for some objects
+
+    ### Bug Description
+
+    I was testing `shallow` because I was running into issues where sometimes I wasn't getting store updates when I expected them.
+
+    Turns out that shallow returns the wrong thing in a case like follows:
+
+    ```
+    shallow({ '1': undefined }, { '2': {x: 1}})
+
+    // true
+    ```
+
+    Seems like what happens is that it compares the length, which looks right. It then iterates the first object and looks for matching keys in the object. The problem is that here it resolves to undefined for both objects, but it never checks the key on the second object.
+
+    ### Reproduction Link
+
+    https://www.typescriptlang.org/play/?#code/PTAEDp2Tqg7A9gEwKYH0C2yCuAbFAzsAF7YEAuAhnEsIRsAG7UCWuulwBAFpewgHdwGAFYEAUMwBOoFgQCS5FFMoAjfKAC8oABQJVIgFyhqATwCUWgHygAyqYyqEucCyUryCGSzih9IgG5JShleBXc1fABROHIpFkItXWZcbBRjM0tNGx1xUFAQUAAJAEEAYQBpDMYEFiRQAGNuFAaAax8Ac1AUWPjE8lMABxQ80AAiHriEgjHZXxS08XMg6UaEDEGQlBipxO0dBZQSgBpQQ4AhLJsAb1GGhDgKUAxKQZKkw-efCmoGlAQAGagACyr1AAH4znw0u9jHAUAIQa8DtCjuBJn0CDpzMs7g8ni9BucPqjid8qHA-oCkYMIVDUihiXCETSUQzzujetNsbj8iwgTpCSVwAQWMQUKAAISabSEjmi8WWW75fJSFDkbBSXwAvgEFBBfIAX1GAK8unuj3IoAA2q0UKZTocALp+IFCpWjPkCyUAeQMLXIrixh1OcvAHXVOjtFhxoGVKtV6s12t1+s9oGNRtGao1WtAcTSQUNKxCaw2W0Uykie2SqJO9LSl2scbxltkEU8Une2k+1vsjmcrg7Xid2INazbbirneJPdJfYcThcU48I7Ho3wVvhAA9yN329OvMKd+R1-lN6AT7OD6upByT2fQAJuGwJTpJSfhUgHhKAGS-qUr3Ab94Q9BN+V0X1-QaQM5B0T9wBDS8UF3DlDljeMExzZNQB1XA9XHLME0-JIV0oTtjxQ09eRVK9SOHO9wAfGjM1AbC80lD8qK-H9QH-KUuNQ4CfyLIIAWwSlyBYB5QB4PhcEENkYUdUkwNkAU-REAMgyUo4VPZDD03Y3wCzTIj1N0AZhmpT4pRlcZ-ADWYAB9nIbI4tHsuA8FwUBXPzIZ-iBC47O0MZHJgly3JCmVtG89g1MTXMU3wsyM1GCD3zkSsVHUFBdJKSx-MlbKIjy3TLkStikzze5yzVHZMVyBN8mubouUIYxsWbTTtIxblPksQ1jnTVr2t2AguquUBepgzkJoqob0xYjKBTCHLq0aga60sfj1rK6IOuDVSquMstNgao6Cv0xsVqSnC6oulANry46GXrC5cWNcQLQIZwUHABSOh0OT+AEHQ2oAcgARkh4wJNQAEfBQephrjUBIYAJjhuNt2MaHDUNHEgA
+
+zustand-t02:
+  issue_url: "https://github.com/pmndrs/zustand/discussions/3266"
+  fetched: "2026-07-15"
+  sha256: "3ce90aedd80db466ccf967f0a456a8c4563afe4916432369a495f54d83a48572"
+  prompt: |-
+    Node 25 - Zustand persist blows up in node 25
+
+    ### Bug Description
+
+    # Zustand persist breaks with Node 25’s new web storage stub
+
+    ## Summary
+    Running stores wrapped in `persist` now explodes with:
+
+    ```ts
+    TypeError: storage.setItem is not a function
+    ```
+
+    under Node.js 25 whenever the process receives `--localstorage-file` without a valid path.
+
+    Node 25 auto-initializes a bare `{}` at `globalThis.localStorage` in that configuration; the persist middleware trusts `localStorage` blindly and calls `setItem` → immediate crash.
+
+    ## Environment
+    - Node.js 25.0.0 (Windows 11 x64 tested, but this is runtime-level and OS-agnostic)
+    - Zustand 5.0.8 (`zustand/middleware` → `persist`)
+    - Reproduced in Vitest 3.2.4 and by running the snippet directly with `node`
+
+    ## Minimal Repro
+    1. Ensure `NODE_OPTIONS` contains `--localstorage-file` without a path (VS Code’s JS debug bootloader does this automatically, but you can set it yourself).
+    2. Create `repro.mjs`:
+
+    ```ts
+    import { createStore } from "zustand/vanilla";
+    import { persist } from "zustand/middleware";
+
+    const useStore = createStore(
+      persist(
+        () => ({ count: 0 }),
+        { name: "counter" }
+      )
+    );
+
+    console.log(useStore.getState().count);
+    ```
+
+    3. Run with Node 25:
+
+    ```pwsh
+    $env:NODE_OPTIONS='--localstorage-file'
+    node repro.mjs
+    ```
+
+    4. Observe crash:
+
+    ```text
+    TypeError: storage.setItem is not a function
+        at setItem (node_modules/zustand/esm/middleware.mjs:297:22)
+        …
+    ```
+
+    ## Expected
+    If `getStorage()` hands back something that doesn’t actually behave like Web Storage, `persist` should notice. It should either fall back to an in-memory store or throw a specific, helpful error. The one thing it must not do is blindly call `.setItem()` on a value whose methods haven’t been verified.
+
+    ## Actual
+    Under Node 25, `localStorage` resolves to a plain `{}`. `persist` skips validation, calls `.setItem`, and the store crashes immediately. Any persisted store-tests, scripts, production-dies the moment it initializes.
+
+    ## Why It Matters
+    The `--localstorage-file` flag is now common (VS Code’s debugger sets it automatically), so this configuration isn’t exotic. Without a fix, every Zustand project that upgrades to Node 25 hits a fatal error unless they add custom shims.
+
+    ### Reproduction Link
+
+    I put one in the bug report
+
+zustand-t03:
+  issue_url: "https://github.com/pmndrs/zustand/discussions/3510"
+  fetched: "2026-07-15"
+  sha256: "d3ba6a940208ac5f5db352362f0947bf1b412dd593ff557188a0a2d7b8f68b1d"
+  prompt: |-
+    devtools extension breaks types
+
+    ### Bug Description
+
+    `devtools` extension breaks type check, allows any store type.
+
+    ```ts
+    import { createStore } from 'zustand/vanilla';
+    import { devtools } from "zustand/middleware";
+
+    interface Store {
+      attr: number;
+      setAttr: () => void;
+    }
+
+    // There are no type errors -- there should be errors
+    createStore<Store>()(devtools(set => ({
+      attr: 'string',
+      setAttr: false,
+    })));
+    ```
+
+    Works fine without the middleware
+
+    ```ts
+    // There are type errors -- All good
+    createStore<Store>()(set => ({
+      attr: 'string',
+      setAttr: false,
+    }));
+    ```
+
+    ### Reproduction Link
+
+    https://www.typescriptlang.org/play/?#code/FASwtgDg9gTgLgAgN4IMYwKYEM4YMpywYIC+CAZjFGAgOQBeArgM5xYB2AJgPQBuHIADaCstANyhIsRCk4ZehKIOakKVGgCImrDjzAhOnQRgDuWTBomh2uGOSypiBIsmAIEOODABcCdozAAIwwYCXdmDDgAQTgvXwAKAEoEAF4APgReKAMJEmBgdGxcZ0wAHhKMNKT4uQUoJWZ4gH0IxHSEeKQ3BG5uBAABOGYAWgwADwgMVDhRmCoYBGHhhAAVAAsQ4mY1qEZBTgRghBD5hA3MReWAIUZEOHPiEBV2KGO52G7PHzpWGBB2ADmtAANN1egMhqMJlMZidYJdVg8ENtdvtDsQ4QskUsEDc7kinn5Xpjuq0YnEKFhlBhQSREvSrIUcPhCGUKlVEs1WqkMp0wX1BiNxpNprNTjj1ptkTs9gcjpizlKcVFhAgAfVOJ9Yt9aL9-kDQe5wYKoSLYe8FhKkSjZei3qdscsVYI1RrSZFyd97NTaQzgEA
+
+zustand-t05:
+  issue_url: "https://github.com/pmndrs/zustand/discussions/3413"
+  fetched: "2026-07-15"
+  sha256: "018a1566b9081209fe3181c83c6756d2525ebf0bd48c76bebade051f5f8e9dd8"
+  prompt: |-
+    devtools serialize not working since 5.0.11
+
+    ### Bug Description
+
+    Hi,
+
+    serialize is no longer working in devtools since v5.0.11. <5.0.10 is working.
+
+
+    Type error: Object literal may only specify known properties, and 'serialize' does not exist in type 'DevtoolsOptions'.
+
+    ### Reproduction Link
+
+    N/A

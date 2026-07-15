@@ -1,22 +1,52 @@
 """Experimental arm rendering.
 
-An arm decides how the task's intent artifacts reach the agent. The prompt
-handed to `claude -p` is identical across arms (task.prompt verbatim); arms
-differ only in what extra context is materialized into the workspace:
+An arm decides how the task's intent artifacts reach the agent AND, since
+Wave 1.5, which prompt carries the ask:
 
-  vanilla   nothing; the prompt is the only channel.
-  claudemd  the same intent rendered into a CLAUDE.md at the workspace root,
-            which Claude Code auto-discovers.
-  pylgrim   Wave 2: the enforcement layer. Not implemented yet.
+  vanilla         specified prompt; nothing else. The Wave-1 baseline.
+  claudemd        specified prompt + the ORACLE CLAUDE.md (harness-rendered
+                  intent) at the workspace root. The Wave-1 treatment.
+  export          specified prompt + the EXPORTED CLAUDE.md: a .pylgrim/
+                  ledger is constructed mechanically from the card's intent
+                  and rendered by the vendored real exporter
+                  (vendor/export_claudemd.py). E1: the format channel.
+  vanilla-vague   vague prompt (the card's source issue, verbatim, from the
+                  frozen tasks/vague/vague-prompts-v1.yaml artifact); no
+                  context file. E2's realistic baseline.
+  claudemd-vague  vague prompt + oracle CLAUDE.md.
+  export-vague    vague prompt + exported CLAUDE.md. The product cell.
+  pylgrim         Wave 2: the enforcement layer. Not implemented yet.
+
+Wave 1's prompt-identical-across-arms rule holds WITHIN each prompt row;
+the vague row is the pre-registered manipulation (prereg-v2-ext).
 """
 
 from __future__ import annotations
 
+import hashlib
+import subprocess
+import sys
+import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 from harness.taskcards import TaskCard
 
-ARMS = ("vanilla", "claudemd", "pylgrim")
+ARMS = (
+    "vanilla", "claudemd", "export",
+    "vanilla-vague", "claudemd-vague", "export-vague",
+    "pylgrim",
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+VAGUE_PROMPTS_PATH = _REPO_ROOT / "tasks" / "vague" / "vague-prompts-v1.yaml"
+VENDORED_EXPORTER = Path(__file__).resolve().parent / "vendor" / "export_claudemd.py"
+
+# Deterministic entry stamp: the ledger is a frozen function of the card,
+# never of the wall clock (repro requirement).
+LEDGER_STAMP = "2026-07-16"
+
+_CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
 def render_claude_md(task: TaskCard) -> str:
@@ -53,19 +83,139 @@ def render_claude_md(task: TaskCard) -> str:
     return "\n".join(lines)
 
 
+# --- the exported channel (E1) ----------------------------------------------
+
+def _fake_ulid(seed: str, ordinal: int) -> str:
+    """Deterministic 26-char Crockford ULID-shaped id. The 2-digit ordinal
+    prefix pins export order (the exporter is ULID-ordered)."""
+    digest = hashlib.sha256(f"{seed}:{ordinal}".encode("utf-8")).digest()
+    tail = "".join(_CROCKFORD[b % 32] for b in digest[:24])
+    return f"{ordinal:02d}{tail}"
+
+
+def _q(s: str) -> str:
+    return '"' + s.replace('"', '\\"') + '"'
+
+
+def build_pylgrim_ledger(task: TaskCard, dest_root: Path) -> None:
+    """Write a .pylgrim/ ledger carrying exactly the card's intent, in the
+    spec-v0 frontmatter shape the real exporter consumes. Mechanical: the
+    same information as the oracle arm, through the product's own format."""
+    charter = dest_root / ".pylgrim" / "charter"
+    work = dest_root / ".pylgrim" / "work"
+    charter.mkdir(parents=True, exist_ok=True)
+    work.mkdir(parents=True, exist_ok=True)
+
+    for i, constraint in enumerate(task.constraints):
+        ulid = _fake_ulid(task.id, i)
+        (charter / f"{ulid}-constraint-{i:02d}.md").write_text(
+            "---\n"
+            "kind: constraint\n"
+            "mode: observe\n"
+            "source: manual\n"
+            "status: ratified\n"
+            f"last_confirmed: {LEDGER_STAMP}\n"
+            "---\n\n"
+            f"{constraint}\n",
+            encoding="utf-8",
+        )
+
+    ulid = _fake_ulid(task.id, len(task.constraints))
+    fm = [
+        "---",
+        "kind: work_item",
+        "status: ratified",
+        "source: manual",
+        f"last_confirmed: {LEDGER_STAMP}",
+        "scope_paths:",
+        *[f"  - {_q(p)}" for p in task.scope_paths],
+        "out_of_scope:",
+        *[f"  - {_q(p)}" for p in task.out_of_scope],
+        "criteria:",
+        *[f"  - {{ text: {_q(c)}, status: open }}" for c in task.criteria],
+        "---",
+        "",
+        f"# {task.title}",
+        "",
+    ]
+    (work / f"{ulid}-work-item.md").write_text("\n".join(fm), encoding="utf-8")
+
+
+def render_exported_claude_md(task: TaskCard) -> str:
+    """Build the ledger in a scratch dir and run the vendored exporter over
+    it; return the CLAUDE.md content it produces."""
+    with tempfile.TemporaryDirectory(prefix="pylgrim-export-") as tmp:
+        root = Path(tmp)
+        build_pylgrim_ledger(task, root)
+        proc = subprocess.run(
+            [sys.executable, str(VENDORED_EXPORTER), "--repo-root", str(root)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"vendored exporter failed for {task.id}: {proc.stderr or proc.stdout}"
+            )
+        return (root / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+# --- the vague prompt channel (E2) -------------------------------------------
+
+@lru_cache(maxsize=1)
+def _vague_prompts() -> dict[str, str]:
+    """Parse the frozen artifact (card id -> verbatim issue prompt)."""
+    if not VAGUE_PROMPTS_PATH.exists():
+        raise FileNotFoundError(f"vague-prompt artifact missing: {VAGUE_PROMPTS_PATH}")
+    prompts: dict[str, str] = {}
+    current: str | None = None
+    block: list[str] | None = None
+    for raw in VAGUE_PROMPTS_PATH.read_text(encoding="utf-8").splitlines():
+        if block is not None:
+            if raw.startswith("    ") or raw == "":
+                block.append(raw[4:] if raw.startswith("    ") else "")
+                continue
+            prompts[current] = "\n".join(block).rstrip("\n")
+            block = None
+        if raw.startswith("#") or not raw.strip():
+            continue
+        if not raw.startswith(" ") and raw.endswith(":"):
+            current = raw[:-1]
+        elif raw.startswith("  prompt: |-"):
+            block = []
+    if block is not None and current:
+        prompts[current] = "\n".join(block).rstrip("\n")
+    return prompts
+
+
+def vague_prompt_for(task: TaskCard) -> str:
+    prompts = _vague_prompts()
+    if task.id not in prompts:
+        raise ValueError(
+            f"{task.id} has no entry in {VAGUE_PROMPTS_PATH.name}; "
+            "vague arms may only be scheduled for cards in the frozen artifact"
+        )
+    return prompts[task.id]
+
+
+# --- dispatch -----------------------------------------------------------------
+
 def render(arm: str, task: TaskCard, workspace_dir: Path | str) -> str:
     """Materialize the arm into the workspace. Returns the final prompt string.
 
-    The prompt is intentionally the same across arms: the experimental
-    manipulation is the context channel, never the prompt text.
+    Within a prompt row the prompt is identical across context arms; the
+    vague row swaps in the frozen issue-verbatim prompt (prereg-v2-ext).
     """
     workspace_dir = Path(workspace_dir)
-    if arm == "vanilla":
-        pass
-    elif arm == "claudemd":
-        (workspace_dir / "CLAUDE.md").write_text(render_claude_md(task), encoding="utf-8")
-    elif arm == "pylgrim":
-        raise NotImplementedError("Wave 2")
-    else:
+    if arm not in ARMS:
         raise ValueError(f"unknown arm: {arm!r}")
-    return task.prompt
+    if arm == "pylgrim":
+        raise NotImplementedError("Wave 2")
+
+    base = arm[: -len("-vague")] if arm.endswith("-vague") else arm
+    if base == "claudemd":
+        (workspace_dir / "CLAUDE.md").write_text(render_claude_md(task), encoding="utf-8")
+    elif base == "export":
+        (workspace_dir / "CLAUDE.md").write_text(
+            render_exported_claude_md(task), encoding="utf-8"
+        )
+
+    return vague_prompt_for(task) if arm.endswith("-vague") else task.prompt
