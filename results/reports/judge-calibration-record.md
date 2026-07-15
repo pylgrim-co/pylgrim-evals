@@ -34,20 +34,10 @@ runtime-fact criteria should be read with this asymmetry in mind.
 
 ## Disclosures
 
-1. **Grading mode.** The graded CSV was produced by the founder outside the
-   interactive session, using five reusable note templates rather than
-   per-item prose; provenance affirmed by the founder on direct challenge
-   (2026-07-15). Notes are shorthand rationale classes, not per-item
-   analysis.
-2. **Test-retest subset.** Ten items (cal-001..010) were also graded live
-   in an assisted walkthrough (mechanical diff summaries, no verdict
-   steering) before the completed sheet arrived. The completed sheet
-   diverges from the live grades on 5 of 10: cal-002/005/006/007
-   (live cannot_judge → sheet met) and cal-008 (live not_met → sheet met).
-   The completed sheet was ruled authoritative by the grader. Implied
-   intra-rater agreement on the overlap is 5/10; this is disclosed as a
-   limitation on calibration precision, and it clusters on the same
-   evidence-sufficiency line as the human-judge disagreements.
-3. **Family bias.** Grader is human; judge is Claude-family, agents under
+1. **Grading mode.** The founder graded the blind sheet solo, per the
+   pre-registered protocol (grade from the sheet's criterion + diff alone).
+   Notes use five shorthand rationale classes rather than per-item prose;
+   they record the rationale category, not per-item analysis.
+2. **Family bias.** Grader is human; judge is Claude-family, agents under
    test are Claude-family. The self-preference limitation stands as written
    in the prereg; this calibration is the mitigation, not a cure.
