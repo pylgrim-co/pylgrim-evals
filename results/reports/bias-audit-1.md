@@ -115,6 +115,12 @@ each a labeled exploratory arm, not a prereg change):**
 - E6 **Three-way cadence comparison** (Wave 2): {no injection, session-start
   once, per-message refresh} in the multi-turn protocol — isolates the Pro
   tier's cadence value from injection per se.
+- E7 **E-coord, multi-agent coordination** (added 2026-07-17; Wave-2+,
+  design pending as WI-E09): N agents on adjacent work items in one repo,
+  shared ledger + presence briefs vs none; region-collision rate,
+  duplicated work, contradictory edits, tokens-to-combined-goal. Full
+  rigor pipeline (design, adversarial review, freeze) before any
+  confirmatory run — the Team tier's coordination claims are gated on it.
 
 **Claims discipline (marketing/venture gate):**
 - The paper and site must not say: "drift is prevalent" (this ecology shows
