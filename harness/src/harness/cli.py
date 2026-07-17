@@ -474,11 +474,13 @@ def warm_slots(
                 cwd=str(slot_dir),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=install_timeout_min * 60,
             )
             if proc.returncode != 0:
                 failures.append(name)
-                tail = (proc.stdout + proc.stderr)[-500:]
+                tail = ((proc.stdout or "") + (proc.stderr or ""))[-500:]
                 typer.echo(f"{name}: INSTALL FAILED (exit {proc.returncode}): {tail}", err=True)
             else:
                 typer.echo(f"{name}: warmed")
