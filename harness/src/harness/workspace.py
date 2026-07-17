@@ -70,6 +70,27 @@ def _slot_belongs_to(slot_dir: Path, clone: Path) -> bool:
     return Path(common).resolve() == clone.resolve()
 
 
+def _force_rmtree(path: Path) -> None:
+    """rmtree that survives Windows read-only files (git objects, pnpm
+    stores set them): clear the attribute and retry, and fail LOUDLY if the
+    directory survives (a silent half-delete poisons the next worktree add)."""
+    import os
+    import shutil
+    import stat
+
+    def _onexc(func, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+
+    if not path.exists():
+        return
+    shutil.rmtree(path, onexc=_onexc)
+    if path.exists():
+        raise WorkspaceError(
+            f"could not remove slot dir {path}: a process may hold it open"
+        )
+
+
 def prepare(
     results_dir: Path | str,
     slot: int,
@@ -95,9 +116,7 @@ def prepare(
             try:
                 _git("worktree", "remove", "--force", str(slot_dir), cwd=clone)
             except WorkspaceError:
-                import shutil
-
-                shutil.rmtree(slot_dir, ignore_errors=True)
+                _force_rmtree(slot_dir)
         _git("worktree", "prune", cwd=clone)
         _git("worktree", "add", "--detach", "--force", str(slot_dir), base_sha, cwd=clone)
     return slot_dir
