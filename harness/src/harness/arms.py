@@ -35,6 +35,7 @@ from harness.taskcards import TaskCard
 ARMS = (
     "vanilla", "claudemd", "export",
     "vanilla-vague", "claudemd-vague", "export-vague",
+    "stale-generic-vague", "stale-wrong-vague",
     "pylgrim",
 )
 
@@ -158,6 +159,74 @@ def render_exported_claude_md(task: TaskCard) -> str:
         return (root / "CLAUDE.md").read_text(encoding="utf-8")
 
 
+# --- the staleness variants (E8) ---------------------------------------------
+
+def build_stale_generic_ledger(task: TaskCard, dest_root: Path) -> None:
+    """Charter-only ledger: the card's constraints, NO work item. Models the
+    generic repo-level file most repos actually have."""
+    charter = dest_root / ".pylgrim" / "charter"
+    work = dest_root / ".pylgrim" / "work"
+    charter.mkdir(parents=True, exist_ok=True)
+    work.mkdir(parents=True, exist_ok=True)
+    for i, constraint in enumerate(task.constraints):
+        ulid = _fake_ulid(task.id, i)
+        (charter / f"{ulid}-constraint-{i:02d}.md").write_text(
+            "---\nkind: constraint\nmode: observe\nsource: manual\n"
+            f"status: ratified\nlast_confirmed: {LEDGER_STAMP}\n---\n\n{constraint}\n",
+            encoding="utf-8",
+        )
+
+
+def wrong_card_for(task: TaskCard, siblings: list[TaskCard]) -> TaskCard:
+    """Deterministic staleness rule (frozen in prereg-v3-stale): the work
+    item shown is the NEXT T-real card's, in sorted id order within the
+    repo, cyclically. Models the file nobody updated since the last task."""
+    ordered = sorted((c for c in siblings), key=lambda c: c.id)
+    ids = [c.id for c in ordered]
+    return ordered[(ids.index(task.id) + 1) % len(ordered)]
+
+
+def render_stale_claude_md(task: TaskCard, variant: str) -> str:
+    """Render the stale block through the real exporter.
+
+    generic: the running card's constraints only, no work item (a file with
+    some still-relevant rules and no current work contract).
+    wrong: the ENTIRE block of the previous card (cyclic-next rule) — the
+    file nobody updated since the last task; the corpus cards' constraints
+    are task-scoped, so a faithful stale file is stale wholesale."""
+    if variant == "generic":
+        with tempfile.TemporaryDirectory(prefix="pylgrim-stale-") as tmp:
+            root = Path(tmp)
+            build_stale_generic_ledger(task, root)
+            proc = subprocess.run(
+                [sys.executable, str(VENDORED_EXPORTER), "--repo-root", str(root)],
+                capture_output=True, text=True, encoding="utf-8",
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"exporter failed (generic) for {task.id}: {proc.stderr or proc.stdout}")
+            return (root / "CLAUDE.md").read_text(encoding="utf-8")
+    wrong = wrong_card_for(task, _repo_siblings(task))
+    return render_exported_claude_md(wrong)
+
+
+@lru_cache(maxsize=1)
+def _all_treal_cards() -> dict[str, list[TaskCard]]:
+    from harness import taskcards as _tc
+    cards, errs = _tc.load_all(_REPO_ROOT / "tasks")
+    if errs:
+        raise RuntimeError(f"card load errors: {errs}")
+    by_repo: dict[str, list[TaskCard]] = {}
+    for c in cards:
+        if c.kind == "real" and not c.control and c.horizon == "short":
+            by_repo.setdefault(c.id.rsplit("-", 1)[0], []).append(c)
+    return by_repo
+
+
+def _repo_siblings(task: TaskCard) -> list[TaskCard]:
+    return _all_treal_cards()[task.id.rsplit("-", 1)[0]]
+
+
 # --- the vague prompt channel (E2) -------------------------------------------
 
 @lru_cache(maxsize=1)
@@ -216,6 +285,14 @@ def render(arm: str, task: TaskCard, workspace_dir: Path | str) -> str:
     elif base == "export":
         (workspace_dir / "CLAUDE.md").write_text(
             render_exported_claude_md(task), encoding="utf-8"
+        )
+    elif base == "stale-generic":
+        (workspace_dir / "CLAUDE.md").write_text(
+            render_stale_claude_md(task, "generic"), encoding="utf-8"
+        )
+    elif base == "stale-wrong":
+        (workspace_dir / "CLAUDE.md").write_text(
+            render_stale_claude_md(task, "wrong"), encoding="utf-8"
         )
 
     return vague_prompt_for(task) if arm.endswith("-vague") else task.prompt

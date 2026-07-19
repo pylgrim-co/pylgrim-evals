@@ -121,6 +121,11 @@ each a labeled exploratory arm, not a prereg change):**
   duplicated work, contradictory edits, tokens-to-combined-goal. Full
   rigor pipeline (design, adversarial review, freeze) before any
   confirmatory run — the Team tier's coordination claims are gated on it.
+- E8 **Staleness study** (added 2026-07-18, frozen as prereg-v3-stale):
+  {charter-only file, previous-task file} vs the Wave-1.5 vague-row
+  baselines — does a stale managed block forfeit the drift protection,
+  and is a wholly wrong file worse than no file? The maintenance
+  (Custodian/freshness) product story is motivated by this study.
 
 **Claims discipline (marketing/venture gate):**
 - The paper and site must not say: "drift is prevalent" (this ecology shows

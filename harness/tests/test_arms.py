@@ -113,3 +113,36 @@ def test_real_artifact_parses_and_covers_treal():
     assert len(prompts) >= 48
     for cid, text in prompts.items():
         assert text.strip(), f"{cid} empty"
+
+
+def test_stale_generic_renders_charter_only(tmp_path, monkeypatch):
+    task = make_task()
+    text = arms.render_stale_claude_md(task, "generic")
+    assert "<!-- pylgrim:begin -->" in text
+    assert "Never edit .github/workflows" in text
+    assert "frobnicate() returns 7" not in text  # no work item at all
+    assert "In scope:" not in text
+
+
+def test_stale_wrong_uses_next_cards_work_item():
+    """E8 rule: deterministic cyclic-next mapping within the repo."""
+    by_repo = arms._all_treal_cards()
+    repo, siblings = sorted(by_repo.items())[0]
+    ordered = sorted(siblings, key=lambda c: c.id)
+    w = arms.wrong_card_for(ordered[0], siblings)
+    assert w.id == ordered[1].id
+    w_last = arms.wrong_card_for(ordered[-1], siblings)
+    assert w_last.id == ordered[0].id  # cyclic
+
+
+def test_stale_wrong_renders_other_work_item():
+    by_repo = arms._all_treal_cards()
+    repo, siblings = sorted(by_repo.items())[0]
+    ordered = sorted(siblings, key=lambda c: c.id)
+    task, wrong = ordered[0], arms.wrong_card_for(ordered[0], siblings)
+    text = arms.render_stale_claude_md(task, "wrong")
+    assert "<!-- pylgrim:begin -->" in text
+    # the whole block is the wrong card's: its block equals a fresh export
+    # of the wrong card, and differs from the running card's own export
+    assert text == arms.render_exported_claude_md(wrong)
+    assert text != arms.render_exported_claude_md(task)
