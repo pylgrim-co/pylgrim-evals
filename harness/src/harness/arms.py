@@ -36,8 +36,10 @@ ARMS = (
     "vanilla", "claudemd", "export",
     "vanilla-vague", "claudemd-vague", "export-vague",
     "stale-generic-vague", "stale-wrong-vague",
+    "export-bare-vague", "export-enforce-vague",
     "pylgrim",
 )
+
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 VAGUE_PROMPTS_PATH = _REPO_ROOT / "tasks" / "vague" / "vague-prompts-v1.yaml"
@@ -98,10 +100,11 @@ def _q(s: str) -> str:
     return '"' + s.replace('"', '\\"') + '"'
 
 
-def build_pylgrim_ledger(task: TaskCard, dest_root: Path) -> None:
+def build_pylgrim_ledger(task: TaskCard, dest_root: Path, mode: str = "observe") -> None:
     """Write a .pylgrim/ ledger carrying exactly the card's intent, in the
     spec-v0 frontmatter shape the real exporter consumes. Mechanical: the
-    same information as the oracle arm, through the product's own format."""
+    same information as the oracle arm, through the product's own format.
+    `mode` sets every constraint's mode field (E9 varies it)."""
     charter = dest_root / ".pylgrim" / "charter"
     work = dest_root / ".pylgrim" / "work"
     charter.mkdir(parents=True, exist_ok=True)
@@ -112,7 +115,7 @@ def build_pylgrim_ledger(task: TaskCard, dest_root: Path) -> None:
         (charter / f"{ulid}-constraint-{i:02d}.md").write_text(
             "---\n"
             "kind: constraint\n"
-            "mode: observe\n"
+            f"mode: {mode}\n"
             "source: manual\n"
             "status: ratified\n"
             f"last_confirmed: {LEDGER_STAMP}\n"
@@ -142,12 +145,22 @@ def build_pylgrim_ledger(task: TaskCard, dest_root: Path) -> None:
     (work / f"{ulid}-work-item.md").write_text("\n".join(fm), encoding="utf-8")
 
 
-def render_exported_claude_md(task: TaskCard) -> str:
+def render_exported_claude_md(
+    task: TaskCard, mode: str = "observe", strip_mode_tags: bool = False
+) -> str:
     """Build the ledger in a scratch dir and run the vendored exporter over
-    it; return the CLAUDE.md content it produces."""
+    it; return the CLAUDE.md content it produces.
+
+    E9 variants: `mode` flows into the ledger (the exporter then renders
+    `[observe]`/`[enforce]` tags itself, the real path); `strip_mode_tags`
+    is the ONE documented synthetic edit — removing the leading mode tag
+    from constraint lines to isolate the tag's authority effect
+    (prereg-v4-render)."""
+    import re
+
     with tempfile.TemporaryDirectory(prefix="pylgrim-export-") as tmp:
         root = Path(tmp)
-        build_pylgrim_ledger(task, root)
+        build_pylgrim_ledger(task, root, mode=mode)
         proc = subprocess.run(
             [sys.executable, str(VENDORED_EXPORTER), "--repo-root", str(root)],
             capture_output=True, text=True, encoding="utf-8",
@@ -156,7 +169,10 @@ def render_exported_claude_md(task: TaskCard) -> str:
             raise RuntimeError(
                 f"vendored exporter failed for {task.id}: {proc.stderr or proc.stdout}"
             )
-        return (root / "CLAUDE.md").read_text(encoding="utf-8")
+        text = (root / "CLAUDE.md").read_text(encoding="utf-8")
+        if strip_mode_tags:
+            text = re.sub(r"^- \[(?:observe|advise|enforce)\] ", "- ", text, flags=re.M)
+        return text
 
 
 # --- the staleness variants (E8) ---------------------------------------------
@@ -293,6 +309,14 @@ def render(arm: str, task: TaskCard, workspace_dir: Path | str) -> str:
     elif base == "stale-wrong":
         (workspace_dir / "CLAUDE.md").write_text(
             render_stale_claude_md(task, "wrong"), encoding="utf-8"
+        )
+    elif base == "export-bare":
+        (workspace_dir / "CLAUDE.md").write_text(
+            render_exported_claude_md(task, strip_mode_tags=True), encoding="utf-8"
+        )
+    elif base == "export-enforce":
+        (workspace_dir / "CLAUDE.md").write_text(
+            render_exported_claude_md(task, mode="enforce"), encoding="utf-8"
         )
 
     return vague_prompt_for(task) if arm.endswith("-vague") else task.prompt

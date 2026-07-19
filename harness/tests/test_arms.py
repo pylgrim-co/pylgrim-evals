@@ -146,3 +146,40 @@ def test_stale_wrong_renders_other_work_item():
     # of the wrong card, and differs from the running card's own export
     assert text == arms.render_exported_claude_md(wrong)
     assert text != arms.render_exported_claude_md(task)
+
+
+def test_e9_enforce_mode_renders_enforce_tag():
+    task = make_task()
+    text = arms.render_exported_claude_md(task, mode="enforce")
+    assert "[enforce]" in text
+    assert "[observe]" not in text
+
+
+def test_e9_bare_strips_mode_tags_only():
+    task = make_task()
+    tagged = arms.render_exported_claude_md(task)
+    bare = arms.render_exported_claude_md(task, strip_mode_tags=True)
+    assert "[observe]" in tagged
+    assert "[observe]" not in bare
+    assert "[enforce]" not in bare
+    # constraint text and work item survive untouched
+    assert "Never edit .github/workflows" in bare
+    assert "In scope:" in bare
+    # the strip is the ONLY difference
+    import re
+    assert re.sub(r"^- \[observe\] ", "- ", tagged, flags=re.M) == bare
+
+
+def test_e9_arm_dispatch(tmp_path):
+    for arm, marker in (("export-bare-vague", None), ("export-enforce-vague", "[enforce]")):
+        ws = tmp_path / arm
+        ws.mkdir()
+        try:
+            arms.render(arm, make_task(), ws)
+        except ValueError:
+            pass  # vague artifact has no alpha-t01; context file written first
+        text = (ws / "CLAUDE.md").read_text(encoding="utf-8")
+        if marker:
+            assert marker in text
+        else:
+            assert "[observe]" not in text and "[enforce]" not in text

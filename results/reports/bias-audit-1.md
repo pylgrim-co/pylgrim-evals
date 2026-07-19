@@ -126,6 +126,13 @@ each a labeled exploratory arm, not a prereg change):**
   baselines — does a stale managed block forfeit the drift protection,
   and is a wholly wrong file worse than no file? The maintenance
   (Custodian/freshness) product story is motivated by this study.
+- E9 **Rendering study** (added 2026-07-19, frozen as prereg-v4-render):
+  {bare, [observe], [enforce]} constraint renderings of the exported
+  block on the vague row + the PATH_CAP stratification — measures the
+  mode-tag authority effect W1.5 surfaced at n=3.
+- E10 **Tier replication** (same freeze): the significant vague-row drift
+  comparison re-run on Haiku — does the headline generalize below
+  Sonnet?
 
 **Claims discipline (marketing/venture gate):**
 - The paper and site must not say: "drift is prevalent" (this ecology shows
