@@ -133,6 +133,14 @@ each a labeled exploratory arm, not a prereg change):**
 - E10 **Tier replication** (same freeze): the significant vague-row drift
   comparison re-run on Haiku — does the headline generalize below
   Sonnet?
+- E13 **Tier-crossing, Stage 2** (added 2026-07-22, frozen as
+  prereg-v5-tiercross; registered ahead in docs/10 §9): can a small model
+  with the packet match the next tier up without one? Five fresh cells
+  (haiku/sonnet/opus × the vague-row arm pair, minus vanilla@haiku), M5
+  non-inferiority (−5pp margin) + drift superiority at both tier
+  boundaries, one Holm family of four. The Stage-1 exploratory peek
+  (e9-e10-analysis-1.md) is the disclosed hypothesis source; Stage 2
+  confirms or kills on fresh data only.
 
 **Claims discipline (marketing/venture gate):**
 - The paper and site must not say: "drift is prevalent" (this ecology shows
