@@ -80,9 +80,12 @@ W15_PUBLISHED = {
 }
 # Published E8 values (results/reports/e8-analysis-1.md). stale-wrong-vague
 # was complete (144/144) at publication and is asserted; stale-generic-vague
-# was 142/144 there and is recomputed at full coverage (disclosed).
+# was 142/144 at the PRELIMINARY issue and is recomputed at full coverage
+# (disclosed). e8-analysis-1.md was finalized 2026-07-22 at 144/144 with the
+# _FINAL values below, which are now asserted too.
 E8_PUBLISHED_STALE_WRONG = (6, 6, 6, 30)
 E8_PUBLISHED_STALE_GENERIC_AT_142 = (0, 0, 0, 43)
+E8_PUBLISHED_STALE_GENERIC_FINAL = (0, 1, 1, 44)
 
 # Haiku 4.5 cache pricing (USD per MTok; labeled estimate, same 4 chars/token
 # basis as the Sonnet constants in wave1_confirmatory).
@@ -256,23 +259,34 @@ def main() -> None:
     got_sg, n_sg = derive4("stale-generic-vague", "sonnet")
     sg_done = conn.execute(
         "SELECT COUNT(*) FROM runs WHERE arm='stale-generic-vague' AND model='sonnet' "
-        "AND status='done'").fetchone()[0]
+        "AND status='done' AND rep<=3").fetchone()[0]
     want_sg = E8_PUBLISHED_STALE_GENERIC_AT_142
     sg_match = got_sg == want_sg
     sg_line = (f"stale-generic-vague (Sonnet, E8, RECOMPUTED at {sg_done}/144 after "
-               f"retries; published at 142/144): M1 {got_sg[0]}, M3 {got_sg[1]}, "
+               f"retries; PRELIMINARY issue published at 142/144): M1 {got_sg[0]}, "
+               f"M3 {got_sg[1]}, "
                f"any-drift {got_sg[2]}/{n_sg}, M5 {got_sg[3]}/{n_sg} "
                f"(published: M1 {want_sg[0]}, M3 {want_sg[1]}, any-drift {want_sg[2]}/48, "
                f"M5 {want_sg[3]}/48) — "
                + ("unchanged by the 2 retried runs" if sg_match
                   else "CHANGED by the 2 retried runs (disclosed; e8-analysis-1.md "
-                       "was marked PRELIMINARY for exactly this cell)"))
+                       "was marked PRELIMINARY for exactly this cell and has since "
+                       "been finalized at full coverage with these values)"))
     reg_lines.append(sg_line)
+    # Since the 2026-07-22 finalization of e8-analysis-1.md, the full-coverage
+    # stale-generic-vague cell is itself published — assert it.
+    if got_sg != E8_PUBLISHED_STALE_GENERIC_FINAL or n_sg != 48:
+        print("REGRESSION CHECK FAILED — ABORTING BEFORE ANY E9/E10 NUMBER")
+        print("  " + sg_line)
+        raise SystemExit(1)
     print("Regression check PASSED (W1.5 + E8 published cells re-derived):")
     for ln in reg_lines:
         print("  " + ln)
 
     # --- coverage from the live db -------------------------------------------
+    # E13 Stage-2 rows share this database under the SAME arm/model names at
+    # reps 4-6; this analysis is the reps-1-3 study, so every coverage query
+    # filters rep<=3 (card metrics already only ever read r1-r3 via rid()).
     CELL_KEYS = [("export-bare-vague", "sonnet"), ("export-vague", "sonnet"),
                  ("export-enforce-vague", "sonnet"),
                  ("vanilla-vague", "sonnet"),
@@ -280,7 +294,8 @@ def main() -> None:
     coverage: dict[tuple[str, str], int] = {}
     for arm, model in CELL_KEYS:
         coverage[(arm, model)] = conn.execute(
-            "SELECT COUNT(*) FROM runs WHERE arm=? AND model=? AND status='done'",
+            "SELECT COUNT(*) FROM runs WHERE arm=? AND model=? AND status='done' "
+            "AND rep<=3",
             (arm, model)).fetchone()[0]
     not_done = [
         (r["run_id"], r["status"], int(r["attempt"] or 0), (r["error"] or "").strip())
@@ -288,7 +303,7 @@ def main() -> None:
             "SELECT run_id, status, attempt, error FROM runs WHERE "
             "((model='sonnet' AND arm IN ('export-bare-vague','export-enforce-vague',"
             "'export-vague','vanilla-vague')) OR model='haiku') "
-            "AND status!='done' ORDER BY run_id")
+            "AND status!='done' AND rep<=3 ORDER BY run_id")
     ]
     e9_exclusions = [x for x in not_done
                      if x[0].split("--")[1] in ("export-bare-vague", "export-enforce-vague")]
@@ -299,23 +314,34 @@ def main() -> None:
     haiku_snaps = sorted({
         s
         for (rid_,) in conn.execute(
-            "SELECT run_id FROM runs WHERE model='haiku' AND status='done'")
+            "SELECT run_id FROM runs WHERE model='haiku' AND status='done' "
+            "AND rep<=3")
         for s in runs[rid_]["provenance"]["model_snapshots"]
     })
 
     # --- the cells -----------------------------------------------------------
     cells = {(arm, model): arm_cell_table(arm, model) for arm, model in CELL_KEYS}
 
-    # judged metric coverage (secondary; drain in progress)
-    judged: dict[tuple[str, str], tuple[int, int, int, int, int]] = {}
+    # judged metric coverage (secondary). Errored judge rows ("judge reply
+    # unparseable after one retry") are the recorded exclusion class, not
+    # pending work: the drain is complete when nothing is pending/running.
+    jstat = {r["run_id"]: r["status"]
+             for r in conn.execute("SELECT run_id, status FROM judge_runs")}
+    judged: dict[tuple[str, str], tuple[int, int, int, int, int, int, int]] = {}
     for arm, model in CELL_KEYS:
-        met = nm = cj = j_done = 0
-        j_total = conn.execute(
-            "SELECT COUNT(*) FROM judge_runs WHERE run_id LIKE ?",
-            (f"%--{arm}--{model}--%",)).fetchone()[0]
+        met = nm = cj = j_done = j_total = j_err = j_pend = 0
         for cid in factorial:
             for rep in (1, 2, 3):
-                v = judges.get(rid(cid, arm, model, rep))
+                run_id_ = rid(cid, arm, model, rep)
+                st = jstat.get(run_id_)
+                if st is None:
+                    continue
+                j_total += 1
+                if st == "error":
+                    j_err += 1
+                elif st != "done":
+                    j_pend += 1
+                v = judges.get(run_id_)
                 if not v:
                     continue
                 j_done += 1
@@ -323,10 +349,10 @@ def main() -> None:
                     met += verdict["verdict"] == "met"
                     nm += verdict["verdict"] == "not_met"
                     cj += verdict["verdict"] == "cannot_judge"
-        judged[(arm, model)] = (met, nm, cj, j_done, j_total)
+        judged[(arm, model)] = (met, nm, cj, j_done, j_total, j_err, j_pend)
     NEW_CELLS = [("export-bare-vague", "sonnet"), ("export-enforce-vague", "sonnet"),
                  ("vanilla-vague", "haiku"), ("export-vague", "haiku")]
-    judge_drain = any(judged[c][3] < judged[c][4] for c in NEW_CELLS)
+    judge_drain = any(judged[c][6] > 0 for c in NEW_CELLS)
     judge_pending_total = conn.execute(
         "SELECT COUNT(*) FROM judge_runs WHERE status='pending'").fetchone()[0]
 
@@ -386,6 +412,20 @@ def main() -> None:
         "3 · drift, vanilla-vague vs export-vague (Haiku)",
         "3 · drift haiku vv-vs-xv",
         ("vanilla-vague", H), ("export-vague", H), "drift")
+
+    # --- finalization guard (added 2026-07-22) --------------------------------
+    # The three registered endpoints were complete at the first issue of
+    # e9-e10-analysis-1.md; on any re-run (e.g. to fill the judged secondary
+    # after the judge drain) they must reproduce the published b/c/p values
+    # exactly. Abort loudly if they move.
+    assert (b1, c1, len(p1_pairs), p1) == (0, 0, 48, None), \
+        f"endpoint 1 moved: b={b1} c={c1} n={len(p1_pairs)} p={p1}"
+    assert (b2, c2, len(p2_pairs), f"{p2:.4f}") == (1, 0, 48, "1.0000"), \
+        f"endpoint 2 moved: b={b2} c={c2} n={len(p2_pairs)} p={p2}"
+    assert (b3, c3, len(p3_pairs), f"{p3:.4f}") == (13, 0, 48, "0.0002"), \
+        f"endpoint 3 moved: b={b3} c={c3} n={len(p3_pairs)} p={p3}"
+    print("Finalization guard PASSED: all three registered endpoints reproduce "
+          "the published b/c/p values exactly.")
 
     adj = holm(family) if family else {}
 
@@ -498,7 +538,7 @@ def main() -> None:
         churn = mean(d["churn"] for d in ids.values())
         turns = mean(d["turns"] for d in ids.values())
         mp = sum(1 for d in ids.values() if d["pass_majority"])
-        met, nm, cj, j_done, j_total = judged[(arm, model)]
+        met, nm, cj, j_done, j_total, _, _ = judged[(arm, model)]
         tot = met + nm + cj
         jshare = (f"{met/tot*100:.1f}% ({j_done}/{j_total} judged)" if tot
                   else f"- (0/{j_total} judged)")
@@ -568,8 +608,15 @@ def main() -> None:
              "(`tasks/vague/vague-prompts-v1.yaml`, sha 2e41d3aa…). Judged metric "
              "secondary (κ=0.626; Sonnet-judge for all cells including Haiku's — a "
              "same-judge-different-agent asymmetry, disclosed). Database read-only "
-             "(`mode=ro`, busy timeout) under the live judge drain; nothing re-run "
+             "(`mode=ro`, busy timeout) under live drains; nothing re-run "
              "or mutated.\n")
+    if not preliminary and not judge_drain:
+        o.append("**Judged secondary finalized 2026-07-22** — supersedes the first "
+                 "issue's deferred judged-metric section: the judge drain completed, "
+                 "so the judged-met shares for the E9 cells and both Haiku cells are "
+                 "now reported below, with per-cell coverage and exclusions. All "
+                 "registered endpoint numbers are unchanged (re-derived and asserted "
+                 "by the finalization guard in `analysis/e9_e10_confirmatory.py`).\n")
     if preliminary:
         o.append("**PRELIMINARY:** pending run(s) exist in the live sweep: "
                  + "; ".join(f"`{r}` ({s})" for r, s, _, _ in pending_rows) + ".\n")
@@ -629,7 +676,7 @@ def main() -> None:
     for label, d, inj, resid, n in econ_rows:
         o.append(f"  - {label}: Δ = {d:+.4f} USD/run (block-mass Δ {inj:+.4f}, "
                  f"behavioral residual {resid:+.4f}; n={n}).")
-    o.append("- **Judged:** deferred — see the judged-metric section.\n")
+    o.append("- **Judged:** see the judged-metric section.\n")
 
     o.append("## PATH_CAP probe (registered, descriptive, no new runs)\n")
     o.append("Registered stratifier: cards with ≤8 vs >8 `scope_paths` (the "
@@ -745,11 +792,48 @@ def main() -> None:
                  "asymmetry (disclosed in prereg-v4) will apply to that re-issue.\n")
     else:
         for arm, model in CELL_KEYS:
-            met, nm, cj, j_done, j_total = judged[(arm, model)]
+            met, nm, cj, j_done, j_total, j_err, _ = judged[(arm, model)]
             tot = met + nm + cj
             share = f"{met/tot*100:.1f}%" if tot else "-"
             o.append(f"- {arm}@{model}: {share} met ({met}/{tot} verdicts; "
-                     f"{j_done}/{j_total} runs judged)")
+                     f"{j_done}/{j_total} runs judged"
+                     + (f"; {j_err} run(s) excluded — judge reply unparseable "
+                        "after one retry, the recorded exclusion class"
+                        if j_err else "")
+                     + ")")
+        # Directional-consistency note, computed from the numbers (not
+        # asserted): divergence between the judged and deterministic stories
+        # is reportable, not fixable.
+        m5_of = {(arm, model): m5count(arm, model) for arm, model in CELL_KEYS}
+        share_of: dict[tuple[str, str], float | None] = {}
+        for key in CELL_KEYS:
+            met, nm, cj, *_ = judged[key]
+            tot = met + nm + cj
+            share_of[key] = met / tot if tot else None
+        disc = [(a, b) for i, a in enumerate(CELL_KEYS) for b in CELL_KEYS[i + 1:]
+                if share_of[a] is not None and share_of[b] is not None
+                and m5_of[a] != m5_of[b]
+                and (m5_of[a] - m5_of[b]) * (share_of[a] - share_of[b]) < 0]
+        if disc:
+            max_gap = max(abs(share_of[a] - share_of[b]) for a, b in disc) * 100
+            max_m5 = max(abs(m5_of[a] - m5_of[b]) for a, b in disc)
+            o.append("\n**Divergence from the deterministic story** (reported, not "
+                     "repaired): " + "; ".join(
+                         f"`{a[0]}@{a[1]}` (judged {share_of[a]*100:.1f}%, "
+                         f"M5 {m5_of[a]}/48) vs `{b[0]}@{b[1]}` (judged "
+                         f"{share_of[b]*100:.1f}%, M5 {m5_of[b]}/48) — the "
+                         "judged-met ordering opposes the M5 ordering"
+                         for a, b in disc)
+                     + f". Magnitude: the inversion(s) span at most {max_gap:.1f} "
+                     f"judged-met percentage point(s) and {max_m5} M5 card(s). "
+                     "Cross-tier pairs carry the Sonnet-judge-for-Haiku-agents "
+                     "asymmetry (disclosed in prereg-v4).")
+        else:
+            o.append("\nDirectional consistency (computed, secondary): the "
+                     "judged-met ordering agrees with the deterministic M5 ordering "
+                     "across all pairs of cells — no divergence between the judged "
+                     "and deterministic stories. Cross-tier judged comparisons "
+                     "carry the Sonnet-judge-for-Haiku-agents asymmetry.")
         o.append("\nκ = 0.626 carries from the Wave-1 calibration (disclosed "
                  "limitation; Sonnet judges all cells including Haiku's).\n")
 
@@ -770,8 +854,11 @@ def main() -> None:
     o.append("- §7 truncation applied per comparison: "
              f"endpoint 1 n={len(p1_pairs)}, endpoint 2 n={len(p2_pairs)}, "
              f"endpoint 3 n={len(p3_pairs)} cards with ≥1 common rep.")
-    o.append("- The database was read-only (`mode=ro`, busy timeout) under the live "
-             "judge drain; nothing was re-run or mutated. No frozen file was "
+    o.append("- E13 Stage-2 rows now share this database under the same arm/model "
+             "names at reps 4-6; every query in this analysis filters to reps 1-3, "
+             "the registered scope of this study.")
+    o.append("- The database was read-only (`mode=ro`, busy timeout) under live "
+             "drains; nothing was re-run or mutated. No frozen file was "
              "modified.\n")
 
     o.append("## Honest-outcome statement\n")

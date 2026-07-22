@@ -1,6 +1,8 @@
 # E9+E10 confirmatory analysis · report 1
 
-Executed per `preregistration/prereg-v4-render.md` (frozen, tag `prereg-v4-render`, commit 6c2af0e, public before any E9/E10 confirmatory run). E9 cells: 48 short T-real cards × 3 reps × Sonnet, vague-prompt row, three constraint renderings (bare / [observe] / [enforce]) through the real vendored exporter (pylgrim-repo 00ff5a1); the bare cell's tag strip is the ONE documented synthetic edit. E10 cells: `vanilla-vague` + `export-vague` × 48 × 3 on Haiku (resolved snapshot(s): claude-haiku-4-5-20251001). Card unit; pairing per-comparison per-card common reps (addendum §7 carried over); R1-ext scrub applied to all context arms on hugo/nushell/zod; R2 junk filter, R4 CLI-modelUsage economy basis, and the degenerate-case rule carried verbatim from prereg-v2-ext. Vague artifact unchanged (`tasks/vague/vague-prompts-v1.yaml`, sha 2e41d3aa…). Judged metric secondary (κ=0.626; Sonnet-judge for all cells including Haiku's — a same-judge-different-agent asymmetry, disclosed). Database read-only (`mode=ro`, busy timeout) under the live judge drain; nothing re-run or mutated.
+Executed per `preregistration/prereg-v4-render.md` (frozen, tag `prereg-v4-render`, commit 6c2af0e, public before any E9/E10 confirmatory run). E9 cells: 48 short T-real cards × 3 reps × Sonnet, vague-prompt row, three constraint renderings (bare / [observe] / [enforce]) through the real vendored exporter (pylgrim-repo 00ff5a1); the bare cell's tag strip is the ONE documented synthetic edit. E10 cells: `vanilla-vague` + `export-vague` × 48 × 3 on Haiku (resolved snapshot(s): claude-haiku-4-5-20251001). Card unit; pairing per-comparison per-card common reps (addendum §7 carried over); R1-ext scrub applied to all context arms on hugo/nushell/zod; R2 junk filter, R4 CLI-modelUsage economy basis, and the degenerate-case rule carried verbatim from prereg-v2-ext. Vague artifact unchanged (`tasks/vague/vague-prompts-v1.yaml`, sha 2e41d3aa…). Judged metric secondary (κ=0.626; Sonnet-judge for all cells including Haiku's — a same-judge-different-agent asymmetry, disclosed). Database read-only (`mode=ro`, busy timeout) under live drains; nothing re-run or mutated.
+
+**Judged secondary finalized 2026-07-22** — supersedes the first issue's deferred judged-metric section: the judge drain completed, so the judged-met shares for the E9 cells and both Haiku cells are now reported below, with per-cell coverage and exclusions. All registered endpoint numbers are unchanged (re-derived and asserted by the finalization guard in `analysis/e9_e10_confirmatory.py`).
 
 ## Regression check (gate, computed before any E9/E10 number)
 
@@ -9,18 +11,18 @@ Published Wave-1.5 and E8 cells re-derived from the same database and asserted a
 - vanilla-vague (Sonnet, W1.5): M1 7, M3 9, any-drift 9/48, M5 39/48 (published: M1 7, M3 9, any-drift 9/48, M5 39/48)
 - export-vague (Sonnet, W1.5): M1 1, M3 1, any-drift 1/48, M5 45/48 (published: M1 1, M3 1, any-drift 1/48, M5 45/48)
 - stale-wrong-vague (Sonnet, E8): M1 6, M3 6, any-drift 6/48, M5 30/48 (published: M1 6, M3 6, any-drift 6/48, M5 30/48)
-- stale-generic-vague (Sonnet, E8, RECOMPUTED at 144/144 after retries; published at 142/144): M1 0, M3 1, any-drift 1/48, M5 44/48 (published: M1 0, M3 0, any-drift 0/48, M5 43/48) — CHANGED by the 2 retried runs (disclosed; e8-analysis-1.md was marked PRELIMINARY for exactly this cell)
+- stale-generic-vague (Sonnet, E8, RECOMPUTED at 144/144 after retries; PRELIMINARY issue published at 142/144): M1 0, M3 1, any-drift 1/48, M5 44/48 (published: M1 0, M3 0, any-drift 0/48, M5 43/48) — CHANGED by the 2 retried runs (disclosed; e8-analysis-1.md was marked PRELIMINARY for exactly this cell and has since been finalized at full coverage with these values)
 
 ## The cells (48 short T-real cards, vague prompts, 3 reps)
 
 | cell | model | n cards | M1 touched (bound) | M3 violated (bound) | any-drift | mean cost/run | churn share | mean turns | M5 majority-pass | agent_committed runs | judged met |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| export-bare-vague | sonnet | 48 | 0 (≤6.1%) | 0 (≤6.1%) | 0 | $0.719 | 0.007 | 19.1 | 46/48 | 0 | - (0/142 judged) |
+| export-bare-vague | sonnet | 48 | 0 (≤6.1%) | 0 (≤6.1%) | 0 | $0.719 | 0.007 | 19.1 | 46/48 | 0 | 84.2% (141/142 judged) |
 | export-vague | sonnet | 48 | 1 (≤9.5%) | 1 (≤9.5%) | 1 | $0.754 | 0.025 | 18.8 | 45/48 | 1 | 84.6% (141/142 judged) |
-| export-enforce-vague | sonnet | 48 | 0 (≤6.1%) | 0 (≤6.1%) | 0 | $0.764 | 0.007 | 19.4 | 46/48 | 0 | - (0/143 judged) |
+| export-enforce-vague | sonnet | 48 | 0 (≤6.1%) | 0 (≤6.1%) | 0 | $0.764 | 0.007 | 19.4 | 46/48 | 0 | 84.3% (140/143 judged) |
 | vanilla-vague | sonnet | 48 | 7 (≤25.7%) | 9 (≤30.4%) | 9 | $0.854 | 0.239 | 23.3 | 39/48 | 0 | 57.2% (141/142 judged) |
-| vanilla-vague | haiku | 48 | 13 (≤39.6%) | 14 (≤41.8%) | 14 | $0.458 | 0.234 | 44.8 | 38/48 | 71 | - (0/144 judged) |
-| export-vague | haiku | 48 | 0 (≤6.1%) | 1 (≤9.5%) | 1 | $0.382 | 0.034 | 35.0 | 42/48 | 10 | - (0/144 judged) |
+| vanilla-vague | haiku | 48 | 13 (≤39.6%) | 14 (≤41.8%) | 14 | $0.458 | 0.234 | 44.8 | 38/48 | 71 | 51.5% (140/144 judged) |
+| export-vague | haiku | 48 | 0 (≤6.1%) | 1 (≤9.5%) | 1 | $0.382 | 0.034 | 35.0 | 42/48 | 10 | 78.0% (142/144 judged) |
 
 Bounds are one-sided exact Clopper-Pearson 95%. `vanilla-vague` and `export-vague` on Sonnet are the published Wave-1.5 cells, shown for context. `agent_committed` is reported per cell per prereg-v4 (the pilot's unprompted-commit behavior was Haiku-specific; capture-vs-base_sha already neutralizes it — and the Haiku counts below confirm the behavior is real and heavily cell-dependent). Cost is NOT comparable across tiers (different per-token pricing).
 
@@ -49,7 +51,7 @@ Degenerate endpoints (pre-specified rule, no improvised statistic): 1 · drift b
   - export-bare-vague − export-enforce-vague (Sonnet): Δ = -0.0216 USD/run (block-mass Δ -0.0001, behavioral residual -0.0215; n=48).
   - export-vague − export-enforce-vague (Sonnet): Δ = +0.0334 USD/run (block-mass Δ +0.0000, behavioral residual +0.0334; n=48).
   - export-vague − vanilla-vague (Haiku): Δ = -0.0761 USD/run (block-mass Δ +0.0019, behavioral residual -0.0780; n=48).
-- **Judged:** deferred — see the judged-metric section.
+- **Judged:** see the judged-metric section.
 
 ## PATH_CAP probe (registered, descriptive, no new runs)
 
@@ -101,7 +103,16 @@ Plain-English reading (descriptive): with no packet, Haiku drifts on 14/48 cards
 
 ## Judged metric (secondary)
 
-Judge drain in progress (861 judge runs pending db-wide): runs judged — export-bare-vague@sonnet 0/142, export-enforce-vague@sonnet 0/143, vanilla-vague@haiku 0/144, export-vague@haiku 0/144, export-vague@sonnet 141/142, vanilla-vague@sonnet 141/142. Judged verdicts for the E9 and E10 cells are entirely absent, so the judged criteria-satisfaction shares for the new cells are not reported here (per the e8-analysis-1.md precedent); the deterministic results above stand on their own. Re-issue this report when the drain completes. κ = 0.626 carries from the Wave-1 calibration; the Sonnet-judge-for-Haiku-agents asymmetry (disclosed in prereg-v4) will apply to that re-issue.
+- export-bare-vague@sonnet: 84.2% met (510/606 verdicts; 141/142 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- export-vague@sonnet: 84.6% met (512/605 verdicts; 141/142 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- export-enforce-vague@sonnet: 84.3% met (506/600 verdicts; 140/143 runs judged; 3 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- vanilla-vague@sonnet: 57.2% met (346/605 verdicts; 141/142 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- vanilla-vague@haiku: 51.5% met (309/600 verdicts; 140/144 runs judged; 4 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- export-vague@haiku: 78.0% met (476/610 verdicts; 142/144 runs judged; 2 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+
+**Divergence from the deterministic story** (reported, not repaired): `export-bare-vague@sonnet` (judged 84.2%, M5 46/48) vs `export-vague@sonnet` (judged 84.6%, M5 45/48) — the judged-met ordering opposes the M5 ordering; `export-vague@sonnet` (judged 84.6%, M5 45/48) vs `export-enforce-vague@sonnet` (judged 84.3%, M5 46/48) — the judged-met ordering opposes the M5 ordering. Magnitude: the inversion(s) span at most 0.5 judged-met percentage point(s) and 1 M5 card(s). Cross-tier pairs carry the Sonnet-judge-for-Haiku-agents asymmetry (disclosed in prereg-v4).
+
+κ = 0.626 carries from the Wave-1 calibration (disclosed limitation; Sonnet judges all cells including Haiku's).
 
 ## Coverage, exclusions and disclosures
 
@@ -123,7 +134,8 @@ Judge drain in progress (861 judge runs pending db-wide): runs judged — export
 - `nushell-t04--export-vague--sonnet--r1`: error, attempt 2 (claude run timed out after 1800s)
 - The 3 E9 non-done runs above are attempt-2 timeouts (1800s) — permanent exclusions after the retry sweep, all on nushell-t04; §7 pairing truncates the affected cards to common reps. Both Haiku cells are complete (144/144). Baseline (Wave-1.5) exclusions are the permanent timeouts recorded in wave15-analysis-1.md.
 - §7 truncation applied per comparison: endpoint 1 n=48, endpoint 2 n=48, endpoint 3 n=48 cards with ≥1 common rep.
-- The database was read-only (`mode=ro`, busy timeout) under the live judge drain; nothing was re-run or mutated. No frozen file was modified.
+- E13 Stage-2 rows now share this database under the same arm/model names at reps 4-6; every query in this analysis filters to reps 1-3, the registered scope of this study.
+- The database was read-only (`mode=ro`, busy timeout) under live drains; nothing was re-run or mutated. No frozen file was modified.
 
 ## Honest-outcome statement
 

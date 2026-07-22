@@ -214,16 +214,20 @@ def main() -> None:
         print("  " + ln)
 
     # --- coverage from the live db -------------------------------------------
+    # E13 Stage-2 rows share this database under the SAME arm/model names at
+    # reps 4-6; this analysis is the reps-1-3 study, so every coverage query
+    # filters rep<=3 (card metrics already only ever read r1-r3 via rid()).
     coverage: dict[str, int] = {}
     for arm in CELLS:
         coverage[arm] = conn.execute(
-            "SELECT COUNT(*) FROM runs WHERE arm=? AND model=? AND status='done'",
+            "SELECT COUNT(*) FROM runs WHERE arm=? AND model=? AND status='done' "
+            "AND rep<=3",
             (arm, MODEL)).fetchone()[0]
     not_done = [
         (r["run_id"], r["status"], (r["error"] or "").strip())
         for r in conn.execute(
             "SELECT run_id, status, error FROM runs WHERE model=? AND arm IN (?,?,?,?) "
-            "AND status!='done' ORDER BY run_id",
+            "AND status!='done' AND rep<=3 ORDER BY run_id",
             (MODEL, *CELLS))
     ]
     stale_pending = [x for x in not_done if x[0].split("--")[1] in STALE_CELLS]
@@ -232,16 +236,26 @@ def main() -> None:
     # --- the four vague-row cells ---------------------------------------------
     cells = {arm: arm_cell_table(arm) for arm in CELLS}
 
-    # judged metric coverage (secondary; drain may be in progress)
-    judged: dict[str, tuple[int, int, int, int, int]] = {}
+    # judged metric coverage (secondary). Errored judge rows ("judge reply
+    # unparseable after one retry") are the recorded exclusion class, not
+    # pending work: the drain is complete when nothing is pending/running.
+    jstat = {r["run_id"]: r["status"]
+             for r in conn.execute("SELECT run_id, status FROM judge_runs")}
+    judged: dict[str, tuple[int, int, int, int, int, int, int]] = {}
     for arm in CELLS:
-        met = nm = cj = j_done = j_total = 0
-        j_total = conn.execute(
-            "SELECT COUNT(*) FROM judge_runs WHERE run_id LIKE ?",
-            (f"%--{arm}--{MODEL}--%",)).fetchone()[0]
+        met = nm = cj = j_done = j_total = j_err = j_pend = 0
         for cid in factorial:
             for rep in (1, 2, 3):
-                v = judges.get(rid(cid, arm, rep))
+                run_id_ = rid(cid, arm, rep)
+                st = jstat.get(run_id_)
+                if st is None:
+                    continue
+                j_total += 1
+                if st == "error":
+                    j_err += 1
+                elif st != "done":
+                    j_pend += 1
+                v = judges.get(run_id_)
                 if not v:
                     continue
                 j_done += 1
@@ -249,8 +263,8 @@ def main() -> None:
                     met += verdict["verdict"] == "met"
                     nm += verdict["verdict"] == "not_met"
                     cj += verdict["verdict"] == "cannot_judge"
-        judged[arm] = (met, nm, cj, j_done, j_total)
-    judge_drain = any(judged[a][3] < judged[a][4] for a in STALE_CELLS)
+        judged[arm] = (met, nm, cj, j_done, j_total, j_err, j_pend)
+    judge_drain = any(judged[a][6] > 0 for a in STALE_CELLS)
 
     # --- confirmatory family (prereg-v3-stale §3) -----------------------------
     family: dict[str, float] = {}
@@ -326,6 +340,22 @@ def main() -> None:
         f"(inj {inj4:+.4f}, residual {resid4:+.4f}) | repo sign-flip (2^{len(by_repo)}) | p = {p4:.4f} |")
     endpoint_stats["4 · economy sw-vs-vv"] = (
         f"Δ={obs4:+.4f} USD/run (n_repos={len(by_repo)}), p={p4:.4f}")
+
+    # --- finalization guard (added 2026-07-22) --------------------------------
+    # The four registered endpoints used stale-wrong-vague only and were
+    # complete at the PRELIMINARY issue of e8-analysis-1.md; on any re-run
+    # they must reproduce the published b/c/p values exactly. Abort loudly
+    # if they move.
+    assert (b1, c1, len(p1_pairs), f"{p1:.4f}") == (5, 0, 48, "0.0625"), \
+        f"endpoint 1 moved: b={b1} c={c1} n={len(p1_pairs)} p={p1}"
+    assert (b2, c2, len(p2_pairs), f"{p2:.4f}") == (1, 4, 48, "0.3750"), \
+        f"endpoint 2 moved: b={b2} c={c2} n={len(p2_pairs)} p={p2}"
+    assert (b3, c3, len(p3_pairs), f"{p3:.4f}") == (0, 9, 48, "0.0039"), \
+        f"endpoint 3 moved: b={b3} c={c3} n={len(p3_pairs)} p={p3}"
+    assert (f"{obs4:+.4f}", f"{p4:.4f}") == ("-0.2017", "0.1211"), \
+        f"endpoint 4 moved: delta={obs4:+.4f} p={p4:.4f}"
+    print("Finalization guard PASSED: all four registered endpoints reproduce "
+          "the published b/c/p values exactly.")
 
     adj = holm(family) if family else {}
 
@@ -403,7 +433,7 @@ def main() -> None:
         churn = mean(d["churn"] for d in ids.values())
         turns = mean(d["turns"] for d in ids.values())
         mp = sum(1 for d in ids.values() if d["pass_majority"])
-        met, nm, cj, j_done, j_total = judged[arm]
+        met, nm, cj, j_done, j_total, _, _ = judged[arm]
         tot = met + nm + cj
         jshare = f"{met/tot*100:.1f}% ({j_done}/{j_total} judged)" if tot else f"- (0/{j_total} judged)"
         table.append(
@@ -426,6 +456,15 @@ def main() -> None:
              "(`tasks/vague/vague-prompts-v1.yaml`, sha 2e41d3aa…). Staleness rule "
              "frozen: cyclic-next T-real card in sorted id order "
              "(`wrong_card_for`, harness/src/harness/arms.py).\n")
+    if not preliminary and not judge_drain:
+        o.append("**Finalized 2026-07-22** — supersedes the PRELIMINARY issue: the "
+                 "retry sweep completed the `stale-generic-vague` cell (144/144; the "
+                 "PRELIMINARY issue analyzed it at 142/144), and the judge drain "
+                 "completed, so the judged secondary is now filled in. The registered "
+                 "endpoints used `stale-wrong-vague` only, which was already complete "
+                 "at the PRELIMINARY issue: their b/c/p values are unchanged "
+                 "(re-derived and asserted by the finalization guard in "
+                 "`analysis/e8_confirmatory.py`).\n")
     if preliminary:
         o.append("**PRELIMINARY:** "
                  f"{len(stale_pending)} stale-arm run(s) are still pending in the live "
@@ -506,10 +545,45 @@ def main() -> None:
                  "κ = 0.626 carries from the Wave-1 calibration.\n")
     else:
         for arm in CELLS:
-            met, nm, cj, j_done, j_total = judged[arm]
+            met, nm, cj, j_done, j_total, j_err, _ = judged[arm]
             tot = met + nm + cj
             share = f"{met/tot*100:.1f}%" if tot else "-"
-            o.append(f"- {arm}: {share} met ({met}/{tot} verdicts; {j_done}/{j_total} runs judged)")
+            o.append(f"- {arm}: {share} met ({met}/{tot} verdicts; {j_done}/{j_total} "
+                     "runs judged"
+                     + (f"; {j_err} run(s) excluded — judge reply unparseable after "
+                        "one retry, the recorded exclusion class" if j_err else "")
+                     + ")")
+        # Directional-consistency note, computed from the numbers (not asserted):
+        # divergence between the judged and deterministic stories is reportable,
+        # not fixable.
+        m5_of = {arm: sum(1 for d in cells[arm].values() if d["pass_majority"])
+                 for arm in CELLS}
+        share_of: dict[str, float | None] = {}
+        for arm in CELLS:
+            met, nm, cj, *_ = judged[arm]
+            tot = met + nm + cj
+            share_of[arm] = met / tot if tot else None
+        disc = [(a, b) for i, a in enumerate(CELLS) for b in CELLS[i + 1:]
+                if share_of[a] is not None and share_of[b] is not None
+                and m5_of[a] != m5_of[b]
+                and (m5_of[a] - m5_of[b]) * (share_of[a] - share_of[b]) < 0]
+        if disc:
+            o.append("\n**Divergence from the deterministic story** (reported, not "
+                     "repaired): " + "; ".join(
+                         f"`{a}` (judged {share_of[a]*100:.1f}%, M5 {m5_of[a]}/48) vs "
+                         f"`{b}` (judged {share_of[b]*100:.1f}%, M5 {m5_of[b]}/48) — "
+                         "the judged-met ordering opposes the M5 ordering"
+                         for a, b in disc) + ".")
+        else:
+            o.append("\nDirectional consistency (computed, secondary): the judged-met "
+                     "ordering agrees with the deterministic M5 ordering across all "
+                     "pairs of cells — "
+                     + " · ".join(f"{arm} {share_of[arm]*100:.1f}% (M5 {m5_of[arm]}/48)"
+                                  for arm in CELLS)
+                     + ". In particular stale-wrong-vague's judged-met share sits well "
+                     "below vanilla-vague's, matching endpoint 3's deterministic "
+                     "finding. No divergence between the judged and deterministic "
+                     "stories.")
         o.append("\nκ = 0.626 carries from the Wave-1 calibration (disclosed limitation).\n")
 
     o.append("## Coverage, exclusions and disclosures\n")
@@ -530,6 +604,9 @@ def main() -> None:
     o.append("- §7 truncation applied per comparison: "
              f"endpoint 1 n={len(p1_pairs)}, endpoints 2-4 n={len(p2_pairs)} cards "
              "with ≥1 common rep.")
+    o.append("- E13 Stage-2 rows now share this database under the same arm/model "
+             "names at reps 4-6; every query in this analysis filters to reps 1-3, "
+             "the registered scope of this study.")
     o.append("- The database was read-only (`mode=ro`, busy timeout) under live drains; "
              "nothing was re-run or mutated.\n")
 

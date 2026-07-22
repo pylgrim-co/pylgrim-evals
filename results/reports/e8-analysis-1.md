@@ -1,8 +1,8 @@
-# E8 staleness-study confirmatory analysis · report 1 (PRELIMINARY)
+# E8 staleness-study confirmatory analysis · report 1
 
 Executed per `preregistration/prereg-v3-stale.md` (frozen, tag `prereg-v3-stale`, commit 5e0ff13, public before any E8 confirmatory run). Baselines are the already-run Wave-1.5 cells `vanilla-vague` and `export-vague` (same model snapshot and CLI, run 0-2 days earlier; the temporal gap is disclosed per prereg §1, not re-run). Card unit; pairing per-comparison per-card common reps (addendum §7 carried over); R1-ext scrub applied to all context arms (incl. both stale arms) on hugo/nushell/zod; R2 junk filter and R4 CLI-modelUsage economy basis carried over verbatim. Vague artifact unchanged (`tasks/vague/vague-prompts-v1.yaml`, sha 2e41d3aa…). Staleness rule frozen: cyclic-next T-real card in sorted id order (`wrong_card_for`, harness/src/harness/arms.py).
 
-**PRELIMINARY:** 2 stale-arm run(s) are still pending in the live retry sweep (`hono-t01--stale-generic-vague--sonnet--r1` (pending); `hugo-t05--stale-generic-vague--sonnet--r3` (pending)). The confirmatory endpoints use `stale-wrong-vague` (144/144 complete) and are unaffected; the descriptive `stale-generic-vague` cell is 142/144. Re-issue this report when the sweep completes.
+**Finalized 2026-07-22** — supersedes the PRELIMINARY issue: the retry sweep completed the `stale-generic-vague` cell (144/144; the PRELIMINARY issue analyzed it at 142/144), and the judge drain completed, so the judged secondary is now filled in. The registered endpoints used `stale-wrong-vague` only, which was already complete at the PRELIMINARY issue: their b/c/p values are unchanged (re-derived and asserted by the finalization guard in `analysis/e8_confirmatory.py`).
 
 ## Regression check (gate, computed before any E8 number)
 
@@ -17,8 +17,8 @@ Two published Wave-1.5 cells re-derived from the same database and asserted agai
 |---|---|---|---|---|---|---|---|---|---|
 | vanilla-vague | 48 | 7 (≤25.7%) | 9 (≤30.4%) | 9 | $0.854 | 0.239 | 23.3 | 39/48 | 57.2% (141/142 judged) |
 | export-vague | 48 | 1 (≤9.5%) | 1 (≤9.5%) | 1 | $0.754 | 0.025 | 18.8 | 45/48 | 84.6% (141/142 judged) |
-| stale-generic-vague | 48 | 0 (≤6.1%) | 0 (≤6.1%) | 0 | $0.737 | 0.130 | 20.3 | 43/48 | - (0/142 judged) |
-| stale-wrong-vague | 48 | 6 (≤23.2%) | 6 (≤23.2%) | 6 | $0.674 | 0.185 | 17.1 | 30/48 | - (0/144 judged) |
+| stale-generic-vague | 48 | 0 (≤6.1%) | 1 (≤9.5%) | 1 | $0.732 | 0.130 | 20.2 | 44/48 | 64.3% (143/144 judged) |
+| stale-wrong-vague | 48 | 6 (≤23.2%) | 6 (≤23.2%) | 6 | $0.674 | 0.185 | 17.1 | 30/48 | 38.3% (143/144 judged) |
 
 `stale-generic-vague` is descriptive only (prereg-v3 §3): its role is the gradient picture, not a headline claim. Bounds above are one-sided exact Clopper-Pearson 95%.
 
@@ -48,12 +48,19 @@ Economy delta (stale-wrong − vanilla, repo-mean of card-cell means): **$-0.201
 
 Any-drift cards per cell, no file → stale-generic → stale-wrong → fresh export:
 
-- vanilla-vague 9/48 · stale-generic-vague 0/48 · stale-wrong-vague 6/48 · export-vague 1/48.
-- H-E8c (descriptive only): the generic cell does not sit between the no-file and fresh-file cells — it sits AT OR BELOW the fresh-file cell (0 vs 1), i.e. the still-relevant rules retained the full protective value in this corpus; no test is registered for this cell.
+- vanilla-vague 9/48 · stale-generic-vague 1/48 · stale-wrong-vague 6/48 · export-vague 1/48.
+- H-E8c (descriptive only): the generic cell sits between the no-file and fresh-file cells on any-drift; no test is registered for this cell.
 
 ## Judged metric (secondary)
 
-Judge drain in progress: stale-generic-vague 0/142 runs judged, stale-wrong-vague 0/144 runs judged. The judged criteria-satisfaction shares for the stale cells are therefore not reported here; the deterministic results above stand on their own. Baseline judged shares appear in the cell table (vanilla-vague 141/142 judged, export-vague 141/142). κ = 0.626 carries from the Wave-1 calibration.
+- vanilla-vague: 57.2% met (346/605 verdicts; 141/142 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- export-vague: 84.6% met (512/605 verdicts; 141/142 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- stale-generic-vague: 64.3% met (395/614 verdicts; 143/144 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+- stale-wrong-vague: 38.3% met (235/614 verdicts; 143/144 runs judged; 1 run(s) excluded — judge reply unparseable after one retry, the recorded exclusion class)
+
+Directional consistency (computed, secondary): the judged-met ordering agrees with the deterministic M5 ordering across all pairs of cells — vanilla-vague 57.2% (M5 39/48) · export-vague 84.6% (M5 45/48) · stale-generic-vague 64.3% (M5 44/48) · stale-wrong-vague 38.3% (M5 30/48). In particular stale-wrong-vague's judged-met share sits well below vanilla-vague's, matching endpoint 3's deterministic finding. No divergence between the judged and deterministic stories.
+
+κ = 0.626 carries from the Wave-1 calibration (disclosed limitation).
 
 ## Coverage, exclusions and disclosures
 
@@ -61,17 +68,16 @@ Judge drain in progress: stale-generic-vague 0/142 runs judged, stale-wrong-vagu
 |---|---|
 | vanilla-vague | 142/144 |
 | export-vague | 142/144 |
-| stale-generic-vague | 142/144 |
+| stale-generic-vague | 144/144 |
 | stale-wrong-vague | 144/144 |
 
 - `hono-t01--export-vague--sonnet--r1`: error (claude run timed out after 1800s)
-- `hono-t01--stale-generic-vague--sonnet--r1`: pending — retry sweep still completing
-- `hugo-t05--stale-generic-vague--sonnet--r3`: pending — retry sweep still completing
 - `hugo-t05--vanilla-vague--sonnet--r2`: error (claude run timed out after 1800s)
 - `hugo-t05--vanilla-vague--sonnet--r3`: error (claude run timed out after 1800s)
 - `nushell-t04--export-vague--sonnet--r1`: error (claude run timed out after 1800s)
-- Baseline (Wave-1.5) exclusions are permanent timeouts recorded in wave15-analysis-1.md; stale-arm non-done runs are pending retries in the live drain, not exclusions, hence the PRELIMINARY marking.
+- Baseline (Wave-1.5) exclusions are permanent timeouts recorded in wave15-analysis-1.md.
 - §7 truncation applied per comparison: endpoint 1 n=48, endpoints 2-4 n=48 cards with ≥1 common rep.
+- E13 Stage-2 rows now share this database under the same arm/model names at reps 4-6; every query in this analysis filters to reps 1-3, the registered scope of this study.
 - The database was read-only (`mode=ro`, busy timeout) under live drains; nothing was re-run or mutated.
 
 ## Honest-outcome statement
