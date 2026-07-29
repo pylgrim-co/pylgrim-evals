@@ -30,6 +30,7 @@ from harness.headless import (  # noqa: F401  (re-exported public surface)
     RATE_LIMIT_BACKOFF,
     RateLimited,
     build_command,
+    copy_transcript,
     find_transcript,
     invoke_claude,
     looks_rate_limited,
@@ -55,12 +56,19 @@ def execute_run(
     preserve: tuple[str, ...] = ("node_modules", ".venv", "target"),
     timeout_s: int = DEFAULT_TIMEOUT_S,
     outcome_timeout_s: int = 600,
+    compose_timeout_s: int = arms.COMPOSE_TIMEOUT_S,
 ) -> dict[str, Any]:
     """Execute one claimed run. Returns the result record written to disk.
 
     Raises RateLimited (caller returns the run to pending) or RuntimeError
     (caller marks it error). Workspace capture/reset happens even when the
     outcome test fails, never when the CLI invocation itself failed.
+
+    The compose-vague arm (P-compose probe) makes one pre-run Haiku call to
+    compose the workspace CLAUDE.md; the composed block and the compose
+    call's result JSON + transcript are persisted in the run dir for audit.
+    A compose failure raises before the main invocation, so the run lands
+    in 'error' -- never a silent fallback to the deterministic export.
     """
     results_dir = Path(results_dir)
     run_dir = results_dir / "runs" / run_row["run_id"]
@@ -69,7 +77,34 @@ def execute_run(
     slot_dir = workspace.prepare(
         results_dir, slot, run_row["repo"], repo_url, task.base_sha, preserve
     )
-    prompt = arms.render(run_row["arm"], task, slot_dir)
+    compose_meta: dict[str, Any] | None = None
+    if run_row["arm"] == "compose-vague":
+        composed, compose_cli = arms.compose_claude_md(task, timeout_s=compose_timeout_s)
+        (slot_dir / "CLAUDE.md").write_text(composed, encoding="utf-8")
+        # Audit trail: the exact block the agent saw, plus the compose call.
+        (run_dir / "composed-claude-md.md").write_text(composed, encoding="utf-8")
+        (run_dir / "compose-result.json").write_text(
+            json.dumps(compose_cli, indent=2, default=str), encoding="utf-8"
+        )
+        compose_session = compose_cli.get("session_id", "")
+        compose_transcript = None
+        if compose_session:
+            # The compose cwd was a scratch dir; find_transcript's glob
+            # fallback locates the transcript by session id regardless.
+            compose_transcript = copy_transcript(
+                slot_dir, compose_session, run_dir / "compose-transcript.jsonl"
+            )
+        compose_meta = {
+            "model": arms.COMPOSE_MODEL,
+            "session_id": compose_session,
+            "total_cost_usd": compose_cli.get("total_cost_usd"),
+            "artifact": "composed-claude-md.md",
+            "cli_result_artifact": "compose-result.json",
+            "transcript_path": str(compose_transcript) if compose_transcript else None,
+        }
+        prompt = arms.vague_prompt_for(task)
+    else:
+        prompt = arms.render(run_row["arm"], task, slot_dir)
 
     cli_result = invoke_claude(prompt, run_row["model"], slot_dir, timeout_s)
     session_id = cli_result.get("session_id", "")
@@ -118,6 +153,8 @@ def execute_run(
         "metrics": metrics,
         "provenance": provenance.build(run_row, task, cli_result),
     }
+    if compose_meta is not None:
+        record["compose"] = compose_meta
     (run_dir / "result.json").write_text(
         json.dumps(record, indent=2, default=str), encoding="utf-8"
     )

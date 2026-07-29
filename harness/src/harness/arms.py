@@ -15,6 +15,13 @@ Wave 1.5, which prompt carries the ask:
                   context file. E2's realistic baseline.
   claudemd-vague  vague prompt + oracle CLAUDE.md.
   export-vague    vague prompt + exported CLAUDE.md. The product cell.
+  compose-vague   vague prompt + an LLM-COMPOSED CLAUDE.md: a pre-run Haiku
+                  call reads the vague prompt plus the full .pylgrim ledger
+                  and composes a focused context block (P-compose probe,
+                  docs/10-evaluation-plan.md par.9; exploratory, publicly
+                  labeled a probe). The composed artifact is persisted per
+                  run; compose failure fails the run, NEVER falls back to
+                  the deterministic export.
   pylgrim         Wave 2: the enforcement layer. Not implemented yet.
 
 Wave 1's prompt-identical-across-arms rule holds WITHIN each prompt row;
@@ -37,6 +44,7 @@ ARMS = (
     "vanilla-vague", "claudemd-vague", "export-vague",
     "stale-generic-vague", "stale-wrong-vague",
     "export-bare-vague", "export-enforce-vague",
+    "compose-vague",
     "pylgrim",
 )
 
@@ -281,6 +289,88 @@ def vague_prompt_for(task: TaskCard) -> str:
     return prompts[task.id]
 
 
+# --- the composed channel (P-compose probe) ----------------------------------
+
+COMPOSE_MODEL = "haiku"  # the probe's pre-run composer tier (frozen)
+COMPOSE_TIMEOUT_S = 600  # compose is one short text call, not a coding run
+
+
+def render_ledger_artifacts(task: TaskCard) -> str:
+    """The card's full .pylgrim ledger as one path-labelled text blob.
+
+    Built by build_pylgrim_ledger (the same mechanical ledger the export
+    arms consume), then read back file by file so the composer sees exactly
+    what the exporter sees -- raw artifacts, not the exported rendering.
+    """
+    with tempfile.TemporaryDirectory(prefix="pylgrim-ledger-") as tmp:
+        root = Path(tmp)
+        build_pylgrim_ledger(task, root)
+        parts: list[str] = []
+        for path in sorted((root / ".pylgrim").rglob("*.md")):
+            rel = path.relative_to(root).as_posix()
+            parts.append(f"=== {rel} ===\n{path.read_text(encoding='utf-8')}")
+        return "\n".join(parts)
+
+
+def compose_prompt_for(task: TaskCard) -> str:
+    """The composer's instruction: the vague prompt the agent will receive,
+    plus the full ledger, with the ask to compose a focused CLAUDE.md."""
+    return "\n".join([
+        "You are preparing the CLAUDE.md context file for a coding agent that",
+        "is about to receive the task below in this repository. You do not",
+        "solve the task yourself.",
+        "",
+        "Compose a focused CLAUDE.md for that agent: carry forward the",
+        "constraints, acceptance criteria, and scope boundaries from the",
+        "intent ledger that matter for this task, phrased so the agent acts",
+        "on them. Do not invent constraints and do not drop any scope",
+        "boundary. Output ONLY the CLAUDE.md content as markdown, with no",
+        "preamble, no explanation, and no code fences.",
+        "",
+        "## The task the agent will receive",
+        "",
+        vague_prompt_for(task),
+        "",
+        "## The repository's intent ledger (.pylgrim/)",
+        "",
+        render_ledger_artifacts(task),
+    ])
+
+
+def _strip_outer_fence(text: str) -> str:
+    """Drop one wrapping ``` fence if the composer added it despite the ask."""
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    lines = stripped.splitlines()
+    if len(lines) >= 2 and lines[-1].strip() == "```":
+        return "\n".join(lines[1:-1]).strip()
+    return stripped
+
+
+def compose_claude_md(
+    task: TaskCard, timeout_s: int = COMPOSE_TIMEOUT_S, invoke=None
+) -> tuple[str, dict]:
+    """Run the pre-run composer call; return (composed CLAUDE.md, cli result).
+
+    The call goes through headless.invoke_claude (the harness's one verified
+    CLI path) in a scratch cwd, so rate limits surface as RateLimited and
+    gate the queue like any other call. Any other failure -- including an
+    empty composition -- raises RuntimeError so the run lands in 'error';
+    there is deliberately NO fallback to the deterministic export block.
+    """
+    from harness import headless
+
+    invoke_fn = invoke or headless.invoke_claude
+    prompt = compose_prompt_for(task)
+    with tempfile.TemporaryDirectory(prefix="pylgrim-compose-") as tmp:
+        cli_result = invoke_fn(prompt, COMPOSE_MODEL, Path(tmp), timeout_s)
+    composed = _strip_outer_fence(str(cli_result.get("result") or ""))
+    if not composed:
+        raise RuntimeError(f"compose produced an empty context block for {task.id}")
+    return composed + "\n", cli_result
+
+
 # --- dispatch -----------------------------------------------------------------
 
 def render(arm: str, task: TaskCard, workspace_dir: Path | str) -> str:
@@ -294,6 +384,11 @@ def render(arm: str, task: TaskCard, workspace_dir: Path | str) -> str:
         raise ValueError(f"unknown arm: {arm!r}")
     if arm == "pylgrim":
         raise NotImplementedError("Wave 2")
+    if arm == "compose-vague":
+        raise ValueError(
+            "compose-vague is rendered by the runner (it needs a model call "
+            "and per-run artifact persistence); use compose_claude_md()"
+        )
 
     base = arm[: -len("-vague")] if arm.endswith("-vague") else arm
     if base == "claudemd":

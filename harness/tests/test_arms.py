@@ -170,6 +170,113 @@ def test_e9_bare_strips_mode_tags_only():
     assert re.sub(r"^- \[observe\] ", "- ", tagged, flags=re.M) == bare
 
 
+def _patch_vague(tmp_path, monkeypatch):
+    artifact = tmp_path / "vague-prompts-v1.yaml"
+    artifact.write_text(
+        "alpha-t01:\n"
+        "  prompt: |-\n"
+        "    Frobnicator broken\n"
+        "\n"
+        "    It returns 6 instead of 7 on my machine.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(arms, "VAGUE_PROMPTS_PATH", artifact)
+    arms._vague_prompts.cache_clear()
+
+
+def test_compose_arm_registered():
+    assert "compose-vague" in arms.ARMS
+
+
+def test_compose_render_rejected(tmp_path):
+    """The runner owns compose (model call + persistence); render must refuse."""
+    with pytest.raises(ValueError, match="compose_claude_md"):
+        arms.render("compose-vague", make_task(), tmp_path)
+
+
+def test_ledger_artifacts_carry_full_ledger():
+    text = arms.render_ledger_artifacts(make_task())
+    assert "=== .pylgrim/charter/" in text
+    assert "=== .pylgrim/work/" in text
+    assert "Never edit .github/workflows" in text
+    assert "Keep the public API stable" in text
+    assert "frobnicate() returns 7" in text
+    assert "src/widget.py" in text
+    assert ".github/**" in text
+
+
+def test_compose_prompt_carries_vague_prompt_and_ledger(tmp_path, monkeypatch):
+    _patch_vague(tmp_path, monkeypatch)
+    try:
+        prompt = arms.compose_prompt_for(make_task())
+    finally:
+        arms._vague_prompts.cache_clear()
+    assert "Frobnicator broken" in prompt  # the VAGUE prompt, not task.prompt
+    assert "Fix the frobnicator in src/widget.py" not in prompt
+    assert "=== .pylgrim/charter/" in prompt
+    assert "no code fences" in prompt
+
+
+def test_compose_claude_md_returns_block_and_result(tmp_path, monkeypatch):
+    _patch_vague(tmp_path, monkeypatch)
+    seen = {}
+
+    def fake_invoke(prompt, model, cwd, timeout_s):
+        seen.update(prompt=prompt, model=model, cwd=cwd, timeout_s=timeout_s)
+        return {"result": "# Project instructions\n\n- keep API stable",
+                "session_id": "sess-1", "total_cost_usd": 0.001}
+
+    try:
+        composed, cli = arms.compose_claude_md(make_task(), invoke=fake_invoke)
+    finally:
+        arms._vague_prompts.cache_clear()
+    assert seen["model"] == arms.COMPOSE_MODEL == "haiku"
+    assert seen["timeout_s"] == arms.COMPOSE_TIMEOUT_S
+    assert "Frobnicator broken" in seen["prompt"]
+    assert composed == "# Project instructions\n\n- keep API stable\n"
+    assert cli["session_id"] == "sess-1"
+
+
+def test_compose_strips_one_wrapping_fence(tmp_path, monkeypatch):
+    _patch_vague(tmp_path, monkeypatch)
+
+    def fake_invoke(prompt, model, cwd, timeout_s):
+        return {"result": "```markdown\n# Block\n```", "session_id": "s"}
+
+    try:
+        composed, _ = arms.compose_claude_md(make_task(), invoke=fake_invoke)
+    finally:
+        arms._vague_prompts.cache_clear()
+    assert composed == "# Block\n"
+
+
+def test_compose_empty_result_raises(tmp_path, monkeypatch):
+    """No silent fallback: an empty composition fails the run."""
+    _patch_vague(tmp_path, monkeypatch)
+
+    def fake_invoke(prompt, model, cwd, timeout_s):
+        return {"result": "   \n", "session_id": "s"}
+
+    try:
+        with pytest.raises(RuntimeError, match="empty context block"):
+            arms.compose_claude_md(make_task(), invoke=fake_invoke)
+    finally:
+        arms._vague_prompts.cache_clear()
+
+
+def test_compose_requires_vague_artifact_entry(tmp_path, monkeypatch):
+    """Compose is a vague-row arm: cards outside the frozen artifact refuse."""
+    artifact = tmp_path / "vague-prompts-v1.yaml"
+    artifact.write_text("# empty\n", encoding="utf-8")
+    monkeypatch.setattr(arms, "VAGUE_PROMPTS_PATH", artifact)
+    arms._vague_prompts.cache_clear()
+    try:
+        with pytest.raises(ValueError, match="no entry"):
+            arms.compose_prompt_for(make_task())
+    finally:
+        arms._vague_prompts.cache_clear()
+
+
 def test_e9_arm_dispatch(tmp_path):
     for arm, marker in (("export-bare-vague", None), ("export-enforce-vague", "[enforce]")):
         ws = tmp_path / arm
