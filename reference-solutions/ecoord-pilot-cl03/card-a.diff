@@ -1,0 +1,92 @@
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+index 64be7e0..f02d46e 100644
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -55,6 +55,7 @@ from .termui import unstyle as unstyle
+ from .types import BOOL as BOOL
+ from .types import Choice as Choice
+ from .types import DateTime as DateTime
++from .types import DelimitedList as DelimitedList
+ from .types import File as File
+ from .types import FLOAT as FLOAT
+ from .types import FloatRange as FloatRange
+diff --git a/src/click/types.py b/src/click/types.py
+index a27983b..be99379 100644
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -457,6 +457,39 @@ class Choice(ParamType[_ValueT_co], t.Generic[_ValueT_co]):
+         return [CompletionItem(c) for c in matched]
+ 
+ 
++class DelimitedList(ParamType[list[str]]):
++    """Splits one string value into a list of items on a delimiter.
++
++    Useful for options like ``--tags a,b,c`` where a single value carries
++    several items. Surrounding whitespace is stripped from each item. An
++    empty string converts to an empty list. Values that are already lists
++    pass through unchanged.
++
++    :param delimiter: the string to split items on. Defaults to ``","``.
++    """
++
++    name = "delimited list"
++
++    def __init__(self, delimiter: str = ",") -> None:
++        self.delimiter = delimiter
++
++    def convert(
++        self, value: t.Any, param: Parameter | None, ctx: Context | None
++    ) -> list[str]:
++        if isinstance(value, list):
++            return value
++
++        value = str(value)
++
++        if not value:
++            return []
++
++        return [item.strip() for item in value.split(self.delimiter)]
++
++    def __repr__(self) -> str:
++        return f"DelimitedList({self.delimiter!r})"
++
++
+ class DateTimeInfoDict(ParamTypeInfoDict):
+     formats: cabc.Sequence[str]
+ 
+diff --git a/tests/test_coord_delimited_list.py b/tests/test_coord_delimited_list.py
+new file mode 100644
+index 0000000..7367e1f
+--- /dev/null
++++ b/tests/test_coord_delimited_list.py
+@@ -0,0 +1,30 @@
++import click
++from click.testing import CliRunner
++
++
++def test_basic_convert_strips_whitespace():
++    assert click.DelimitedList().convert("a, b,c", None, None) == ["a", "b", "c"]
++
++
++def test_empty_string_gives_empty_list():
++    assert click.DelimitedList().convert("", None, None) == []
++
++
++def test_list_passthrough():
++    value = ["x", "y"]
++    assert click.DelimitedList().convert(value, None, None) is value
++
++
++def test_custom_delimiter():
++    assert click.DelimitedList(delimiter=";").convert("a;b", None, None) == ["a", "b"]
++
++
++def test_cli_option():
++    @click.command()
++    @click.option("--tags", type=click.DelimitedList())
++    def cli(tags):
++        click.echo("|".join(tags))
++
++    result = CliRunner().invoke(cli, ["--tags", "a, b,c"])
++    assert result.exit_code == 0
++    assert result.output.strip() == "a|b|c"

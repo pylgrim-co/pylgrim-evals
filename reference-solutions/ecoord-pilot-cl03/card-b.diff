@@ -1,0 +1,104 @@
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+index 64be7e0..9b6498b 100644
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -60,6 +60,7 @@ from .types import FLOAT as FLOAT
+ from .types import FloatRange as FloatRange
+ from .types import INT as INT
+ from .types import IntRange as IntRange
++from .types import JSON as JSON
+ from .types import ParamType as ParamType
+ from .types import Path as Path
+ from .types import STRING as STRING
+diff --git a/src/click/types.py b/src/click/types.py
+index a27983b..9da7248 100644
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -3,6 +3,7 @@ from __future__ import annotations
+ import abc
+ import collections.abc as cabc
+ import enum
++import json
+ import os
+ import stat
+ import sys
+@@ -1246,6 +1247,38 @@ class Tuple(CompositeParamType[tuple[t.Any, ...]]):
+         )
+ 
+ 
++class JSONParamType(ParamType[t.Any]):
++    """Parses a string value as JSON using :func:`json.loads`.
++
++    Strings are parsed and the resulting Python value is returned. Values
++    that are not strings pass through unchanged, per the :class:`ParamType`
++    contract for already-converted values. Invalid JSON fails with an error
++    naming the offending value.
++
++    Use the :data:`JSON` singleton instead of constructing this type.
++    """
++
++    name = "json"
++
++    def convert(
++        self, value: t.Any, param: Parameter | None, ctx: Context | None
++    ) -> t.Any:
++        if not isinstance(value, str):
++            return value
++
++        try:
++            return json.loads(value)
++        except json.JSONDecodeError as e:
++            self.fail(f"{value!r} is not valid JSON: {e}", param, ctx)
++
++    def __repr__(self) -> str:
++        return "JSON"
++
++
++#: A :class:`JSONParamType` singleton, ready to use as ``type=click.JSON``.
++JSON = JSONParamType()
++
++
+ def _guess_type(
+     ty: type[t.Any] | ParamType[t.Any] | None,
+     default: t.Any | None,
+diff --git a/tests/test_coord_json_type.py b/tests/test_coord_json_type.py
+new file mode 100644
+index 0000000..f34528f
+--- /dev/null
++++ b/tests/test_coord_json_type.py
+@@ -0,0 +1,35 @@
++import pytest
++
++import click
++from click.testing import CliRunner
++
++
++def test_parses_objects_and_arrays():
++    assert click.JSON.convert('{"a": 1}', None, None) == {"a": 1}
++    assert click.JSON.convert("[1, 2]", None, None) == [1, 2]
++    assert click.JSON.convert("true", None, None) is True
++
++
++def test_non_string_passthrough():
++    value = {"already": "parsed"}
++    assert click.JSON.convert(value, None, None) is value
++
++
++def test_invalid_json_fails_with_value_in_message():
++    with pytest.raises(click.UsageError) as exc_info:
++        click.JSON.convert("{not json}", None, None)
++    assert "{not json}" in str(exc_info.value)
++
++
++def test_cli_option_parses_and_rejects():
++    @click.command()
++    @click.option("--data", type=click.JSON)
++    def cli(data):
++        click.echo(str(data["a"]))
++
++    ok = CliRunner().invoke(cli, ["--data", '{"a": 41}'])
++    assert ok.exit_code == 0
++    assert ok.output.strip() == "41"
++
++    bad = CliRunner().invoke(cli, ["--data", "{nope}"])
++    assert bad.exit_code != 0

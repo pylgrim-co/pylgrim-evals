@@ -1,0 +1,89 @@
+diff --git a/src/vanilla.ts b/src/vanilla.ts
+index a20f0f8..d789b62 100644
+--- a/src/vanilla.ts
++++ b/src/vanilla.ts
+@@ -10,7 +10,10 @@ export interface StoreApi<T> {
+   setState: SetStateInternal<T>
+   getState: () => T
+   getInitialState: () => T
+-  subscribe: (listener: (state: T, prevState: T) => void) => () => void
++  subscribe: (
++    listener: (state: T, prevState: T) => void,
++    options?: { signal?: AbortSignal },
++  ) => () => void
+ }
+ 
+ export type ExtractState<S> = S extends { getState: () => infer T } ? T : never
+@@ -85,10 +88,17 @@ const createStoreImpl: CreateStoreImpl = (createState) => {
+   const getInitialState: StoreApi<TState>['getInitialState'] = () =>
+     initialState
+ 
+-  const subscribe: StoreApi<TState>['subscribe'] = (listener) => {
++  const subscribe: StoreApi<TState>['subscribe'] = (listener, options) => {
++    if (options?.signal?.aborted) {
++      return () => {}
++    }
+     listeners.add(listener)
++    const unsubscribe = () => {
++      listeners.delete(listener)
++    }
++    options?.signal?.addEventListener('abort', unsubscribe, { once: true })
+     // Unsubscribe
+-    return () => listeners.delete(listener)
++    return unsubscribe
+   }
+ 
+   const api = { setState, getState, getInitialState, subscribe }
+diff --git a/tests/coord/subscribe-signal.test.ts b/tests/coord/subscribe-signal.test.ts
+new file mode 100644
+index 0000000..18a3cf9
+--- /dev/null
++++ b/tests/coord/subscribe-signal.test.ts
+@@ -0,0 +1,47 @@
++import { expect, it, vi } from 'vitest'
++import { createStore } from 'zustand/vanilla'
++
++it('stops delivering updates after the signal aborts', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const controller = new AbortController()
++  const listener = vi.fn()
++  store.subscribe(listener, { signal: controller.signal })
++  store.setState({ count: 1 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  controller.abort()
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})
++
++it('never registers a listener on an already-aborted signal', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const controller = new AbortController()
++  controller.abort()
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe(listener, { signal: controller.signal })
++  store.setState({ count: 1 })
++  expect(listener).not.toHaveBeenCalled()
++  expect(() => unsubscribe()).not.toThrow()
++})
++
++it('manual unsubscribe still works alongside a signal', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const controller = new AbortController()
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe(listener, { signal: controller.signal })
++  unsubscribe()
++  store.setState({ count: 1 })
++  expect(listener).not.toHaveBeenCalled()
++})
++
++it('subscribe without options is unchanged', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe(listener)
++  store.setState({ count: 1 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith({ count: 1 }, { count: 0 })
++  unsubscribe()
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})

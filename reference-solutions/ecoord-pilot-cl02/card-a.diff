@@ -1,0 +1,116 @@
+diff --git a/src/click/utils.py b/src/click/utils.py
+index 8a5506c..720683e 100644
+--- a/src/click/utils.py
++++ b/src/click/utils.py
+@@ -248,6 +248,7 @@ def echo(
+     nl: bool = True,
+     err: bool = False,
+     color: bool | None = None,
++    flush: bool = True,
+ ) -> None:
+     """Print a message and newline to stdout or a file. This should be
+     used instead of :func:`print` because it provides better support
+@@ -272,6 +273,14 @@ def echo(
+     :param color: Force showing or hiding colors and other styles. By
+         default Click will remove color if the output does not look like
+         an interactive terminal.
++    :param flush: Flush the stream after writing. Enabled by default.
++        Disable when writing many messages in a tight loop, where the
++        per-call flush would dominate runtime; the internal flush before
++        handing off to a binary writer is kept regardless, for ordering
++        correctness.
++
++    .. versionadded:: 8.5.0
++        Added the ``flush`` parameter.
+ 
+     .. versionchanged:: 8.5
+         Colorama is no longer used for color on Windows.
+@@ -316,7 +325,8 @@ def echo(
+             out += b"\n"
+ 
+     if not out:
+-        file.flush()
++        if flush:
++            file.flush()
+         return
+ 
+     # If there is a message and the value looks like bytes, we manually
+@@ -326,9 +336,12 @@ def echo(
+     if isinstance(out, (bytes, bytearray)):
+         binary_file = _find_binary_writer(file)
+         if binary_file is not None:
++            # Flush before handing off to the binary writer so text and
++            # binary output stay ordered, regardless of the flush flag.
+             file.flush()
+             binary_file.write(out)
+-            binary_file.flush()
++            if flush:
++                binary_file.flush()
+             return
+ 
+     # ANSI style code support. For no message or bytes, nothing happens.
+@@ -337,7 +350,8 @@ def echo(
+         out = strip_ansi(out)
+ 
+     file.write(out)  # type: ignore
+-    file.flush()
++    if flush:
++        file.flush()
+ 
+ 
+ def get_binary_stream(name: t.Literal["stdin", "stdout", "stderr"]) -> t.BinaryIO:
+diff --git a/tests/test_coord_echo_flush.py b/tests/test_coord_echo_flush.py
+new file mode 100644
+index 0000000..32c2056
+--- /dev/null
++++ b/tests/test_coord_echo_flush.py
+@@ -0,0 +1,49 @@
++import io
++
++import click
++
++
++class FlushRecorder(io.StringIO):
++    def __init__(self):
++        super().__init__()
++        self.flush_count = 0
++
++    def flush(self):
++        self.flush_count += 1
++        super().flush()
++
++
++def test_default_echo_writes_and_flushes():
++    stream = FlushRecorder()
++    click.echo("hello", file=stream)
++    assert stream.getvalue() == "hello\n"
++    assert stream.flush_count == 1
++
++
++def test_flush_false_writes_without_flushing():
++    stream = FlushRecorder()
++    click.echo("hello", file=stream, flush=False)
++    assert stream.getvalue() == "hello\n"
++    assert stream.flush_count == 0
++
++
++def test_flush_false_many_writes_never_flush():
++    stream = FlushRecorder()
++    for i in range(10):
++        click.echo(str(i), file=stream, flush=False)
++    assert stream.getvalue() == "".join(f"{i}\n" for i in range(10))
++    assert stream.flush_count == 0
++
++
++def test_flush_false_empty_message_does_not_flush():
++    stream = FlushRecorder()
++    click.echo(None, file=stream, nl=False, flush=False)
++    assert stream.getvalue() == ""
++    assert stream.flush_count == 0
++
++
++def test_empty_message_default_still_flushes():
++    stream = FlushRecorder()
++    click.echo(None, file=stream, nl=False)
++    assert stream.getvalue() == ""
++    assert stream.flush_count == 1

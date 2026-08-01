@@ -1,0 +1,86 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+index 4780902..aedba20 100644
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -140,6 +140,7 @@ def prompt(
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
+ ) -> t.Any:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -169,6 +170,13 @@ def prompt(
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++    :param max_attempts: if set to an integer ``N >= 1``, give up after the
++                         N-th value that fails conversion and raise
++                         :exc:`Abort` instead of prompting again. ``None``
++                         (the default) retries forever, as before.
++
++    .. versionadded:: 8.5.0
++        Added the ``max_attempts`` parameter.
+ 
+     .. versionchanged:: 8.3.3
+         ``show_default`` can be a string to show a custom value instead
+@@ -216,6 +224,8 @@ def prompt(
+ 
+         confirmation_prompt = _build_prompt(confirmation_prompt, prompt_suffix)
+ 
++    failed_attempts = 0
++
+     while True:
+         while True:
+             value = prompt_func(prompt)
+@@ -229,6 +239,9 @@ def prompt(
+         except UsageError as e:
+             message = _mask_hidden_input(e.message, value) if hide_input else e.message
+             echo(_("Error: {message}").format(message=message), err=err)
++            failed_attempts += 1
++            if max_attempts is not None and failed_attempts >= max_attempts:
++                raise Abort() from None
+             continue
+         if not confirmation_prompt:
+             return result
+diff --git a/tests/test_coord_prompt_attempts.py b/tests/test_coord_prompt_attempts.py
+new file mode 100644
+index 0000000..4dc8cec
+--- /dev/null
++++ b/tests/test_coord_prompt_attempts.py
+@@ -0,0 +1,35 @@
++import click
++from click.testing import CliRunner
++
++
++def make_cli(max_attempts):
++    @click.command()
++    def cli():
++        value = click.prompt("count", type=click.INT, max_attempts=max_attempts)
++        click.echo(f"got {value}")
++
++    return cli
++
++
++def test_aborts_after_max_attempts():
++    runner = CliRunner()
++    result = runner.invoke(make_cli(2), input="a\nb\n")
++    assert result.exit_code == 1
++    assert result.output.count("Error:") == 2
++    assert "Aborted" in result.output + result.stderr
++
++
++def test_succeeds_within_attempts():
++    runner = CliRunner()
++    result = runner.invoke(make_cli(2), input="a\n5\n")
++    assert result.exit_code == 0
++    assert result.output.count("Error:") == 1
++    assert "got 5" in result.output
++
++
++def test_default_still_retries_past_repeated_failures():
++    runner = CliRunner()
++    result = runner.invoke(make_cli(None), input="a\nb\n7\n")
++    assert result.exit_code == 0
++    assert result.output.count("Error:") == 2
++    assert "got 7" in result.output

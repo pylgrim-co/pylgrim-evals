@@ -1,0 +1,82 @@
+diff --git a/src/vanilla.ts b/src/vanilla.ts
+index a20f0f8..8f407c6 100644
+--- a/src/vanilla.ts
++++ b/src/vanilla.ts
+@@ -76,7 +76,21 @@ const createStoreImpl: CreateStoreImpl = (createState) => {
+         (replace ?? (typeof nextState !== 'object' || nextState === null))
+           ? (nextState as TState)
+           : Object.assign({}, state, nextState)
+-      listeners.forEach((listener) => listener(state, previousState))
++      let hasListenerError = false
++      let firstListenerError: unknown
++      listeners.forEach((listener) => {
++        try {
++          listener(state, previousState)
++        } catch (error) {
++          if (!hasListenerError) {
++            hasListenerError = true
++            firstListenerError = error
++          }
++        }
++      })
++      if (hasListenerError) {
++        throw firstListenerError
++      }
+     }
+   }
+ 
+diff --git a/tests/coord/listener-error.test.ts b/tests/coord/listener-error.test.ts
+new file mode 100644
+index 0000000..48e0929
+--- /dev/null
++++ b/tests/coord/listener-error.test.ts
+@@ -0,0 +1,49 @@
++import { expect, it, vi } from 'vitest'
++import { createStore } from 'zustand/vanilla'
++
++it('still notifies later listeners when an earlier one throws', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const boom = new Error('boom')
++  store.subscribe(() => {
++    throw boom
++  })
++  const second = vi.fn()
++  store.subscribe(second)
++  expect(() => store.setState({ count: 1 })).toThrow(boom)
++  expect(second).toHaveBeenCalledTimes(1)
++  expect(second).toHaveBeenCalledWith({ count: 1 }, { count: 0 })
++})
++
++it('rethrows the first error when several listeners throw', () => {
++  const store = createStore(() => ({ count: 0 }))
++  store.subscribe(() => {
++    throw new Error('first')
++  })
++  store.subscribe(() => {
++    throw new Error('second')
++  })
++  expect(() => store.setState({ count: 1 })).toThrow('first')
++})
++
++it('commits the state even when a listener throws', () => {
++  const store = createStore(() => ({ count: 0 }))
++  store.subscribe(() => {
++    throw new Error('boom')
++  })
++  expect(() => store.setState({ count: 1 })).toThrow('boom')
++  expect(store.getState().count).toBe(1)
++})
++
++it('recovers on subsequent setState after the thrower unsubscribes', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const unsubscribe = store.subscribe(() => {
++    throw new Error('boom')
++  })
++  const listener = vi.fn()
++  store.subscribe(listener)
++  expect(() => store.setState({ count: 1 })).toThrow('boom')
++  unsubscribe()
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(2)
++  expect(listener).toHaveBeenLastCalledWith({ count: 2 }, { count: 1 })
++})

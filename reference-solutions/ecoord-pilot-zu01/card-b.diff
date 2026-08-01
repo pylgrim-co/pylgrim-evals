@@ -1,0 +1,67 @@
+diff --git a/src/middleware/redux.ts b/src/middleware/redux.ts
+index 33dbee1..2fe7065 100644
+--- a/src/middleware/redux.ts
++++ b/src/middleware/redux.ts
+@@ -40,6 +40,15 @@ const reduxImpl: ReduxImpl = (reducer, initial) => (set, _get, api) => {
+   type S = typeof initial
+   type A = Parameters<typeof reducer>[1]
+   ;(api as any).dispatch = (action: A) => {
++    if (
++      typeof action !== 'object' ||
++      action === null ||
++      typeof (action as { type?: unknown }).type !== 'string'
++    ) {
++      throw new TypeError(
++        '[zustand redux] a dispatched action must be an object with a string "type"',
++      )
++    }
+     ;(set as NamedSet<S>)((state: S) => reducer(state, action), false, action)
+     return action
+   }
+diff --git a/tests/coord/redux-action-guard.test.ts b/tests/coord/redux-action-guard.test.ts
+new file mode 100644
+index 0000000..a80a8eb
+--- /dev/null
++++ b/tests/coord/redux-action-guard.test.ts
+@@ -0,0 +1,41 @@
++import { expect, it } from 'vitest'
++import { redux } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number }
++type Action = { type: 'inc' } | { type: 'dec' }
++
++const reducer = (state: State, action: Action): State => {
++  switch (action.type) {
++    case 'inc':
++      return { count: state.count + 1 }
++    case 'dec':
++      return { count: state.count - 1 }
++    default:
++      return state
++  }
++}
++
++it('valid actions update state and are returned from dispatch', () => {
++  const store = createStore(redux(reducer, { count: 0 }))
++  const returned = store.dispatch({ type: 'inc' })
++  expect(returned).toEqual({ type: 'inc' })
++  expect(store.getState().count).toBe(1)
++})
++
++it('an object without a string type throws TypeError', () => {
++  const store = createStore(redux(reducer, { count: 0 }))
++  expect(() => store.dispatch({} as never)).toThrow(TypeError)
++})
++
++it('a non-object action throws TypeError', () => {
++  const store = createStore(redux(reducer, { count: 0 }))
++  expect(() => store.dispatch('inc' as never)).toThrow(TypeError)
++  expect(() => store.dispatch(null as never)).toThrow(TypeError)
++})
++
++it('state is unchanged after a rejected dispatch', () => {
++  const store = createStore(redux(reducer, { count: 0 }))
++  expect(() => store.dispatch({ type: 42 } as never)).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++})

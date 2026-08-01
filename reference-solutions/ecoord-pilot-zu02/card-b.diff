@@ -1,0 +1,97 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 47cb9c1..1e508ed 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -15,3 +15,4 @@ export {
+   type PersistOptions,
+ } from './middleware/persist.ts'
+ export { ssrSafe as unstable_ssrSafe } from './middleware/ssrSafe.ts'
++export { resettable } from './middleware/resettable.ts'
+diff --git a/src/middleware/resettable.ts b/src/middleware/resettable.ts
+new file mode 100644
+index 0000000..8ed684e
+--- /dev/null
++++ b/src/middleware/resettable.ts
+@@ -0,0 +1,37 @@
++import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
++
++type Write<T, U> = Omit<T, keyof U> & U
++
++type StoreResettable = {
++  reset: () => void
++}
++
++type WithResettable<S> = Write<S, StoreResettable>
++
++declare module '../vanilla' {
++  // eslint-disable-next-line @typescript-eslint/no-unused-vars
++  interface StoreMutators<S, A> {
++    'zustand/resettable': WithResettable<S>
++  }
++}
++
++type Resettable = <
++  T,
++  Mps extends [StoreMutatorIdentifier, unknown][] = [],
++  Mcs extends [StoreMutatorIdentifier, unknown][] = [],
++>(
++  initializer: StateCreator<T, [...Mps, ['zustand/resettable', never]], Mcs>,
++) => StateCreator<T, Mps, [['zustand/resettable', never], ...Mcs]>
++
++type ResettableImpl = <T>(
++  initializer: StateCreator<T, [], []>,
++) => StateCreator<T, [], []>
++
++const resettableImpl: ResettableImpl = (fn) => (set, get, api) => {
++  ;(api as any).reset = () => {
++    set(api.getInitialState() as any, true)
++  }
++  return fn(set, get, api)
++}
++
++export const resettable = resettableImpl as unknown as Resettable
+diff --git a/tests/coord/resettable.test.ts b/tests/coord/resettable.test.ts
+new file mode 100644
+index 0000000..810ba9d
+--- /dev/null
++++ b/tests/coord/resettable.test.ts
+@@ -0,0 +1,39 @@
++import { expect, it, vi } from 'vitest'
++import { resettable } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++it('reset() restores the initial state after mutations', () => {
++  const store = createStore(resettable(() => ({ count: 0, label: 'a' })))
++  store.setState({ count: 7, label: 'b' })
++  store.reset()
++  expect(store.getState()).toEqual({ count: 0, label: 'a' })
++  expect(store.getState()).toEqual(store.getInitialState())
++})
++
++it('reset() removes keys added after creation (replace semantics)', () => {
++  const store = createStore(resettable(() => ({ count: 0 })))
++  store.setState({ extra: true } as never)
++  expect('extra' in store.getState()).toBe(true)
++  store.reset()
++  expect(store.getState()).toEqual({ count: 0 })
++  expect('extra' in store.getState()).toBe(false)
++})
++
++it('reset() on an untouched store is a no-op for subscribers', () => {
++  const store = createStore(resettable(() => ({ count: 0 })))
++  const listener = vi.fn()
++  store.subscribe(listener)
++  store.reset()
++  expect(listener).not.toHaveBeenCalled()
++  expect(store.getState()).toEqual({ count: 0 })
++})
++
++it('subscribers are notified when reset changes state', () => {
++  const store = createStore(resettable(() => ({ count: 0 })))
++  store.setState({ count: 3 })
++  const listener = vi.fn()
++  store.subscribe(listener)
++  store.reset()
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith({ count: 0 }, { count: 3 })
++})
