@@ -127,7 +127,7 @@ cards:
           - prompt accepts max_attempts defaulting to None with retry-forever semantics
           - With max_attempts=2 and two invalid inputs, prompt raises Abort (CliRunner exit code 1, "Aborted" in output)
           - With max_attempts=2 and a valid second input, the converted value is returned normally
-          - Each failed attempt still echoes the same "Error: ..." message as today
+          - 'Each failed attempt still echoes the same "Error: ..." message as today'
           - New tests in tests/test_coord_prompt_attempts.py cover abort, recovery, and default-unchanged cases via CliRunner
         scope_paths:
           - "src/click/termui.py"
