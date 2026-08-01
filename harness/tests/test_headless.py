@@ -113,7 +113,7 @@ def test_invoke_claude_timeout_error_names_its_class(
     monkeypatch.setattr(
         headless.subprocess, "Popen", lambda *a, **k: _HangingProc("", 1)
     )
-    monkeypatch.setattr(headless, "_kill_tree", lambda proc: None)
+    monkeypatch.setattr(headless, "_kill_tree", lambda proc, **kw: None)
     with pytest.raises(RuntimeError) as excinfo:
         headless.invoke_claude(
             "hi", "haiku", tmp_path, timeout_s=7, timeout_class=timeout_class

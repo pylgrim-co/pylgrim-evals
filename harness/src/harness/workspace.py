@@ -12,7 +12,9 @@ Nothing in this module ever touches paths outside the results dir.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -20,8 +22,28 @@ class WorkspaceError(RuntimeError):
     """Raised when a workspace cannot be prepared or verified clean."""
 
 
-def _git(*args: str, cwd: Path | str | None = None) -> str:
-    """Run a git command, returning stdout. Raises WorkspaceError on failure."""
+# Identity for harness-authored commit objects (episode branch/merge commits).
+# Deterministic dates keep commit OIDs a pure function of tree + parents +
+# message, so re-finalizing an episode is idempotent.
+_COMMIT_ENV = {
+    "GIT_AUTHOR_NAME": "pylgrim-harness",
+    "GIT_AUTHOR_EMAIL": "harness@pylgrim.invalid",
+    "GIT_COMMITTER_NAME": "pylgrim-harness",
+    "GIT_COMMITTER_EMAIL": "harness@pylgrim.invalid",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00 +0000",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00 +0000",
+}
+
+
+def _git(*args: str, cwd: Path | str | None = None, env: dict[str, str] | None = None) -> str:
+    """Run a git command, returning stdout. Raises WorkspaceError on failure.
+
+    `env` entries are overlaid on the ambient environment (needed for
+    GIT_INDEX_FILE scratch indexes and the harness commit identity).
+    """
+    full_env = None
+    if env is not None:
+        full_env = {**os.environ, **env}
     result = subprocess.run(
         ["git", *args],
         cwd=str(cwd) if cwd else None,
@@ -29,6 +51,7 @@ def _git(*args: str, cwd: Path | str | None = None) -> str:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=full_env,
     )
     if result.returncode != 0:
         raise WorkspaceError(
@@ -100,11 +123,28 @@ def prepare(
     preserve: tuple[str, ...] = ("node_modules", ".venv", "target"),
 ) -> Path:
     """Create or reset the slot worktree at the pinned SHA. Returns the slot dir."""
+    results_dir = Path(results_dir).resolve()
+    return prepare_dir(results_dir, slot_path(results_dir, slot), name, url, base_sha, preserve)
+
+
+def prepare_dir(
+    results_dir: Path | str,
+    slot_dir: Path,
+    name: str,
+    url: str,
+    base_sha: str,
+    preserve: tuple[str, ...] = ("node_modules", ".venv", "target"),
+) -> Path:
+    """Create or reset an arbitrary worktree dir at the pinned SHA.
+
+    Generalization of prepare() for the episode runner's three per-episode
+    slots (agent-a, agent-b, merged), which live under separate roots so an
+    agent exploring its own tree can never see its sibling's."""
     # Resolve up front: git commands below run with cwd=clone, where a relative
     # results_dir would silently resolve to the wrong place.
     results_dir = Path(results_dir).resolve()
+    slot_dir = Path(slot_dir).resolve()
     clone = ensure_bare_clone(results_dir, name, url, base_sha)
-    slot_dir = slot_path(results_dir, slot)
     slot_dir.parent.mkdir(parents=True, exist_ok=True)
 
     if _slot_belongs_to(slot_dir, clone):
@@ -195,3 +235,138 @@ def capture_and_reset(
         "untracked": untracked,
         "agent_committed": "true" if agent_committed else "false",
     }
+
+
+# --- episode support: tree hashes, harness commits, merge-tree ---------------
+#
+# The E-coord episode runner (episode.py) checkpoints worktree state as a
+# git tree hash per turn (design draft 3 §2, O1), commits each agent's final
+# state as a harness-authored commit for the merge, and materializes the
+# merged tree in a third slot (O5). All of that lives here because it is
+# worktree lifecycle, not experiment logic.
+
+
+def worktree_tree_hash(
+    slot_dir: Path | str, preserve: tuple[str, ...] = ()
+) -> str:
+    """Hash the working tree's full content state (tracked + untracked,
+    non-ignored) as a git tree OID, without touching the real index or HEAD.
+
+    Uses a scratch GIT_INDEX_FILE: `git add -A` stages everything (minus
+    `preserve` entries, which are dependency caches whose contents must not
+    perturb the checkpoint hash), then `write-tree` emits the OID. Two calls
+    over identical content always agree, which is what makes this usable as
+    the O1 resume gate."""
+    slot_dir = Path(slot_dir)
+    with tempfile.TemporaryDirectory(prefix="harness-treehash-") as tmp:
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        pathspec = ["--", "."] + [f":(exclude){p}" for p in preserve]
+        _git("add", "-A", *pathspec, cwd=slot_dir, env=env)
+        return _git("write-tree", cwd=slot_dir, env=env).strip()
+
+
+def commit_worktree(
+    slot_dir: Path | str,
+    base_sha: str,
+    message: str,
+    preserve: tuple[str, ...] = (),
+) -> dict[str, str]:
+    """Commit the worktree's current content state on top of base_sha without
+    moving HEAD or the real index. Returns {"tree": oid, "commit": oid}.
+
+    The commit object lands in the shared object store (the bare clone all
+    slots are worktrees of), so merge-tree and worktree-add can consume it."""
+    slot_dir = Path(slot_dir)
+    with tempfile.TemporaryDirectory(prefix="harness-committree-") as tmp:
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index"), **_COMMIT_ENV}
+        pathspec = ["--", "."] + [f":(exclude){p}" for p in preserve]
+        _git("add", "-A", *pathspec, cwd=slot_dir, env=env)
+        tree = _git("write-tree", cwd=slot_dir, env=env).strip()
+        commit = _git(
+            "commit-tree", tree, "-p", base_sha, "-m", message, cwd=slot_dir, env=env
+        ).strip()
+    return {"tree": tree, "commit": commit}
+
+
+def commit_tree(
+    repo_dir: Path | str, tree: str, parents: list[str], message: str
+) -> str:
+    """Create a commit object for an existing tree (the merged-tree slot)."""
+    args = ["commit-tree", tree]
+    for parent in parents:
+        args += ["-p", parent]
+    args += ["-m", message]
+    return _git(*args, cwd=repo_dir, env=dict(_COMMIT_ENV)).strip()
+
+
+def update_ref(repo_dir: Path | str, ref: str, commit: str) -> None:
+    """Pin a ref on a commit so episode objects survive any future gc."""
+    _git("update-ref", ref, commit, cwd=repo_dir)
+
+
+def merge_tree_write_tree(
+    repo_dir: Path | str, base: str, commit_a: str, commit_b: str
+) -> dict[str, object]:
+    """Run `git merge-tree --write-tree` from an explicit merge base.
+
+    Returns {"clean": bool, "tree": oid, "conflicted_files": [...], "raw": str}.
+    Exit 0 = clean merge, 1 = content conflicts (both are valid outcomes and
+    C1 raw inputs); anything else is a git failure and raises. --name-only
+    keeps the conflicted-file section parseable: first line is the toplevel
+    tree OID, then conflicted filenames until the first blank line."""
+    result = subprocess.run(
+        [
+            "git", "merge-tree", "--write-tree", "--name-only",
+            "--merge-base", base, commit_a, commit_b,
+        ],
+        cwd=str(repo_dir),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode not in (0, 1):
+        raise WorkspaceError(
+            f"git merge-tree failed (exit {result.returncode}): {result.stderr.strip()}"
+        )
+    lines = result.stdout.splitlines()
+    if not lines or not lines[0].strip():
+        raise WorkspaceError(f"git merge-tree produced no tree OID: {result.stdout!r}")
+    tree = lines[0].strip()
+    conflicted: list[str] = []
+    if result.returncode == 1:
+        for line in lines[1:]:
+            if not line.strip():
+                break
+            conflicted.append(line.strip())
+    return {
+        "clean": result.returncode == 0,
+        "tree": tree,
+        "conflicted_files": conflicted,
+        "raw": result.stdout,
+    }
+
+
+def changed_files(repo_dir: Path | str, base: str, commit: str) -> list[tuple[str, str]]:
+    """(status, path) pairs for a commit vs the base (A/M/D/R...)."""
+    out = _git("diff-tree", "-r", "--name-status", "--no-renames", base, commit, cwd=repo_dir)
+    pairs: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        status, _, path = line.partition("\t")
+        pairs.append((status.strip(), path.strip()))
+    return pairs
+
+
+def diff_text(repo_dir: Path | str, base: str, commit: str) -> str:
+    """Full patch text of a commit vs the base (the branch diff artifact)."""
+    return _git("diff", base, commit, cwd=repo_dir)
+
+
+def blob_oid(repo_dir: Path | str, commit: str, path: str) -> str | None:
+    """Blob OID of a path at a commit, or None when absent."""
+    try:
+        return _git("rev-parse", f"{commit}:{path}", cwd=repo_dir).strip()
+    except WorkspaceError:
+        return None

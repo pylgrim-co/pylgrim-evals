@@ -143,13 +143,25 @@ def build_command(
     return cmd, (prompt if via_stdin else None)
 
 
-def _kill_tree(proc: subprocess.Popen) -> None:
-    """Kill the CLI and every child it spawned (agents shell out freely)."""
+def _kill_tree(proc: subprocess.Popen, process_group: bool = False) -> None:
+    """Kill the CLI and every child it spawned (agents shell out freely).
+
+    With process_group=True on POSIX the CLI was started via
+    start_new_session, so the entire group dies with one killpg (the O6
+    Linux-form hygiene rule for episode turns); Windows dev boxes fall back
+    to the taskkill tree kill either way."""
     if sys.platform == "win32":
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
             capture_output=True,
         )
+    elif process_group:
+        import signal
+
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            proc.kill()
     else:
         proc.kill()
     try:
@@ -284,6 +296,8 @@ def invoke_claude(
     *,
     json_schema: str | None = None,
     timeout_class: str = "run",
+    process_group: bool = False,
+    pid_callback: Any = None,
 ) -> dict[str, Any]:
     """Run headless Claude Code. Returns the parsed result JSON (stdout only).
 
@@ -291,9 +305,19 @@ def invoke_claude(
     `resume_session` continues a prior session (`claude -p -r <session_id>`).
     `json_schema` requests structured output (see build_command).
     `timeout_class` names which timeout constant governs this call (run,
-    judge, compose, skill-turn, trigger) so a timeout error is attributable.
+    judge, compose, skill-turn, trigger, episode-turn) so a timeout error is
+    attributable.
+    `process_group` starts the CLI in its own process group on POSIX
+    (start_new_session) so cleanup can killpg the whole tree — the episode
+    runner's O6 per-turn hygiene; no-op on Windows, where taskkill /T
+    already kills the tree.
+    `pid_callback` (callable, optional) receives the spawned CLI's pid so
+    the caller can persist it for cross-turn survivor assertions.
     """
     cmd, stdin_payload = build_command(prompt, model, resume_session, json_schema)
+    popen_kwargs: dict[str, Any] = {}
+    if process_group and sys.platform != "win32":
+        popen_kwargs["start_new_session"] = True
     proc = subprocess.Popen(
         cmd,
         cwd=str(workspace_dir),
@@ -304,11 +328,14 @@ def invoke_claude(
         text=True,
         encoding="utf-8",
         errors="replace",
+        **popen_kwargs,
     )
+    if pid_callback is not None:
+        pid_callback(proc.pid)
     try:
         stdout, stderr = proc.communicate(input=stdin_payload, timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        _kill_tree(proc)
+        _kill_tree(proc, process_group=process_group)
         raise RuntimeError(
             f"claude call timed out after {timeout_s}s (timeout class: {timeout_class})"
         )

@@ -9,6 +9,13 @@ Commands:
   status   queue summary table
   smoke    single end-to-end run outside the queue, for pipeline validation
 
+E-coord episode suite (separate queue in results/episodes.db; spec:
+preregistration/design-e-coord-draft-3.md §2, §7):
+  plan-episodes   schedule (scenario x arm x rep) episodes from scenarios/
+  episodes        drain2-style continuous episode claimer (strictly serial,
+                  checkpoint/resume via episode_turns, pause-not-abort gates)
+  episode-status  episode queue summary
+
 Skills stress suite (separate queue in results/skills.db, isolated from the
 coding-task pilot):
   plan-skills     schedule the scenario matrix (tasks/skills/config.yaml)
@@ -548,6 +555,165 @@ def warm_slots(
         typer.echo(f"failed: {failures}", err=True)
         raise typer.Exit(1)
     typer.echo("all requested slots warmed")
+
+
+# ---------------------------------------------------------------------------
+# E-coord episode suite commands (isolated queue: results/episodes.db)
+# ---------------------------------------------------------------------------
+
+def _episode_paths(root: Path) -> tuple[Path, Path, Path]:
+    root = root.resolve()
+    return root / "scenarios", root / "results", root / "results" / "episodes.db"
+
+
+def _load_episode_inputs(root: Path):
+    """Scenarios + config + corpus repo index, with hard-fail on errors."""
+    from harness import episode as episode_mod
+
+    scenarios_dir, results_dir, db_path = _episode_paths(root)
+    if not scenarios_dir.exists():
+        typer.echo(f"error: {scenarios_dir} not found (scenario authoring owns it)", err=True)
+        raise typer.Exit(1)
+    scenarios, errors = episode_mod.load_all_scenarios(scenarios_dir)
+    for err in errors:
+        typer.echo(f"scenario error: {err}", err=True)
+    if errors:
+        raise typer.Exit(1)
+    if not scenarios:
+        typer.echo("no scenarios in scenarios/; nothing to do", err=True)
+        raise typer.Exit(1)
+    config = episode_mod.load_config(scenarios_dir)
+    corpus = _load_corpus(root.resolve() / "tasks")
+    repos = _repo_index(corpus)
+    missing = sorted({s.repo for s in scenarios} - set(repos))
+    if missing:
+        typer.echo(f"error: scenario repos not in tasks/corpus.yaml: {missing}", err=True)
+        raise typer.Exit(1)
+    return scenarios, config, repos, results_dir, db_path
+
+
+@app.command("plan-episodes")
+def plan_episodes(
+    root: Path = ROOT_OPT,
+    force: bool = typer.Option(False, "--force", help="Replace an existing schedule"),
+) -> None:
+    """Build the randomized E-coord episode schedule into results/episodes.db."""
+    from harness import episode as episode_mod
+
+    scenarios, config, repos, _results_dir, db_path = _load_episode_inputs(root)
+    conn = queue.connect(db_path)
+    episode_mod.init_episode_db(conn)
+    existing = episode_mod.episode_count(conn)
+    if existing and not force:
+        typer.echo(
+            f"error: {existing} episodes already scheduled in {db_path}; use --force",
+            err=True,
+        )
+        raise typer.Exit(1)
+    if existing and force:
+        with conn:
+            conn.execute("DELETE FROM episodes")
+            conn.execute("DELETE FROM episode_turns")
+
+    rows = episode_mod.generate_schedule(
+        scenarios, config["arms"], config["reps"], config["schedule_seed"],
+        config["model"], config["turn_cap"],
+    )
+    episode_mod.insert_schedule(conn, rows)
+    episode_mod.init_episode_db(
+        conn,
+        meta={
+            "schedule_seed": str(config["schedule_seed"]),
+            "turn_cap": str(config["turn_cap"]),
+            "model": config["model"],
+            "created_at": queue.now_iso(),
+            "harness_version": __version__,
+            "claude_version": _claude_version(),
+            # C1 depends on merge-tree semantics: the git version is a §5 pin.
+            "git_version": workspace._git("--version").strip(),
+            "harness_git_sha": provenance.harness_git_sha(),
+            "platform": platform.platform(),
+        },
+    )
+    typer.echo(
+        f"scheduled {len(rows)} episodes into {db_path} "
+        f"({len(scenarios)} scenarios x {len(config['arms'])} arms x "
+        f"{config['reps']} reps, R={config['turn_cap']})"
+    )
+
+
+@app.command("episodes")
+def episodes(
+    root: Path = ROOT_OPT,
+    timeout_min: int = typer.Option(
+        headless.RUN_TIMEOUT_S // 60, "--timeout-min",
+        help="Per-turn timeout in minutes (timeout class: episode-turn)",
+    ),
+    outcome_timeout_sec: int = typer.Option(
+        None, "--outcome-timeout-sec",
+        help="Single outcome-command timeout (default: episode.OUTCOME_TIMEOUT_S)",
+    ),
+    heartbeat_sec: int = typer.Option(
+        60, "--heartbeat-sec", help="Claim heartbeat refresh interval"
+    ),
+    stale_min: int = typer.Option(
+        queue.HEARTBEAT_STALE_S // 60, "--stale-min",
+        help="Reclaim 'running' episodes whose heartbeat is older than this",
+    ),
+) -> None:
+    """Continuously claim and execute E-coord episodes (strictly serial).
+
+    Checkpoint/resume: every turn lands in episode_turns before anything
+    else can touch it; a kill or rate limit resumes from the checkpoint
+    after tree-hash verification. Rate-limit gates are pauses, never
+    aborts (pause counts on the episode row)."""
+    from harness import episode as episode_mod
+
+    scenarios, config, repos, results_dir, db_path = _load_episode_inputs(root)
+    totals = episode_mod.run_episode_drain(
+        db_path,
+        results_dir,
+        {s.scenario_id: s for s in scenarios},
+        repos,
+        timeout_s=timeout_min * 60,
+        outcome_timeout_s=outcome_timeout_sec or episode_mod.OUTCOME_TIMEOUT_S,
+        heartbeat_s=heartbeat_sec,
+        stale_after_s=stale_min * 60,
+        echo=typer.echo,
+    )
+    typer.echo(
+        f"episodes finished: done={totals['done']} error={totals['error']} "
+        f"skipped={totals['skipped']} (reclaimed {totals['reclaimed']} stale)"
+    )
+    typer.echo(f"queue: {totals['summary']['by_status']}")
+    if totals["resume_after"]:
+        typer.echo(f"rate-limit gate: eligible again after {totals['resume_after']}")
+
+
+@app.command("episode-status")
+def episode_status(root: Path = ROOT_OPT) -> None:
+    """Print the episode queue summary (per-arm done + pause counts)."""
+    from harness import episode as episode_mod
+
+    _, _, db_path = _episode_paths(root)
+    if not db_path.exists():
+        typer.echo("no episode schedule yet: run `harness plan-episodes` first")
+        raise typer.Exit(0)
+    conn = queue.connect(db_path)
+    episode_mod.init_episode_db(conn)
+    summary = episode_mod.episode_status_summary(conn)
+    typer.echo(f"total episodes: {summary['total']}")
+    typer.echo("by status:")
+    for key in ("pending", "running", "done", "error", "skipped"):
+        typer.echo(f"  {key:8} {summary['by_status'].get(key, 0)}")
+    if summary["done_by_arm"]:
+        typer.echo("done by arm: " + ", ".join(
+            f"{a}={n}" for a, n in summary["done_by_arm"].items()))
+    if summary["pauses_by_arm"]:
+        typer.echo("rate-limit pauses by arm: " + ", ".join(
+            f"{a}={n or 0}" for a, n in summary["pauses_by_arm"].items()))
+    if summary["meta"]:
+        typer.echo("meta: " + ", ".join(f"{k}={v}" for k, v in summary["meta"].items()))
 
 
 # ---------------------------------------------------------------------------
