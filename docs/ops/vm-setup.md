@@ -187,15 +187,29 @@ era:
                                                  # cgroup; nothing survives)
     journalctl -u pylgrim-drain -f               # live log
 
+Behavior note (verified 2026-08-01): drain2 EXITS cleanly when its
+partition is empty; with `Restart=always` + `RestartSec=60` the service
+self-resumes — append rows to the queue and draining starts within a
+minute, hands-free. `systemctl status` on an empty queue therefore
+cycles activating/inactive; that is healthy, not a crash loop.
+
 drain2's heartbeat reclaim (10 min stale threshold) means a crashed or
 OOM-killed worker's claims are re-absorbed automatically on restart —
 no manual stale resets, ever. Liveness alarm, checked every 10 min
-(`pylgrim-drain-watch.timer` + `.service`, `Type=oneshot`):
+(`pylgrim-drain-watch.timer` + oneshot `.service` running
+`/usr/local/bin/pylgrim-drain-watch.sh`). The script MUST open the DB
+read-only and skip when it is absent — a root `sqlite3` on a missing
+path CREATES an empty root-owned file that locks the sam-owned drain
+out (found live during provisioning):
 
-    ExecStart=/bin/bash -c 'test -z "$(sqlite3 /home/sam/pylgrim-evals/results/runs.db \
-      "SELECT 1 WHERE (SELECT COUNT(*) FROM runs WHERE status=\"running\" \
-       AND heartbeat_at < datetime(\"now\",\"-20 minutes\")) > 0")" \
-      || systemctl restart pylgrim-drain'
+    #!/bin/bash
+    DB=/home/sam/pylgrim-evals/results/runs.db
+    [ -f "$DB" ] || exit 0
+    n=$(sqlite3 "file:${DB}?mode=ro" "SELECT COUNT(*) FROM runs \
+        WHERE status='running' AND heartbeat_at < datetime('now','-20 minutes')" \
+        2>/dev/null || echo 0)
+    [ "${n:-0}" -gt 0 ] && systemctl restart pylgrim-drain
+    exit 0
 
 verify (safe with an empty queue — drain2 idles):
 
@@ -231,16 +245,17 @@ sqlite3 with the expected row counts.
 Record NOW and again at every freeze (this table is what the prereg's
 pinning list cites). Keep it in this file, dated:
 
-| item | value (2026-08-__) |
+| item | value (2026-08-01, provisioned) |
 |---|---|
-| VM | Hetzner CPX41, hil, Ubuntu 24.04.x |
-| kernel | `uname -r` |
-| git | `git --version` (C1 depends on merge-tree semantics) |
-| Claude Code CLI | `claude --version` |
-| node / pnpm | |
-| rustc / cargo | |
-| go / hugo | |
-| python / uv | |
+| VM | Hetzner CPX32, fsn1 (188.245.223.13; tailnet `pylgrim-evals` 100.87.91.24), Ubuntu 24.04.4 |
+| kernel | 6.8.0-117-generic |
+| git | 2.43.0 (C1 depends on merge-tree semantics) |
+| Claude Code CLI | 2.1.220 (do not auto-update once the pilot starts) |
+| node / pnpm | v22.23.2 / 11.18.0 |
+| cargo | 1.97.1 |
+| go / hugo | 1.22.2 / 0.164.0 extended (snap) |
+| python / uv | 3.12 / 0.12.1 |
+| sqlite3 | 3.45.1 |
 | build caches | CARGO_TARGET_DIR=~/.cache/pylgrim-build/cargo-target |
 
 verify: every row filled; the same command list re-run at freeze diffs
