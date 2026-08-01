@@ -21,11 +21,15 @@ In the [Hetzner Cloud console](https://console.hetzner.com): New project
 
 - **Location:** Hillsboro, OR (`hil`) — closest to you.
 - **Image:** Ubuntu 24.04 LTS.
-- **Type:** Shared vCPU (AMD) **CPX41** — 8 vCPU, 16 GB RAM, 240 GB
-  NVMe, ~US$33/mo. Sizing: drains are I/O + child-process bound (the
-  heavy compute is Anthropic's), but corpus test suites (nushell's cargo
-  builds especially) want cores and RAM; 240 GB comfortably holds repos
-  + worktree slots + shared build caches (~60-100 GB steady state).
+- **Type:** Shared vCPU (AMD) **CPX32** — 4 vCPU, 8 GB RAM, 160 GB
+  NVMe, US$46.19/mo (US-location pricing, 2026-08). Sizing: E-coord
+  episodes run strictly serially (review finding O9), so at most one
+  test-suite build is live at a time — 4 vCPU/8 GB covers it, and
+  160 GB holds repos + worktree slots + shared build caches (~60-100 GB
+  steady state). NOT CPX22: 4 GB OOMs on nushell's cargo builds. If a
+  Wave-2 parallel drain (5 single-shot workers) later wants more cores,
+  rescale up to CPX42 in place — choose "vCPU and RAM only" so the disk
+  doesn't grow and the rescale stays reversible.
 - **SSH key:** add your public key at create time (`ssh-keygen -t
   ed25519` locally if you don't have one). Do NOT enable password login.
 - Skip volumes/backups for now (backups are ~20%/mo; §7's rsync covers
@@ -263,9 +267,9 @@ corpus mirror for the smoke repo exists under the harness's slots dir.
 
 | item | monthly |
 |---|---|
-| CPX41 | ~US$33 |
+| CPX32 | US$46.19 |
 | Tailscale (personal) | $0 |
-| **total** | **~US$33** |
+| **total** | **~US$46** (CPX42 rescale for Wave-2 parallel weeks: US$90.19) |
 
 What the VM buys: uptime (no sleep/wake deaths, no session-tied drains,
 `systemctl stop` as a verified pause) and a Linux environment that
