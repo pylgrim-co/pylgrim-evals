@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from harness import episode, queue
+from harness import episode, queue, workspace
 from harness.headless import RateLimited
 from harness.taskcards import TaskCard
 
@@ -759,3 +759,25 @@ def test_episode_drain_runs_to_done_and_reports(repo, tmp_path):
     )
     assert totals["done"] == 1 and totals["error"] == 0
     assert totals["summary"]["by_status"] == {"done": 1}
+
+
+def test_tree_hash_survives_gitignored_preserve_dirs(repo):
+    # Regression: git 2.43 exits 1 ("addIgnoredFile" advice) when an explicit
+    # pathspec walk covers ignored dirs — killed 13/16 pilot episodes
+    # 2026-08-01. Bare `git add -A` + index-level preserve removal must not.
+    repo_dir, sha = repo
+    (repo_dir / ".gitignore").write_text("node_modules/\n")
+    nm = repo_dir / "node_modules" / "dep"
+    nm.mkdir(parents=True)
+    (nm / "index.js").write_text("module.exports = 1\n")
+    h1 = workspace.worktree_tree_hash(repo_dir, preserve=("node_modules",))
+    # preserve content must not perturb the hash
+    (nm / "index.js").write_text("module.exports = 2\n")
+    h2 = workspace.worktree_tree_hash(repo_dir, preserve=("node_modules",))
+    assert h1 == h2
+    # non-ignored, non-preserved content must
+    (repo_dir / "real.txt").write_text("x\n")
+    assert workspace.worktree_tree_hash(repo_dir, preserve=("node_modules",)) != h1
+    # and the commit path takes the same staging helper
+    out = workspace.commit_worktree(repo_dir, sha, "test", preserve=("node_modules",))
+    assert out["tree"]

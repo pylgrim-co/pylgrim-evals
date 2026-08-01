@@ -246,6 +246,26 @@ def capture_and_reset(
 # worktree lifecycle, not experiment logic.
 
 
+def _stage_all_minus_preserve(
+    slot_dir: Path, preserve: tuple[str, ...], env: dict[str, str]
+) -> None:
+    """Stage the full non-ignored content state into the scratch index, then
+    drop `preserve` paths from it.
+
+    Deliberately NOT `git add -A -- . :(exclude)p`: git 2.43 exits 1 with
+    addIgnoredFile advice when an explicit pathspec's walk covers ignored
+    dirs (node_modules/.venv), which killed 13/16 pilot episodes on
+    2026-08-01. A bare `git add -A` never takes the explicit-pathspec
+    advice path; preserve entries are then removed from the index directly,
+    covering repos where they are not gitignored."""
+    _git("add", "-A", cwd=slot_dir, env=env)
+    for p in preserve:
+        _git(
+            "rm", "-r", "--cached", "--ignore-unmatch", "-q", "--", p,
+            cwd=slot_dir, env=env,
+        )
+
+
 def worktree_tree_hash(
     slot_dir: Path | str, preserve: tuple[str, ...] = ()
 ) -> str:
@@ -260,8 +280,7 @@ def worktree_tree_hash(
     slot_dir = Path(slot_dir)
     with tempfile.TemporaryDirectory(prefix="harness-treehash-") as tmp:
         env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
-        pathspec = ["--", "."] + [f":(exclude){p}" for p in preserve]
-        _git("add", "-A", *pathspec, cwd=slot_dir, env=env)
+        _stage_all_minus_preserve(slot_dir, preserve, env)
         return _git("write-tree", cwd=slot_dir, env=env).strip()
 
 
@@ -279,8 +298,7 @@ def commit_worktree(
     slot_dir = Path(slot_dir)
     with tempfile.TemporaryDirectory(prefix="harness-committree-") as tmp:
         env = {"GIT_INDEX_FILE": str(Path(tmp) / "index"), **_COMMIT_ENV}
-        pathspec = ["--", "."] + [f":(exclude){p}" for p in preserve]
-        _git("add", "-A", *pathspec, cwd=slot_dir, env=env)
+        _stage_all_minus_preserve(slot_dir, preserve, env)
         tree = _git("write-tree", cwd=slot_dir, env=env).strip()
         commit = _git(
             "commit-tree", tree, "-p", base_sha, "-m", message, cwd=slot_dir, env=env
