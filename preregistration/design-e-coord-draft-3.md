@@ -504,7 +504,7 @@ from confirmatory analysis regardless of outcome, per house rule.
 ## 7. Budget and execution environment (subscription-bounded, one always-on VM)
 
 - **Execution environment (ratified 2026-08-01):** an **always-on
-  Hetzner Linux VM — CPX41-class, Ubuntu 24.04, Hillsboro** — replaces
+  Hetzner Linux VM — CPX32 — 4 vCPU/8GB, sized for strictly-serial episodes, CPX42 rescale path for parallel drains — Ubuntu 24.04, Hillsboro; docs/ops/vm-setup.md** — replaces
   the local Windows host, and is **pinned at freeze**. Rationale: the
   honest calendar math below makes the drain a 6-10+ week affair, and a
   sleep/wake-exposed laptop-class host cannot carry a multi-week
@@ -645,7 +645,7 @@ from confirmatory analysis regardless of outcome, per house rule.
   therefore C1 alone; C5 remains confirmatory in force as a frozen
   falsification rule that spends no alpha. See §5.
 - **Execution environment — RESOLVED (2026-08-01, review §D.2): an
-  always-on Hetzner Linux VM (CPX41-class, Ubuntu 24.04, Hillsboro),
+  always-on Hetzner Linux VM (CPX32 — 4 vCPU/8GB, sized for strictly-serial episodes, CPX42 rescale path for parallel drains — Ubuntu 24.04, Hillsboro; docs/ops/vm-setup.md),
   pinned at freeze**; setup guide in parallel preparation at
   `docs/ops/vm-setup.md` (§7).
 - **OQ-4 (C2 detector) — RESOLVED (2026-08-01, §C position ratified):
