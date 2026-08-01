@@ -19,7 +19,12 @@ afterward.
 In the [Hetzner Cloud console](https://console.hetzner.com): New project
 `pylgrim-evals` → Add Server:
 
-- **Location:** Hillsboro, OR (`hil`) — closest to you.
+- **Location:** Falkenstein (`fsn1`) or Nuremberg (`nbg1`), Germany —
+  CPX32 is not offered in the US locations (2026-08). EU is fine: the
+  drain's traffic is CLI→API and run-duration-bound, so transatlantic
+  latency is noise; SSH lag is absorbed by tmux/mosh; no
+  jurisdiction-sensitive data. Only if you insist on US: CPX42 at
+  ~2× the price.
 - **Image:** Ubuntu 24.04 LTS.
 - **Type:** Shared vCPU (AMD) **CPX32** — 4 vCPU, 8 GB RAM, 160 GB
   NVMe, US$46.19/mo (US-location pricing, 2026-08). Sizing: E-coord
