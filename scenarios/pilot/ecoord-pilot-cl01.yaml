@@ -1,0 +1,149 @@
+# E-coord PILOT scenario. Permanently excluded from confirmatory analysis
+# (design-e-coord-draft-3.md §6). Cards committed BEFORE reference solutions
+# are attempted (§3/M5); git history is the audit trail.
+scenario_id: ecoord-pilot-cl01
+study: e-coord
+status: pilot
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in different modules (formatting.py, utils.py)
+    with disjoint natural write surfaces. Their plausible implementation
+    surfaces still intersect (§3 rule-2 floor): core.py directly imports
+    both modules and both import from _compat, so the shared neighborhood is
+    small but non-empty (~2 files), with no co-written file. Measured score
+    computed by scripts/scenario-check.sh; stratum re-checked against the
+    measurement before freeze.
+cards:
+  - id: ecoord-cl01-a
+    kind: coord
+    title: wrap_text exposes break_long_words and break_on_hyphens
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.formatting.wrap_text hardcodes textwrap's defaults, so long
+      tokens in help text — URLs above all — get split mid-token and become
+      un-clickable and un-copyable. The underlying TextWrapper already
+      supports break_long_words and break_on_hyphens; wrap_text just does
+      not expose them.
+
+      Add `break_long_words: bool = True` and `break_on_hyphens: bool = True`
+      keyword parameters to wrap_text in src/click/formatting.py, passed
+      through to the TextWrapper it constructs, with the defaults matching
+      current behavior exactly (both default True in textwrap). Both the
+      plain fill path and the preserve_paragraphs path must honor them
+      (they share the one TextWrapper instance). Document the new
+      parameters in the docstring.
+
+      Add tests in a new file tests/test_coord_wrap_text.py covering: with
+      break_long_words=False a token longer than the width (a URL) is kept
+      intact on its own line; default behavior still splits an over-width
+      token so no line exceeds the width; with break_on_hyphens=False a
+      hyphenated word is not split at hyphens. Scope:
+      src/click/formatting.py plus your new test file. Do not touch
+      _textwrap.py, core.py, or termui.py. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/formatting.py (wrap_text signature, passthrough, docstring)
+        - Defaults preserve current output byte-for-byte
+        - New tests only, in tests/test_coord_wrap_text.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - wrap_text accepts break_long_words and break_on_hyphens keyword arguments defaulting to True
+          - With break_long_words=False, an over-width token appears intact on its own line
+          - With defaults, no output line exceeds the requested width for plain over-width tokens
+          - With break_on_hyphens=False, hyphenated words are not split at hyphens
+          - New tests in tests/test_coord_wrap_text.py cover all three behaviors
+        scope_paths:
+          - "src/click/formatting.py"
+          - "tests/test_coord_wrap_text.py"
+        out_of_scope:
+          - "src/click/_textwrap.py"
+          - "src/click/core.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_wrap_text.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cl01-b
+    kind: coord
+    title: get_app_dir respects XDG_CONFIG_HOME on macOS
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.utils.get_app_dir unconditionally returns
+      ~/Library/Application Support/<app> on macOS, ignoring
+      XDG_CONFIG_HOME even when the user has explicitly set it. CLI-first
+      developers on macOS overwhelmingly expect their tools to honor an
+      explicit XDG_CONFIG_HOME, and many popular CLIs (git among them) do.
+
+      Change the darwin branch of get_app_dir in src/click/utils.py: when
+      XDG_CONFIG_HOME is set and non-empty (and force_posix is not in
+      effect), return os.path.join($XDG_CONFIG_HOME, _posixify(app_name)),
+      matching the Linux naming convention; when it is unset or empty, keep
+      the current Application Support behavior exactly. Windows, force_posix
+      and Linux behavior must be untouched. Note the change in the
+      docstring.
+
+      Add tests in a new file tests/test_coord_app_dir.py that monkeypatch
+      sys.platform to "darwin" and cover: XDG_CONFIG_HOME set gives the XDG
+      path with the posixified app name; XDG_CONFIG_HOME unset gives the
+      Application Support path; force_posix still wins on darwin; and the
+      Linux default (platform "linux", no XDG_CONFIG_HOME) still lands in
+      ~/.config. Scope: src/click/utils.py plus your new test file. Do not
+      touch _compat.py, termui.py, or core.py. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/utils.py, limited to get_app_dir's darwin branch and docstring
+        - Windows, force_posix, and Linux branches byte-for-byte unchanged
+        - New tests only, in tests/test_coord_app_dir.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - On darwin with XDG_CONFIG_HOME set, get_app_dir returns join(XDG_CONFIG_HOME, posixified name)
+          - On darwin with XDG_CONFIG_HOME unset or empty, the Application Support path is returned unchanged
+          - force_posix behavior is unchanged on darwin
+          - Linux default behavior is unchanged
+          - New tests in tests/test_coord_app_dir.py cover the four cases via monkeypatched sys.platform and env
+        scope_paths:
+          - "src/click/utils.py"
+          - "tests/test_coord_app_dir.py"
+        out_of_scope:
+          - "src/click/_compat.py"
+          - "src/click/core.py"
+          - "src/click/termui.py"
+          - "src/click/formatting.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_app_dir.py"
+      deterministic_checks: []
+    source:
+      authored: true

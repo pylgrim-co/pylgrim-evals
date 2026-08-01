@@ -1,0 +1,160 @@
+# E-coord PILOT scenario. Permanently excluded from confirmatory analysis
+# (design-e-coord-draft-3.md §6). Cards committed BEFORE reference solutions
+# are attempted (§3/M5); git history is the audit trail.
+scenario_id: ecoord-pilot-zu02
+study: e-coord
+status: pilot
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: medium
+  rationale: >
+    Both work items add a brand-new middleware, and every zustand middleware
+    is re-exported through the shared registry src/middleware.ts, so BOTH
+    cards must write the same 17-line registry file (shared registry/index
+    pressure, §3 rule 2) while their main implementation lands in separate
+    new files. The registry co-write plus the shared vanilla.ts typing
+    surface puts the expected pressure score well above zu01 (the registry's
+    direct importees are in both neighborhoods) with exactly one co-written
+    file, whose small size makes collision pressure real but evitable.
+    Measured score computed by scripts/scenario-check.sh; stratum re-checked
+    against the measurement before freeze.
+cards:
+  - id: ecoord-zu02-a
+    kind: coord
+    title: add a logger middleware that logs state after every setState
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Add the logging middleware from the zustand docs pattern as a first-class
+      middleware: a `logger` export that wraps a state creator and logs the
+      new state via console.log after every state change, with an optional
+      name used as a "[name] " prefix.
+
+      Create src/middleware/logger.ts following the house middleware style
+      (typed public signature over a loose impl, like
+      subscribeWithSelector/redux): `logger(initializer, name?)` returns a
+      StateCreator. After every setState — whether called through the set
+      passed to the initializer or through api.setState — it must call
+      console.log with the prefix (when a name is given) and the new state
+      from get(). Register the export in the middleware registry
+      src/middleware.ts so `import { logger } from 'zustand/middleware'`
+      works.
+
+      Add tests in a new file tests/coord/logger.test.ts covering:
+      console.log fires with the new state after store.setState; the "[name]"
+      prefix appears when a name is passed and is absent otherwise; the store
+      state itself is updated normally. Scope: your new middleware file, the
+      one-line registry export in src/middleware.ts, and your new test file.
+      Do not modify existing middleware modules or the vanilla core. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - New implementation file src/middleware/logger.ts; registry edit in src/middleware.ts limited to exporting logger
+        - Logging fires on both initializer-set and api.setState paths
+        - Store update semantics unchanged apart from the added logging
+        - New tests only, in tests/coord/logger.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "`import { logger } from 'zustand/middleware'` resolves"
+          - console.log is called with the post-update state after each setState
+          - The log line is prefixed with "[name] " when a name argument is provided, and unprefixed otherwise
+          - Store state updates behave exactly as without the middleware
+          - New tests in tests/coord/logger.test.ts cover logging, prefixing, and state-update behavior
+        scope_paths:
+          - "src/middleware/logger.ts"
+          - "src/middleware.ts"
+          - "tests/coord/logger.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/logger.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-zu02-b
+    kind: coord
+    title: add a resettable middleware exposing api.reset() back to initial state
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The "how to reset state" docs guide shows everyone hand-rolling the
+      same reset pattern. Add it as a first-class middleware: a `resettable`
+      export that wraps a state creator and attaches a `reset()` method to
+      the store api which restores the store to its initial state.
+
+      Create src/middleware/resettable.ts following the house middleware
+      style (typed public signature over a loose impl, with a StoreMutators
+      declaration so the typed store exposes reset, like redux does for
+      dispatch): `resettable(initializer)` returns a StateCreator; the
+      resulting store has `reset(): void` which calls setState with
+      api.getInitialState() and replace=true. Register the export in the
+      middleware registry src/middleware.ts so
+      `import { resettable } from 'zustand/middleware'` works.
+
+      Add tests in a new file tests/coord/resettable.test.ts covering:
+      after mutating state, reset() restores getInitialState() exactly
+      (including removing keys added after creation); reset on an untouched
+      store is a no-op; subscribers are notified of the reset. Scope: your
+      new middleware file, the one-line registry export in src/middleware.ts,
+      and your new test file. Do not modify existing middleware modules or
+      the vanilla core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - New implementation file src/middleware/resettable.ts; registry edit in src/middleware.ts limited to exporting resettable
+        - reset() uses getInitialState() with replace semantics; no state snapshot copies kept by the middleware
+        - New tests only, in tests/coord/resettable.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "`import { resettable } from 'zustand/middleware'` resolves"
+          - After setState mutations, store.reset() makes getState() deep-equal getInitialState()
+          - reset() removes keys that were added after creation (replace semantics)
+          - Subscribers fire on reset
+          - New tests in tests/coord/resettable.test.ts cover restore, replace-semantics, and subscriber cases
+        scope_paths:
+          - "src/middleware/resettable.ts"
+          - "src/middleware.ts"
+          - "tests/coord/resettable.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/resettable.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

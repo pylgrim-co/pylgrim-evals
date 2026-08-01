@@ -1,0 +1,156 @@
+# E-coord PILOT scenario. Permanently excluded from confirmatory analysis
+# (design-e-coord-draft-3.md §6). Cards committed BEFORE reference solutions
+# are attempted (§3/M5); git history is the audit trail.
+scenario_id: ecoord-pilot-zu03
+study: e-coord
+status: pilot
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME core file, src/vanilla.ts (the
+    store implementation every other module imports): one extends the
+    subscribe API, the other changes the listener-notification loop inside
+    setState. The two natural edit regions sit a handful of lines apart in
+    the same ~120-line file, so this is maximal same-file pressure — yet a
+    region-disjoint solution pair exists (subscribe function + StoreApi
+    interface vs the setState notify loop), keeping collision evitable per
+    §3 rule 1. Nearly the whole import graph of vanilla.ts lands in both
+    neighborhoods, so the measured pressure score is the highest of the
+    zustand set. Measured score computed by scripts/scenario-check.sh;
+    stratum re-checked against the measurement before freeze.
+cards:
+  - id: ecoord-zu03-a
+    kind: coord
+    title: vanilla subscribe accepts an AbortSignal option for automatic unsubscription
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Modern DOM and Node APIs accept an AbortSignal so callers can tie
+      cleanup to a controller instead of juggling returned unsubscribe
+      functions (addEventListener does exactly this). Bring that to the
+      vanilla store: `store.subscribe(listener, { signal })`.
+
+      In src/vanilla.ts, extend StoreApi's subscribe signature with an
+      optional second parameter `options?: { signal?: AbortSignal }` and
+      implement it in createStoreImpl: when the signal aborts, the listener
+      is removed exactly as if the returned unsubscribe had been called; when
+      subscribe is called with an already-aborted signal, the listener is
+      never registered and the returned function is still safe to call.
+      Calling subscribe without options must behave exactly as today. Keep
+      the change local to the subscribe path; do not restructure the store.
+
+      Add tests in a new file tests/coord/subscribe-signal.test.ts covering:
+      a listener stops receiving updates after controller.abort(); an
+      already-aborted signal never registers the listener; the returned
+      unsubscribe still works alongside a signal; subscribe without options
+      is unchanged. Scope: src/vanilla.ts plus your new test file. Do not
+      touch the middleware tree or react bindings. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/vanilla.ts, limited to the StoreApi subscribe type and the subscribe implementation
+        - No behavior change for subscribe(listener) without options
+        - No changes to setState, getState, or getInitialState
+        - New tests only, in tests/coord/subscribe-signal.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - subscribe(listener, { signal }) stops delivering updates after the signal aborts
+          - subscribe with an already-aborted signal never invokes the listener and returns a callable unsubscribe
+          - The returned unsubscribe function still removes the listener when used with a signal
+          - subscribe(listener) with no options behaves exactly as before
+          - New tests in tests/coord/subscribe-signal.test.ts cover abort, pre-aborted, manual-unsubscribe, and no-options cases
+        scope_paths:
+          - "src/vanilla.ts"
+          - "tests/coord/subscribe-signal.test.ts"
+        out_of_scope:
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/react.ts"
+          - "src/traditional.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/subscribe-signal.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-zu03-b
+    kind: coord
+    title: setState notifies every listener even when one throws, then rethrows the first error
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      In src/vanilla.ts, setState notifies listeners with a plain
+      listeners.forEach(listener => listener(state, previousState)). If one
+      listener throws, every listener registered after it silently never
+      hears about the update — one bad subscriber corrupts unrelated
+      subscribers' view of the store.
+
+      Harden the notification loop: every listener must be invoked exactly
+      once per state change even when earlier listeners throw. After all
+      listeners have run, rethrow the FIRST error that occurred (so failures
+      remain loud and existing error-handling expectations hold). The state
+      update itself must be committed before/independently of listener
+      errors, exactly as today. Keep the change local to the notification
+      loop inside setState; do not restructure the store.
+
+      Add tests in a new file tests/coord/listener-error.test.ts covering:
+      with two listeners where the first throws, the second still runs;
+      setState rethrows the first listener's error; the state is updated
+      despite the throwing listener; subsequent setState calls keep working.
+      Scope: src/vanilla.ts plus your new test file. Do not touch the
+      middleware tree or react bindings. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/vanilla.ts, limited to the listener-notification loop inside setState
+        - Every listener runs once per state change even if earlier listeners throw
+        - The first listener error is rethrown after all listeners ran
+        - No changes to subscribe, getState, or getInitialState
+        - New tests only, in tests/coord/listener-error.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - When the first of two listeners throws, the second listener is still invoked with the new state
+          - setState rethrows the first error after notifying all listeners
+          - getState() reflects the update even when a listener threw
+          - A later setState call notifies normally
+          - New tests in tests/coord/listener-error.test.ts cover continued-notification, rethrow, committed-state, and recovery cases
+        scope_paths:
+          - "src/vanilla.ts"
+          - "tests/coord/listener-error.test.ts"
+        out_of_scope:
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/react.ts"
+          - "src/traditional.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/listener-error.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

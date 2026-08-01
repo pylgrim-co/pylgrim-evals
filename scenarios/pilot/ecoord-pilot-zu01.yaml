@@ -1,0 +1,157 @@
+# E-coord PILOT scenario. Permanently excluded from confirmatory analysis
+# (design-e-coord-draft-3.md §6). One corpus repo at one pinned SHA plus TWO
+# adjacent work-item cards (§1, §3). Cards are authored and committed BEFORE
+# any reference solution is attempted (§3/M5 authoring-order rule; the git
+# history of this file is the audit trail).
+scenario_id: ecoord-pilot-zu01
+study: e-coord
+status: pilot
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in sibling middleware modules (combine, redux)
+    with fully disjoint natural write surfaces. Their plausible implementation
+    surfaces still intersect (the §3 rule-2 floor): both modules are typed
+    against src/vanilla.ts (StateCreator) and both are re-exported through the
+    shared registry src/middleware.ts, so both files sit in each card's
+    read-plus-write neighborhood. Expected pressure score ~2 shared files,
+    no co-written file. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; the stratum is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-zu01-a
+    kind: coord
+    title: combine middleware warns in development when the create() slice overwrites initialState keys
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The combine middleware (src/middleware/combine.ts) merges initialState
+      with the object returned by the create function via Object.assign, so a
+      create() result that reuses a key from initialState silently clobbers
+      it. That is almost always an authoring mistake (state declared twice),
+      and today it fails silently.
+
+      Add a development-only warning: when the object returned by create()
+      contains one or more keys that already exist in initialState, call
+      console.warn once with a message that names the overlapping keys. The
+      warning must be skipped entirely when process.env.NODE_ENV ===
+      'production'. The merged result must be exactly what combine returns
+      today; behavior only gains the warning.
+
+      Add tests in a new file tests/coord/combine-overlap.test.ts covering:
+      a warning fires and names the overlapping key(s) when create()
+      overwrites initialState keys; no warning fires when the key sets are
+      disjoint; the combined store state is unchanged by the feature. Stay
+      inside src/middleware/combine.ts plus your new test file. Do not touch
+      other middleware modules, the middleware registry, or the vanilla core.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/combine.ts
+        - Warning gated on process.env.NODE_ENV !== 'production'
+        - Merged state result identical to current behavior
+        - New tests only, in tests/coord/combine-overlap.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - console.warn is called exactly once, naming the overlapping keys, when create() returns keys present in initialState
+          - No warning when initialState and the create() result have disjoint keys
+          - The store state produced by combine is byte-for-byte the same object shape as before
+          - New tests in tests/coord/combine-overlap.test.ts cover the warn, no-warn, and unchanged-merge cases
+        scope_paths:
+          - "src/middleware/combine.ts"
+          - "tests/coord/combine-overlap.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/combine-overlap.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-zu01-b
+    kind: coord
+    title: redux middleware dispatch rejects malformed actions with a clear TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The redux middleware (src/middleware/redux.ts) types actions as
+      { type: string }, but at runtime dispatch forwards anything straight
+      into the reducer: a plain string, undefined, or an object without a
+      type field all reach user reducer code and produce confusing downstream
+      errors (and confusing devtools traces).
+
+      Make dispatch validate its argument before invoking the reducer: if the
+      dispatched action is not a non-null object with a string `type`
+      property, throw a TypeError whose message clearly says a redux action
+      must be an object with a string "type". A rejected dispatch must not
+      change state and must not invoke the reducer. Valid actions behave
+      exactly as today, including dispatch returning the action.
+
+      Add tests in a new file tests/coord/redux-action-guard.test.ts
+      covering: a valid action still updates state and is returned from
+      dispatch; dispatching a plain object without type throws TypeError;
+      dispatching a non-object (e.g. a string) throws TypeError; state is
+      unchanged after a rejected dispatch. Stay inside src/middleware/redux.ts
+      plus your new test file. Do not touch other middleware modules, the
+      middleware registry, or the vanilla core. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/redux.ts
+        - Invalid actions throw TypeError before the reducer runs; state unchanged
+        - Valid dispatch behavior unchanged (state update, action returned)
+        - New tests only, in tests/coord/redux-action-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - dispatch({...}) without a string type property throws TypeError and does not call the reducer
+          - dispatch of a non-object value throws TypeError
+          - Store state is unchanged after a rejected dispatch
+          - A valid action updates state via the reducer and is returned from dispatch
+          - New tests in tests/coord/redux-action-guard.test.ts cover valid, malformed-object, non-object, and state-unchanged cases
+        scope_paths:
+          - "src/middleware/redux.ts"
+          - "tests/coord/redux-action-guard.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/redux-action-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

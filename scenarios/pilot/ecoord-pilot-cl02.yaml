@@ -1,0 +1,155 @@
+# E-coord PILOT scenario. Permanently excluded from confirmatory analysis
+# (design-e-coord-draft-3.md §6). Cards committed BEFORE reference solutions
+# are attempted (§3/M5); git history is the audit trail.
+scenario_id: ecoord-pilot-cl02
+study: e-coord
+status: pilot
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: medium
+  rationale: >
+    Card A changes utils.echo; card B changes termui.prompt, and prompt's
+    error path CALLS echo directly (termui imports echo from utils), so card
+    B's implementation surface flows straight through the function card A is
+    modifying. The shared neighborhood (utils.py touched-by-A and
+    importee-of-B's-module, termui.py touched-by-B and importer of utils,
+    plus core.py and _compat.py as shared first-degree neighbors) is larger
+    than cl01's, with no co-written file. Measured score computed by
+    scripts/scenario-check.sh; stratum re-checked against the measurement
+    before freeze.
+cards:
+  - id: ecoord-cl02-a
+    kind: coord
+    title: echo accepts flush=False to skip the unconditional flush
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.utils.echo flushes the stream after every call. That is the
+      right default for interactivity, but for tight loops writing many
+      lines (progress dumps, generated reports piped to a file) the
+      per-line flush dominates runtime, and callers today have no way to
+      opt out short of bypassing echo entirely.
+
+      Add a `flush: bool = True` keyword parameter to echo in
+      src/click/utils.py. With flush=True (default), behavior is unchanged.
+      With flush=False, the message is still written but the trailing
+      flush is skipped — both on the normal text path and on the
+      empty-message early-return path. The internal pre-write flush on the
+      binary-writer path (which exists for ordering correctness before
+      writing to the underlying binary stream) must be kept regardless.
+      Document the new parameter in the docstring.
+
+      Add tests in a new file tests/test_coord_echo_flush.py using a small
+      file-like recorder (wrap io.StringIO, count flush calls) covering:
+      default echo writes and flushes; echo(..., flush=False) writes the
+      same bytes but does not flush; echo(None, file=..., flush=False) does
+      not flush. Scope: src/click/utils.py plus your new test file. Do not
+      touch termui.py, _compat.py, or core.py. No new dependencies, no CI
+      or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/utils.py, limited to echo's signature, flush sites, and docstring
+        - Default flush=True behavior byte-for-byte unchanged
+        - The ordering flush before binary-writer writes is retained regardless of the flag
+        - New tests only, in tests/test_coord_echo_flush.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - echo accepts a flush keyword argument defaulting to True
+          - With flush=False the message is written but the stream's flush() is not called
+          - With the default, output and flushing behavior are unchanged
+          - The empty-message path honors flush=False
+          - New tests in tests/test_coord_echo_flush.py cover default, flush=False, and empty-message cases with a flush-counting stream
+        scope_paths:
+          - "src/click/utils.py"
+          - "tests/test_coord_echo_flush.py"
+        out_of_scope:
+          - "src/click/termui.py"
+          - "src/click/_compat.py"
+          - "src/click/core.py"
+          - "src/click/formatting.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_echo_flush.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cl02-b
+    kind: coord
+    title: prompt accepts max_attempts and aborts after repeated invalid input
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.termui.prompt retries forever on invalid input. In scripted or
+      CI-adjacent contexts that is an infinite loop: a typed prompt fed a
+      stream of invalid values will spin until the stream is exhausted and
+      then crash with EOF, instead of failing cleanly.
+
+      Add a `max_attempts: int | None = None` keyword parameter to prompt
+      in src/click/termui.py. None (default) keeps today's retry-forever
+      behavior. With an integer N >= 1, each value that fails conversion
+      (the UsageError path that currently echoes "Error: ..." and
+      continues) consumes one attempt; when the N-th attempt has failed,
+      prompt raises Abort instead of asking again. The error message for
+      each failed attempt must still be echoed exactly as today. A
+      successful conversion within the allowed attempts behaves exactly as
+      before. Document the new parameter in the docstring.
+
+      Add tests in a new file tests/test_coord_prompt_attempts.py using
+      click.testing.CliRunner covering: a command whose prompt has
+      max_attempts=2 exits via Abort (exit code 1, "Aborted" in output)
+      when fed two invalid values; the same command succeeds and prints
+      the value when the second input is valid; default prompt still
+      retries past two invalid values and succeeds on the third. Scope:
+      src/click/termui.py plus your new test file. Do not touch utils.py,
+      core.py, or exceptions.py. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/termui.py, limited to prompt's signature, retry loop, and docstring
+        - Default max_attempts=None behavior unchanged, including echoed error messages
+        - Exhausting max_attempts raises Abort after echoing the final error
+        - New tests only, in tests/test_coord_prompt_attempts.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - prompt accepts max_attempts defaulting to None with retry-forever semantics
+          - With max_attempts=2 and two invalid inputs, prompt raises Abort (CliRunner exit code 1, "Aborted" in output)
+          - With max_attempts=2 and a valid second input, the converted value is returned normally
+          - Each failed attempt still echoes the same "Error: ..." message as today
+          - New tests in tests/test_coord_prompt_attempts.py cover abort, recovery, and default-unchanged cases via CliRunner
+        scope_paths:
+          - "src/click/termui.py"
+          - "tests/test_coord_prompt_attempts.py"
+        out_of_scope:
+          - "src/click/utils.py"
+          - "src/click/core.py"
+          - "src/click/exceptions.py"
+          - "src/click/_termui_impl.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_prompt_attempts.py"
+      deterministic_checks: []
+    source:
+      authored: true

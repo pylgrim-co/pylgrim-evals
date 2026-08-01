@@ -1,0 +1,161 @@
+# E-coord PILOT scenario. Permanently excluded from confirmatory analysis
+# (design-e-coord-draft-3.md §6). Cards committed BEFORE reference solutions
+# are attempted (§3/M5); git history is the audit trail.
+scenario_id: ecoord-pilot-cl03
+study: e-coord
+status: pilot
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: high
+  rationale: >
+    Both work items add a new ParamType, which forces BOTH cards to write
+    the same two shared files: src/click/types.py (the type catalog) and
+    src/click/__init__.py (the public export surface, one alphabetical
+    import block where both new names land a handful of lines apart).
+    Two co-written files, one of them the package's central registry — the
+    §3 rule-2 shared registry/index case at full strength — while a
+    region-disjoint solution pair exists (different class insertion points
+    in types.py, different lines in the import block). types.py's importers
+    (core, decorators, shell_completion, termui) join both neighborhoods,
+    making this the highest measured score of the click set. Measured score
+    computed by scripts/scenario-check.sh; stratum re-checked against the
+    measurement before freeze.
+cards:
+  - id: ecoord-cl03-a
+    kind: coord
+    title: add a DelimitedList param type that splits one argument into a list
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      Accepting "a,b,c" as one option value and getting a list is one of the
+      most-reimplemented click patterns (every project writes its own
+      callback for it). Add it as a first-class type.
+
+      In src/click/types.py add a `DelimitedList` ParamType: constructed
+      with an optional `delimiter: str = ","`; its convert method takes the
+      raw string and returns the list of items split on the delimiter with
+      surrounding whitespace stripped from each item; an empty string
+      converts to an empty list; a value that is already a list passes
+      through unchanged. Its `name` should be "delimited list". Follow the
+      house style of the surrounding types (docstring, ParamType[...]
+      generic). Export it from the package: add
+      `from .types import DelimitedList as DelimitedList` in
+      src/click/__init__.py at its alphabetical position in the .types
+      import block.
+
+      Add tests in a new file tests/test_coord_delimited_list.py covering:
+      direct convert of "a, b,c" to ["a", "b", "c"]; empty string to [];
+      list passthrough; a custom delimiter (";"); and an end-to-end
+      CliRunner test with an option of type DelimitedList(). Scope:
+      src/click/types.py, the one import line in src/click/__init__.py, and
+      your new test file. Do not touch core.py, decorators.py, or
+      shell_completion.py. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation in src/click/types.py; src/click/__init__.py change limited to the one DelimitedList import line
+        - convert splits on the configured delimiter, strips item whitespace, maps empty string to [], passes lists through
+        - New tests only, in tests/test_coord_delimited_list.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - click.DelimitedList is importable from the package root
+          - DelimitedList().convert("a, b,c", None, None) == ["a", "b", "c"]
+          - DelimitedList().convert("", None, None) == []
+          - DelimitedList(delimiter=";").convert("a;b", None, None) == ["a", "b"]
+          - An option declared with type=DelimitedList() yields the parsed list in a CliRunner invocation
+          - New tests in tests/test_coord_delimited_list.py cover convert, empty, passthrough, custom delimiter, and CLI cases
+        scope_paths:
+          - "src/click/types.py"
+          - "src/click/__init__.py"
+          - "tests/test_coord_delimited_list.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/decorators.py"
+          - "src/click/shell_completion.py"
+          - "src/click/utils.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_delimited_list.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cl03-b
+    kind: coord
+    title: add a JSON param type that parses option values with json.loads
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      CLIs that accept structured values (--filter '{"status": "open"}')
+      all hand-roll the same json.loads callback with the same error
+      handling. Add it as a first-class type.
+
+      In src/click/types.py add a `JSONParamType` ParamType plus a
+      module-level singleton `JSON = JSONParamType()` (the BOOL/UUID
+      pattern). Its convert method: non-string values pass through
+      unchanged; strings are parsed with json.loads and the parsed value
+      returned; on json.JSONDecodeError it calls self.fail with a message
+      naming the offending value and the JSON error. Its `name` should be
+      "json". Follow the house style of the surrounding types. Export the
+      singleton from the package: add `from .types import JSON as JSON` in
+      src/click/__init__.py at its alphabetical position in the .types
+      import block.
+
+      Add tests in a new file tests/test_coord_json_type.py covering:
+      direct convert of '{"a": 1}' to {"a": 1} and "[1, 2]" to [1, 2];
+      non-string passthrough; invalid JSON raising click.UsageError from a
+      bare convert call; and an end-to-end CliRunner test with an option of
+      type JSON where invalid JSON exits non-zero with an error message.
+      Scope: src/click/types.py, the one import line in
+      src/click/__init__.py, and your new test file. Do not touch core.py,
+      decorators.py, or shell_completion.py. No new dependencies (json is
+      stdlib), no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation in src/click/types.py; src/click/__init__.py change limited to the one JSON import line
+        - convert parses strings with json.loads, passes non-strings through, fails with a clear message on invalid JSON
+        - New tests only, in tests/test_coord_json_type.py; do not rewrite or delete existing tests
+        - No new dependencies beyond the stdlib json module
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - click.JSON is importable from the package root
+          - 'JSON.convert(''{"a": 1}'', None, None) == {"a": 1} and JSON.convert("[1, 2]", None, None) == [1, 2]'
+          - Non-string values pass through convert unchanged
+          - Invalid JSON raises a click.UsageError (via self.fail) naming the value
+          - An option declared with type=JSON rejects invalid JSON with a non-zero exit in a CliRunner invocation
+          - New tests in tests/test_coord_json_type.py cover parse, passthrough, failure, and CLI cases
+        scope_paths:
+          - "src/click/types.py"
+          - "src/click/__init__.py"
+          - "tests/test_coord_json_type.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/decorators.py"
+          - "src/click/shell_completion.py"
+          - "src/click/utils.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_json_type.py"
+      deterministic_checks: []
+    source:
+      authored: true
