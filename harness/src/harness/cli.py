@@ -596,11 +596,21 @@ def _load_episode_inputs(root: Path):
 def plan_episodes(
     root: Path = ROOT_OPT,
     force: bool = typer.Option(False, "--force", help="Replace an existing schedule"),
+    status: Optional[str] = typer.Option(
+        None, "--status",
+        help="Schedule only scenarios with this status (e.g. 'pilot'); "
+             "default: all loaded scenarios",
+    ),
 ) -> None:
     """Build the randomized E-coord episode schedule into results/episodes.db."""
     from harness import episode as episode_mod
 
     scenarios, config, repos, _results_dir, db_path = _load_episode_inputs(root)
+    if status:
+        scenarios = [s for s in scenarios if s.status == status]
+        if not scenarios:
+            typer.echo(f"no scenarios with status {status!r}; nothing to plan", err=True)
+            raise typer.Exit(1)
     conn = queue.connect(db_path)
     episode_mod.init_episode_db(conn)
     existing = episode_mod.episode_count(conn)
@@ -626,6 +636,7 @@ def plan_episodes(
             "schedule_seed": str(config["schedule_seed"]),
             "turn_cap": str(config["turn_cap"]),
             "model": config["model"],
+            "scenario_status": status or "all",
             "created_at": queue.now_iso(),
             "harness_version": __version__,
             "claude_version": _claude_version(),

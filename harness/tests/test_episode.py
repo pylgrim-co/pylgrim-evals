@@ -692,6 +692,56 @@ def test_load_scenario_validates_shape(tmp_path, repo):
     assert any("work_items" in e for e in errors2)
 
 
+def test_load_scenario_accepts_authored_pilot_shape(tmp_path, repo):
+    """The shape committed in scenarios/pilot/: cards list, pinned_sha,
+    pressure.stratum, kind: coord, status: pilot."""
+    _r, sha = repo
+    import yaml as yaml_mod
+
+    card = {
+        "id": "ecoord-x01-a", "kind": "coord", "title": "t",
+        "base_sha": sha, "prompt": "p",
+        "intent": {"constraints": [], "work_item": {
+            "criteria": ["c"], "scope_paths": ["*"], "out_of_scope": []}},
+        "outcome": {"test_command": "true"},
+        "source": {"authored": True},
+    }
+    data = {
+        "scenario_id": "ecoord-x01",
+        "study": "e-coord",
+        "status": "pilot",
+        "repo": "demo",
+        "pinned_sha": sha,
+        "pressure": {"stratum": "high", "rationale": "shared registry"},
+        "cards": [card, {**card, "id": "ecoord-x01-b"}],
+    }
+    sub = tmp_path / "scen" / "pilot"
+    sub.mkdir(parents=True)
+    (sub / "ecoord-x01.yaml").write_text(yaml_mod.safe_dump(data), encoding="utf-8")
+    scenarios, errors = episode.load_all_scenarios(tmp_path / "scen")
+    assert errors == []
+    assert len(scenarios) == 1  # recursive discovery picked up pilot/
+    s = scenarios[0]
+    assert s.base_sha == sha and s.pressure == "high" and s.status == "pilot"
+    assert s.cards["a"].id == "ecoord-x01-a" and s.cards["b"].id == "ecoord-x01-b"
+    assert s.cards["a"].kind == "coord"  # original kind preserved
+
+
+def test_committed_pilot_scenarios_load_cleanly():
+    """The pilot set the scenario-authoring workstream committed must parse
+    through the runner's loader without a single error."""
+    pilot_dir = Path(__file__).resolve().parents[2] / "scenarios"
+    if not (pilot_dir / "pilot").exists():
+        pytest.skip("no pilot scenarios committed yet")
+    scenarios, errors = episode.load_all_scenarios(pilot_dir)
+    assert errors == []
+    assert len(scenarios) >= 6
+    for s in scenarios:
+        assert s.status == "pilot"
+        assert s.pressure in episode.PRESSURE_STRATA
+        assert s.cards["a"].test_command and s.cards["b"].test_command
+
+
 def test_episode_drain_runs_to_done_and_reports(repo, tmp_path):
     repo_dir, sha = repo
     scenario = make_scenario(sha)

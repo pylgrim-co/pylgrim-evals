@@ -1,28 +1,38 @@
-# E-coord scenarios (format stub — a freeze input)
+# E-coord scenarios (file format — a freeze input)
 
 Scenario CONTENT rules live in `preregistration/design-e-coord-draft-3.md`
 §3 (existence proof, pressure floor, symmetry, wall-time floor, anti-leak
 process rules). Draft 3 does not pin a FILE format, so the episode runner
-(`harness/src/harness/episode.py`, module docstring choice 1) defines one
-here. This stub is a freeze input: prereg-v6-coord (or later) must ratify
-or amend it. Scenario authoring is owned by the scenario-authoring
-workstream, not the runner — this directory holds only this README and
-`config.yaml` until cards are authored.
+(`harness/src/harness/episode.py`, module docstring choice 1) pins what it
+accepts here. This is a freeze input: prereg-v6-coord (or later) must
+ratify ONE canonical shape. Scenario authoring is owned by the
+scenario-authoring workstream; the pilot set lives in `scenarios/pilot/`.
 
-## Scenario file: `scenarios/<scenario_id>.yaml`
+## Accepted scenario shapes
+
+`episode.load_scenario` accepts and normalizes two equivalent shapes.
+Files are discovered recursively under `scenarios/` (subdirectories like
+`pilot/` included; `config.yaml` and non-YAML files skipped).
+
+### Authored pilot shape (the shape committed in scenarios/pilot/)
 
 ```yaml
-scenario_id: click-s01          # unique across scenarios/
+scenario_id: ecoord-pilot-cl01
+study: e-coord                  # informational
+status: pilot                   # pilot | confirmatory (default confirmatory);
+                                # pilots run identically, §6 excludes them at analysis
 repo: click                     # a repo name from tasks/corpus.yaml
-base_sha: <40-char lowercase hex>   # the pinned SHA both agents start from
-pressure: low                   # low | medium | high (§3 rule 2 stratum)
-work_items:
-  a: # a FULL task card, the tasks/*.yaml schema (harness.taskcards.validate)
-    id: click-s01-a
-    kind: real
+pinned_sha: <40-char lowercase hex>
+pressure:
+  stratum: low                  # low | medium | high (§3 rule 2)
+  rationale: >-                 # informational
+    ...
+cards:                          # exactly 2; list order is agent a, agent b
+  - id: ecoord-cl01-a
+    kind: coord                 # validated under the authored-card rules
     title: "..."
-    base_sha: <must equal the scenario base_sha>
-    prompt: |-
+    base_sha: <must equal pinned_sha>
+    prompt: |
       ...
     intent:
       constraints: [...]
@@ -30,17 +40,26 @@ work_items:
         criteria: [...]
         scope_paths: [...]
         out_of_scope: [...]
+    rules: [...]                # optional, tasks/*.yaml rule ids
     outcome:
       test_command: "..."       # <=120 s per tree on the pinned VM (§3 rule 4)
-    source: { issue_url: "...", ground_truth_pr: "..." }
-  b: # same schema, the adjacent work item
+      deterministic_checks: []
+    source: { authored: true }
+  - id: ecoord-cl01-b
     ...
 ```
 
+### Runner stub shape (equivalent)
+
+Top-level `base_sha` instead of `pinned_sha`, a plain `pressure` stratum
+string, and `work_items: {a: <card>, b: <card>}` instead of the 2-card
+list. Same card schema.
+
 Validation (enforced by `harness plan-episodes` / `episode.load_scenario`):
-both work-item cards must pass `taskcards.validate` verbatim; both cards'
-`base_sha` must equal the scenario `base_sha`; `work_items` has exactly
-the keys `a` and `b`; `pressure` is one of low/medium/high.
+each card must pass `harness.taskcards.validate` (with `kind: coord`
+treated as an authored card, i.e. `source.authored: true` required); both
+cards' `base_sha` must equal the scenario pin; exactly two work items;
+`pressure`/`pressure.stratum` one of low/medium/high.
 
 Reference solution pairs (§3 rule 1) live OUTSIDE this directory and
 outside every agent-reachable root (M5); they are not part of the scenario
@@ -57,4 +76,6 @@ schedule_seed: 42    # §5 master seed
 ```
 
 All keys optional; the values above are the defaults the runner uses when
-the file is absent.
+the file is absent. `harness plan-episodes --status pilot` schedules the
+pilot set alone (§6: 6 scenarios x 3 arms x 2 reps — set `reps: 2` in
+config for the pilot plan).

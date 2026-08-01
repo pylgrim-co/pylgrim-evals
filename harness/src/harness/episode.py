@@ -28,14 +28,18 @@ here is documented below. These are freeze inputs (prereg-v6-coord or
 later must ratify or amend them):
 
 1. SCENARIO FILE FORMAT (§3 defines the scenario's content, not a file
-   format). A scenario is one YAML file in scenarios/ (schema stub in
-   scenarios/README.md): top-level keys `scenario_id`, `repo` (a
-   tasks/corpus.yaml repo name), `base_sha` (40-hex pin), `pressure`
-   (low|medium|high stratum), and `work_items` with exactly the keys `a`
-   and `b`, each a FULL task card in the tasks/*.yaml schema
-   (taskcards.validate applies verbatim; both cards' base_sha must equal
-   the scenario's). Config lives in scenarios/config.yaml: `arms`, `reps`,
+   format). A scenario is one YAML file under scenarios/ (recursively;
+   the pilot set lives in scenarios/pilot/). Two equivalent surface
+   shapes are accepted and normalized by load_scenario (schema in
+   scenarios/README.md): the runner's stub shape (`base_sha`, plain
+   `pressure` string, `work_items: {a, b}`) and the authored pilot shape
+   (`pinned_sha`, `pressure: {stratum, rationale}`, `cards: [a, b]`,
+   optional `status: pilot`). Each work item is a FULL task card in the
+   tasks/*.yaml schema; `kind: coord` validates under the authored-card
+   rules (source.authored: true); both cards' base_sha must equal the
+   scenario pin. Config lives in scenarios/config.yaml: `arms`, `reps`,
    `model`, `turn_cap` (R, default 6), `schedule_seed` (default 42).
+   Converging on ONE shape is a freeze decision.
 2. EPISODE QUEUE LOCATION: a separate results/episodes.db (the skills.db
    precedent) holding `episodes` + `episode_turns` + `meta`, so the
    run-granular runs.db stays untouched (O1: its rows cannot represent an
@@ -185,11 +189,31 @@ class Scenario:
     base_sha: str
     pressure: str
     cards: dict[str, TaskCard]  # keys "a" and "b"
+    status: str = "confirmatory"  # "pilot" scenarios run identically; §6 excludes them at analysis
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+def _validate_scenario_card(card_data: Any) -> list[str]:
+    """taskcards.validate, with the E-coord `kind: coord` accepted.
+
+    Coord cards are authored (source.authored: true), so they validate
+    under the authored-card rules; the original kind is preserved on the
+    loaded TaskCard."""
+    if isinstance(card_data, dict) and card_data.get("kind") == "coord":
+        card_data = {**card_data, "kind": "bait"}
+    return taskcards_mod.validate(card_data)
+
+
 def load_scenario(path: Path | str) -> tuple[Scenario | None, list[str]]:
-    """Load and validate one scenario file. Returns (scenario, errors)."""
+    """Load and validate one scenario file. Returns (scenario, errors).
+
+    Two equivalent surface shapes are accepted and normalized (both are
+    freeze inputs; see scenarios/README.md):
+      - `work_items: {a: <card>, b: <card>}` with `base_sha` and a plain
+        `pressure` stratum string (the runner's original stub shape);
+      - the authored pilot shape: `cards: [<card>, <card>]` (list order is
+        a, b), `pinned_sha`, and `pressure: {stratum: ..., rationale: ...}`.
+    """
     path = Path(path)
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -204,20 +228,39 @@ def load_scenario(path: Path | str) -> tuple[Scenario | None, list[str]]:
     repo = data.get("repo")
     if not isinstance(repo, str) or not repo:
         errors.append(f"{path.name}: missing required field: repo")
-    base_sha = data.get("base_sha")
+    base_sha = data.get("base_sha") or data.get("pinned_sha")
     if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", base_sha or ""):
-        errors.append(f"{path.name}: base_sha must be a 40-character lowercase hex string")
-    pressure = data.get("pressure")
+        errors.append(
+            f"{path.name}: base_sha/pinned_sha must be a 40-character lowercase hex string"
+        )
+    raw_pressure = data.get("pressure")
+    pressure = (
+        raw_pressure.get("stratum") if isinstance(raw_pressure, dict) else raw_pressure
+    )
     if pressure not in PRESSURE_STRATA:
-        errors.append(f"{path.name}: pressure must be one of {list(PRESSURE_STRATA)}")
+        errors.append(
+            f"{path.name}: pressure (or pressure.stratum) must be one of "
+            f"{list(PRESSURE_STRATA)}"
+        )
+    status = data.get("status") or "confirmatory"
+
     work_items = data.get("work_items")
+    cards_list = data.get("cards")
+    card_inputs: dict[str, Any] | None = None
+    if isinstance(work_items, dict) and set(work_items) == set(AGENTS):
+        card_inputs = {agent: work_items[agent] for agent in AGENTS}
+    elif isinstance(cards_list, list) and len(cards_list) == 2:
+        card_inputs = {"a": cards_list[0], "b": cards_list[1]}
     cards: dict[str, TaskCard] = {}
-    if not isinstance(work_items, dict) or set(work_items) != set(AGENTS):
-        errors.append(f"{path.name}: work_items must be a mapping with exactly keys 'a' and 'b'")
+    if card_inputs is None:
+        errors.append(
+            f"{path.name}: work_items must be a mapping with exactly keys 'a' "
+            "and 'b', or cards must be a list of exactly 2 task cards"
+        )
     else:
         for agent in AGENTS:
-            card_data = work_items[agent]
-            card_errors = taskcards_mod.validate(card_data)
+            card_data = card_inputs[agent]
+            card_errors = _validate_scenario_card(card_data)
             errors.extend(f"{path.name}: work_items.{agent}: {e}" for e in card_errors)
             if isinstance(card_data, dict):
                 card = taskcards_mod.from_dict(card_data)
@@ -228,16 +271,17 @@ def load_scenario(path: Path | str) -> tuple[Scenario | None, list[str]]:
                 cards[agent] = card
     if errors or len(cards) != 2:
         return None, errors
-    return Scenario(scenario_id, repo, base_sha, pressure, cards, data), errors
+    return Scenario(scenario_id, repo, base_sha, pressure, cards, str(status), data), errors
 
 
 def load_all_scenarios(scenarios_dir: Path | str) -> tuple[list[Scenario], list[str]]:
-    """Load every scenario in scenarios/ (skips config.yaml). Duplicate ids error."""
+    """Load every scenario under scenarios/ recursively (subdirectories like
+    scenarios/pilot/ included; config.yaml skipped). Duplicate ids error."""
     scenarios_dir = Path(scenarios_dir)
     scenarios: list[Scenario] = []
     errors: list[str] = []
     seen: set[str] = set()
-    for path in sorted(scenarios_dir.glob("*.yaml")):
+    for path in sorted(scenarios_dir.rglob("*.yaml")):
         if path.name == "config.yaml":
             continue
         scenario, errs = load_scenario(path)
