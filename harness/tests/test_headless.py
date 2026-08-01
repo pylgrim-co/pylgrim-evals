@@ -81,6 +81,46 @@ def test_build_command_long_prompt_goes_via_stdin(monkeypatch):
     assert "hi" in short_cmd
 
 
+def test_build_command_json_schema_flag(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "claude")
+    schema = '{"type":"object"}'
+    cmd, _ = headless.build_command("hi", "sonnet", json_schema=schema)
+    assert cmd[cmd.index("--json-schema") + 1] == schema
+    plain, _ = headless.build_command("hi", "sonnet")
+    assert "--json-schema" not in plain
+
+
+def test_timeout_constants_are_distinct_classes():
+    from harness import arms
+
+    assert headless.RUN_TIMEOUT_S == 30 * 60
+    assert headless.JUDGE_TIMEOUT_S == 15 * 60
+    assert headless.DEFAULT_TIMEOUT_S == headless.RUN_TIMEOUT_S  # legacy alias
+    assert arms.COMPOSE_TIMEOUT_S == 600  # frozen probe config, separate class
+
+
+class _HangingProc(_FakeProc):
+    def communicate(self, input=None, timeout=None):
+        raise headless.subprocess.TimeoutExpired(cmd="claude", timeout=timeout)
+
+
+@pytest.mark.parametrize("timeout_class", ["run", "compose", "judge"])
+def test_invoke_claude_timeout_error_names_its_class(
+    monkeypatch, tmp_path, timeout_class
+):
+    """600s-vs-1800s confusion fix: the error says WHICH timeout fired."""
+    monkeypatch.setattr("shutil.which", lambda _: "claude")
+    monkeypatch.setattr(
+        headless.subprocess, "Popen", lambda *a, **k: _HangingProc("", 1)
+    )
+    monkeypatch.setattr(headless, "_kill_tree", lambda proc: None)
+    with pytest.raises(RuntimeError) as excinfo:
+        headless.invoke_claude(
+            "hi", "haiku", tmp_path, timeout_s=7, timeout_class=timeout_class
+        )
+    assert f"timed out after 7s (timeout class: {timeout_class})" in str(excinfo.value)
+
+
 def test_looks_rate_limited():
     assert headless.looks_rate_limited(1, "usage limit reached")
     assert not headless.looks_rate_limited(0, "usage limit reached")

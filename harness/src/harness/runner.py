@@ -27,6 +27,7 @@ from harness import arms, provenance, workspace
 from harness import transcripts as transcripts_mod
 from harness.headless import (  # noqa: F401  (re-exported public surface)
     DEFAULT_TIMEOUT_S,
+    RUN_TIMEOUT_S,
     RATE_LIMIT_BACKOFF,
     RateLimited,
     build_command,
@@ -54,9 +55,9 @@ def execute_run(
     results_dir: Path | str,
     slot: int,
     preserve: tuple[str, ...] = ("node_modules", ".venv", "target"),
-    timeout_s: int = DEFAULT_TIMEOUT_S,
-    outcome_timeout_s: int = 600,
-    compose_timeout_s: int = arms.COMPOSE_TIMEOUT_S,
+    timeout_s: int = RUN_TIMEOUT_S,  # timeout class "run" (the main invocation)
+    outcome_timeout_s: int = 600,  # deterministic test-command timeout (no claude call)
+    compose_timeout_s: int = arms.COMPOSE_TIMEOUT_S,  # timeout class "compose"
 ) -> dict[str, Any]:
     """Execute one claimed run. Returns the result record written to disk.
 

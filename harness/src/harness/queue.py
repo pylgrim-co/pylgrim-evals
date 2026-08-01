@@ -13,7 +13,7 @@ Tables:
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS runs (
     started_at      TEXT,
     finished_at     TEXT,
     error           TEXT,
-    resume_after    TEXT
+    resume_after    TEXT,
+    heartbeat_at    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -44,6 +45,11 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 """
+
+# Default liveness threshold for reclaim_stale: a drain2 claimer refreshes
+# heartbeat_at every ~60s while its run executes, so 10 missed minutes means
+# the owning process is dead (killed, slept past resume, crashed) — not slow.
+HEARTBEAT_STALE_S = 10 * 60
 
 
 def now_iso() -> str:
@@ -61,10 +67,21 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(
+    conn: sqlite3.Connection, table: str, column: str, decl: str
+) -> None:
+    """Idempotent additive migration: add the column if the table lacks it."""
+    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def init_db(conn: sqlite3.Connection, meta: dict[str, str] | None = None) -> None:
-    """Create tables and record provenance metadata."""
+    """Create tables and record provenance metadata. Idempotent: existing
+    databases from before the heartbeat column pick it up via ALTER TABLE."""
     with conn:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "runs", "heartbeat_at", "TEXT")
         for key, value in (meta or {}).items():
             conn.execute(
                 "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value))
@@ -131,10 +148,10 @@ def claim_next(
             """
             UPDATE runs
             SET status = 'running', attempt = attempt + 1,
-                started_at = ?, resume_after = NULL, error = NULL
+                started_at = ?, heartbeat_at = ?, resume_after = NULL, error = NULL
             WHERE run_id = ? AND status = 'pending'
             """,
-            (now, run_id),
+            (now, now, run_id),
         )
         if cur.rowcount != 1:  # lost a race with another process
             return None
@@ -201,10 +218,58 @@ def reset_stale(conn: sqlite3.Connection) -> int:
 
     The consumed attempt is kept: the crashed attempt really did burn quota.
     Returns the number of rows reset.
+
+    All-or-nothing: NEVER safe while parallel workers hold live claims (a
+    startup reset resurrects a sibling's in-flight run, seen live in the
+    skills drain). New code should prefer reclaim_stale, which is safe with
+    parallel workers by construction; this stays for `harness run` and the
+    shell drains' reproducibility.
     """
     with conn:
         cur = conn.execute(
-            "UPDATE runs SET status = 'pending', started_at = NULL WHERE status = 'running'"
+            "UPDATE runs SET status = 'pending', started_at = NULL, "
+            "heartbeat_at = NULL WHERE status = 'running'"
+        )
+        return cur.rowcount
+
+
+def heartbeat(conn: sqlite3.Connection, run_id: str, now: str | None = None) -> None:
+    """Refresh a claimed run's liveness timestamp (drain2's claim heartbeat)."""
+    with conn:
+        conn.execute(
+            "UPDATE runs SET heartbeat_at = ? WHERE run_id = ? AND status = 'running'",
+            (now or now_iso(), run_id),
+        )
+
+
+def reclaim_stale(
+    conn: sqlite3.Connection,
+    stale_after_s: int = HEARTBEAT_STALE_S,
+    now: str | None = None,
+) -> int:
+    """Return 'running' rows whose heartbeat is older than the threshold to
+    'pending'. Safe with parallel workers by construction: a live claimer's
+    heartbeat is at most one interval old, so only claims owned by dead
+    processes cross the threshold. Rows claimed by pre-heartbeat code fall
+    back to started_at, so long-dead legacy claims are reclaimed too. The
+    consumed attempt is kept (the dead attempt really did burn quota).
+    Returns the number of rows reclaimed.
+    """
+    now_dt = (
+        datetime.fromisoformat(now)
+        if now is not None
+        else datetime.now(timezone.utc)
+    )
+    cutoff = (now_dt - timedelta(seconds=stale_after_s)).isoformat(timespec="seconds")
+    with conn:
+        cur = conn.execute(
+            """
+            UPDATE runs
+            SET status = 'pending', started_at = NULL, heartbeat_at = NULL
+            WHERE status = 'running'
+              AND COALESCE(heartbeat_at, started_at) < ?
+            """,
+            (cutoff,),
         )
         return cur.rowcount
 

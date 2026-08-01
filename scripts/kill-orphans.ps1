@@ -1,5 +1,11 @@
 # kill-orphans.ps1 — the practiced recovery sweep, scripted.
 #
+# NOT A HARD STOP: this only kills processes whose parent is already dead.
+# Live-parented workers survive it (seen after E13's pause: 32 extra runs
+# over ~40 min), and killing a shell tree can leave claude.exe children
+# running. When the drain must be dead NOW, use kill-hard.ps1, which walks
+# full trees from every harness-signature root and verifies the sweep.
+#
 # Kills orphaned process trees left behind when a drain dies (machine
 # sleep, TaskStop, crash). Orphan = a process whose parent PID no longer
 # exists. Swept classes:

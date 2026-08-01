@@ -3,6 +3,8 @@
 Commands:
   plan     build the randomized rep-blocked schedule into results/runs.db
   run      execute a batch of claimed runs; exits cleanly on rate limit
+  drain2   continuous claimer with heartbeat crash recovery (preferred for
+           new drains; `run` + coding-drain.sh stay for reproducibility)
   extract  recompute metrics from stored artifacts (no agent invocation)
   status   queue summary table
   smoke    single end-to-end run outside the queue, for pipeline validation
@@ -30,7 +32,8 @@ from typing import Optional
 import typer
 import yaml
 
-from harness import __version__, provenance, queue, runner, schedule, workspace
+from harness import __version__, headless, provenance, queue, runner, schedule, workspace
+from harness.drain2 import worker_repos  # noqa: F401  (re-exported public surface)
 from harness import taskcards as taskcards_mod
 from harness import transcripts as transcripts_mod
 from harness.metrics import drift_tokens as drift_tokens_metric
@@ -72,16 +75,6 @@ def _repo_for_task(task_id: str, repos: dict[str, dict]) -> str | None:
 
 def _claude_version() -> str:
     return provenance.claude_code_version()
-
-
-def worker_repos(all_repos: list[str], workers: int, index: int) -> list[str]:
-    """Deterministic repo partition for parallel coding drains.
-
-    Sorted repos striped by position (never hash(): Python string hashing is
-    randomized per process). Partitions are disjoint and cover every repo;
-    workers=1 returns everything, reproducing single-worker behavior.
-    """
-    return [r for i, r in enumerate(sorted(all_repos)) if i % workers == index]
 
 
 @app.command()
@@ -161,7 +154,10 @@ def run(
     root: Path = ROOT_OPT,
     batch: int = typer.Option(..., "--batch", help="Max runs to execute this invocation"),
     slot_count: int = typer.Option(2, "--slot-count", help="Workspace slot pool size"),
-    timeout_min: int = typer.Option(30, "--timeout-min", help="Per-run timeout in minutes"),
+    timeout_min: int = typer.Option(
+        headless.RUN_TIMEOUT_S // 60, "--timeout-min",
+        help="Per-run timeout in minutes (timeout class: run)",
+    ),
     workers: int = typer.Option(
         1, "--workers", help="Total parallel workers (repo-partitioned)"
     ),
@@ -258,6 +254,70 @@ def run(
 
     summary = queue.status_summary(conn)
     typer.echo(f"batch finished: {summary['by_status']}")
+
+
+@app.command()
+def drain2(
+    root: Path = ROOT_OPT,
+    workers: int = typer.Option(
+        1, "--workers", help="Claimer threads in this process (repo-partitioned)"
+    ),
+    slot_count: int = typer.Option(2, "--slot-count", help="Workspace slot pool size"),
+    timeout_min: int = typer.Option(
+        headless.RUN_TIMEOUT_S // 60, "--timeout-min",
+        help="Per-run timeout in minutes (timeout class: run)",
+    ),
+    heartbeat_sec: int = typer.Option(
+        60, "--heartbeat-sec", help="Claim heartbeat refresh interval"
+    ),
+    stale_min: int = typer.Option(
+        queue.HEARTBEAT_STALE_S // 60, "--stale-min",
+        help="Reclaim 'running' rows whose heartbeat is older than this "
+             "(replaces the all-or-nothing stale reset; safe next to live "
+             "workers, whose heartbeats stay fresh)",
+    ),
+) -> None:
+    """Continuously claim and execute coding runs until the queue is drained.
+
+    Single-process continuous claimer (claim one, execute, mark, claim next)
+    with heartbeat-based crash recovery. Exits cleanly when the queue is
+    empty or the rate-limit gate closes (resume_after is printed and
+    respected). Safe to kill at any point: stale claims are reclaimed by the
+    next start once their heartbeat crosses --stale-min.
+    """
+    from harness import drain2 as drain2_mod
+
+    tasks_dir, results_dir, db_path = _paths(root)
+    corpus = _load_corpus(tasks_dir)
+    repos = _repo_index(corpus)
+    cards, errors = taskcards_mod.load_all(tasks_dir)
+    if errors:
+        for err in errors:
+            typer.echo(f"task card error: {err}", err=True)
+        raise typer.Exit(1)
+    if workers < 1:
+        typer.echo("error: --workers must be >= 1", err=True)
+        raise typer.Exit(2)
+
+    totals = drain2_mod.run_drain(
+        db_path,
+        results_dir,
+        {c.id: c for c in cards},
+        repos,
+        workers=workers,
+        slot_count=slot_count,
+        timeout_s=timeout_min * 60,
+        heartbeat_s=heartbeat_sec,
+        stale_after_s=stale_min * 60,
+        echo=typer.echo,
+    )
+    typer.echo(
+        f"drain2 finished: done={totals['done']} error={totals['error']} "
+        f"skipped={totals['skipped']} (reclaimed {totals['reclaimed']} stale)"
+    )
+    typer.echo(f"queue: {totals['summary']['by_status']}")
+    if totals["resume_after"]:
+        typer.echo(f"rate-limit gate: eligible again after {totals['resume_after']}")
 
 
 @app.command()
@@ -379,7 +439,7 @@ def smoke(
     slot: int = typer.Option(0, "--slot", help="Workspace slot"),
     rep: int = typer.Option(0, "--rep", help="Rep index (distinguishes run dirs)"),
     root: Path = ROOT_OPT,
-    timeout_min: int = typer.Option(30, "--timeout-min"),
+    timeout_min: int = typer.Option(headless.RUN_TIMEOUT_S // 60, "--timeout-min"),
 ) -> None:
     """One end-to-end run outside the queue: validates the whole pipeline."""
     _, results_dir, _ = _paths(root)
@@ -847,7 +907,10 @@ def plan_judge(
 def run_judge(
     root: Path = ROOT_OPT,
     batch: int = typer.Option(..., "--batch", help="Max judge runs this invocation"),
-    timeout_min: int = typer.Option(15, "--timeout-min", help="Per-judge timeout (minutes)"),
+    timeout_min: int = typer.Option(
+        headless.JUDGE_TIMEOUT_S // 60, "--timeout-min",
+        help="Per-judge timeout in minutes (timeout class: judge)",
+    ),
     stale_reset: bool = typer.Option(
         True,
         "--stale-reset/--no-stale-reset",
@@ -959,7 +1022,16 @@ def extract_judge(
         ).fetchone()
         task = cards_by_id.get(run_row["task_id"]) if run_row else None
         n = len(task.criteria) if task else 0
-        verdicts = judge_mod.parse_verdicts(payload.get("raw_result_text", ""), n)
+        # Structured artifacts re-parse from structured_output; legacy
+        # artifacts fall back to the lenient text parse, then to the
+        # verdicts stored at judging time.
+        verdicts = judge_mod.extract_verdicts(
+            {
+                "result": payload.get("raw_result_text", ""),
+                "structured_output": payload.get("structured_output"),
+            },
+            n,
+        )
         if verdicts is None:
             verdicts = payload.get("verdicts")
         if verdicts is None:

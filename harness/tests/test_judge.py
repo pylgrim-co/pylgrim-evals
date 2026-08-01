@@ -120,6 +120,26 @@ def test_parse_verdicts_failures():
     assert judge.parse_verdicts('{"verdicts": "met"}', 2) is None
 
 
+def test_extract_verdicts_prefers_structured_output():
+    structured = {"structured_output": json.loads(good_reply()), "result": "prose only"}
+    assert judge.extract_verdicts(structured, 2)[0]["verdict"] == "met"
+    # invalid structured output falls back to the lenient text parse
+    fallback = {"structured_output": {"verdicts": []}, "result": good_reply()}
+    assert judge.extract_verdicts(fallback, 2) is not None
+    # neither channel valid -> None
+    assert judge.extract_verdicts({"result": "nope"}, 2) is None
+
+
+def test_verdicts_schema_mirrors_validator():
+    schema = judge.verdicts_schema(3)
+    inner = schema["properties"]["verdicts"]
+    assert inner["minItems"] == inner["maxItems"] == 3
+    assert set(inner["items"]["required"]) == {"criterion", "verdict", "rationale"}
+    assert inner["items"]["properties"]["verdict"]["enum"] == list(judge.VERDICTS)
+    # a schema-conforming object always passes coerce_verdicts
+    assert judge.coerce_verdicts(json.loads(good_reply(3)), 3) is not None
+
+
 # --- score_run ---------------------------------------------------------------
 
 def setup_run_dir(tmp_path, run_id="alpha-t01--claudemd--sonnet--r1",
@@ -134,7 +154,7 @@ def test_score_run_writes_artifact(tmp_path):
     run_id = setup_run_dir(tmp_path)
     calls = []
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
         calls.append(prompt)
         return {"result": good_reply(), "total_cost_usd": 0.01, "session_id": "s1"}
 
@@ -150,12 +170,41 @@ def test_score_run_writes_artifact(tmp_path):
     assert stored["raw_result_text"] == good_reply()
 
 
+def test_score_run_requests_structured_output(tmp_path):
+    """The judge call must carry the verdicts schema and the judge timeout class."""
+    run_id = setup_run_dir(tmp_path)
+    seen = {}
+
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
+        seen.update(kwargs, timeout_s=timeout_s)
+        return {
+            "result": "Done! Returned the structured verdicts.",
+            "structured_output": json.loads(good_reply()),
+        }
+
+    payload = judge.score_run(run_id, tmp_path, make_task(), invoke=fake_invoke)
+    schema = json.loads(seen["json_schema"])
+    assert schema == judge.verdicts_schema(2)
+    assert schema["properties"]["verdicts"]["minItems"] == 2
+    assert schema["properties"]["verdicts"]["maxItems"] == 2
+    assert seen["timeout_class"] == "judge"
+    assert seen["timeout_s"] == headless.JUDGE_TIMEOUT_S
+    # structured_output is the verdict source; prose result text is ignored
+    assert [v["verdict"] for v in payload["verdicts"]] == ["met", "met"]
+    stored = json.loads(
+        (tmp_path / "runs" / run_id / "judge--sonnet--r1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert stored["structured_output"] == json.loads(good_reply())
+
+
 def test_score_run_retries_once_then_succeeds(tmp_path):
     run_id = setup_run_dir(tmp_path)
     replies = iter(["not json at all", good_reply()])
     calls = []
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
         calls.append(prompt)
         return {"result": next(replies)}
 
@@ -165,20 +214,41 @@ def test_score_run_retries_once_then_succeeds(tmp_path):
     assert payload["verdicts"][0]["verdict"] == "met"
 
 
+def test_score_run_reasks_on_invalid_structured_output(tmp_path):
+    """A structured reply that fails coerce_verdicts triggers one re-ask."""
+    run_id = setup_run_dir(tmp_path)
+    replies = iter(
+        [
+            {"result": "", "structured_output": {"verdicts": "not a list"}},
+            {"result": "", "structured_output": json.loads(good_reply())},
+        ]
+    )
+    calls = []
+
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
+        calls.append(prompt)
+        return next(replies)
+
+    payload = judge.score_run(run_id, tmp_path, make_task(), invoke=fake_invoke)
+    assert len(calls) == 2
+    assert calls[1].startswith(judge.RETRY_PREFIX)
+    assert [v["verdict"] for v in payload["verdicts"]] == ["met", "met"]
+
+
 def test_score_run_double_failure_raises(tmp_path):
     run_id = setup_run_dir(tmp_path)
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
         return {"result": "nope"}
 
-    with pytest.raises(RuntimeError, match="unparseable"):
+    with pytest.raises(RuntimeError, match="schema validation"):
         judge.score_run(run_id, tmp_path, make_task(), invoke=fake_invoke)
 
 
 def test_score_run_rate_limit_propagates(tmp_path):
     run_id = setup_run_dir(tmp_path)
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
         raise headless.RateLimited("limit", resume_after="2026-07-10T12:00:00")
 
     with pytest.raises(headless.RateLimited):

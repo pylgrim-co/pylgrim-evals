@@ -175,7 +175,9 @@ def run_probe(
     install_skills(workspace, skills_source)
     seed_probe_ledger(workspace)
 
-    cli_result = headless.invoke_claude(probe.prompt, model, workspace, timeout_s)
+    cli_result = headless.invoke_claude(
+        probe.prompt, model, workspace, timeout_s, timeout_class="trigger"
+    )
     session_id = cli_result.get("session_id") or ""
     transcript = headless.copy_transcript(workspace, session_id,
                                           out_dir / "transcript.jsonl")

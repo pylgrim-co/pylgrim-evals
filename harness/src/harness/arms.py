@@ -292,7 +292,12 @@ def vague_prompt_for(task: TaskCard) -> str:
 # --- the composed channel (P-compose probe) ----------------------------------
 
 COMPOSE_MODEL = "haiku"  # the probe's pre-run composer tier (frozen)
-COMPOSE_TIMEOUT_S = 600  # compose is one short text call, not a coding run
+# Timeout class "compose": one short text call, deliberately far below
+# headless.RUN_TIMEOUT_S (the coding-run class). Kept here, not in
+# headless, because it is frozen P-compose probe configuration; the
+# invoke below names the class so its timeouts are never mistaken for
+# run timeouts (the 600s-vs-1800s confusion in the P-compose drain).
+COMPOSE_TIMEOUT_S = 600
 
 
 def render_ledger_artifacts(task: TaskCard) -> str:
@@ -364,7 +369,9 @@ def compose_claude_md(
     invoke_fn = invoke or headless.invoke_claude
     prompt = compose_prompt_for(task)
     with tempfile.TemporaryDirectory(prefix="pylgrim-compose-") as tmp:
-        cli_result = invoke_fn(prompt, COMPOSE_MODEL, Path(tmp), timeout_s)
+        cli_result = invoke_fn(
+            prompt, COMPOSE_MODEL, Path(tmp), timeout_s, timeout_class="compose"
+        )
     composed = _strip_outer_fence(str(cli_result.get("result") or ""))
     if not composed:
         raise RuntimeError(f"compose produced an empty context block for {task.id}")

@@ -81,8 +81,8 @@ There are {n} criteria; return exactly {n} verdicts, in order.
 """
 
 RETRY_PREFIX = (
-    "Your previous reply was not valid JSON. Reply with ONLY the JSON object "
-    "described below, nothing else.\n\n"
+    "Your previous reply did not match the required verdicts structure. "
+    "Reply with ONLY the JSON object described below, nothing else.\n\n"
 )
 
 
@@ -149,17 +149,46 @@ def build_prompt(task: TaskCard, diff_text: str) -> tuple[str, bool, bool]:
     return prompt, removed, truncated
 
 
-def parse_verdicts(text: str, n_criteria: int) -> list[dict[str, Any]] | None:
-    """Lenient parse of the judge's reply. None on any structural failure."""
-    if not isinstance(text, str) or not text.strip():
-        return None
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
+def verdicts_schema(n_criteria: int) -> dict[str, Any]:
+    """JSON Schema the CLI enforces on the judge's reply (`--json-schema`).
+
+    Mirrors coerce_verdicts exactly: an object with a verdicts array of
+    exactly n_criteria items, each carrying criterion / verdict / rationale.
+    The CLI validates the model's reply against this server-side and returns
+    the parsed object in the result JSON's structured_output key, so the
+    free-text-parse failure class ("judge reply unparseable") cannot occur
+    on this path.
+    """
+    return {
+        "type": "object",
+        "properties": {
+            "verdicts": {
+                "type": "array",
+                "minItems": n_criteria,
+                "maxItems": n_criteria,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "criterion": {"type": "integer"},
+                        "verdict": {"enum": list(VERDICTS)},
+                        "rationale": {"type": "string"},
+                    },
+                    "required": ["criterion", "verdict", "rationale"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["verdicts"],
+        "additionalProperties": False,
+    }
+
+
+def coerce_verdicts(data: Any, n_criteria: int) -> list[dict[str, Any]] | None:
+    """Validate/normalize an already-parsed reply object. None on failure.
+
+    The one structural validator for both reply paths: the CLI's
+    structured_output object and the lenient free-text parse.
+    """
     verdicts = data.get("verdicts") if isinstance(data, dict) else None
     if not isinstance(verdicts, list) or len(verdicts) != n_criteria:
         return None
@@ -185,6 +214,35 @@ def parse_verdicts(text: str, n_criteria: int) -> list[dict[str, Any]] | None:
     return out
 
 
+def parse_verdicts(text: str, n_criteria: int) -> list[dict[str, Any]] | None:
+    """Lenient parse of a free-text judge reply. None on any structural failure."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return coerce_verdicts(data, n_criteria)
+
+
+def extract_verdicts(
+    cli_result: dict[str, Any], n_criteria: int
+) -> list[dict[str, Any]] | None:
+    """Pull verdicts out of a CLI result: structured output first, then text.
+
+    The structured_output key (schema-validated by the CLI) is the primary
+    channel; the lenient text parse remains as a fallback for replies from
+    older CLIs or mocks that lack it.
+    """
+    structured = coerce_verdicts(cli_result.get("structured_output"), n_criteria)
+    if structured is not None:
+        return structured
+    return parse_verdicts(str(cli_result.get("result") or ""), n_criteria)
+
+
 # --- scoring --------------------------------------------------------------
 
 def artifact_name(model: str, rep: int) -> str:
@@ -197,10 +255,16 @@ def score_run(
     task: TaskCard,
     model: str = "sonnet",
     rep: int = 1,
-    timeout_s: int = 900,
+    timeout_s: int = headless.JUDGE_TIMEOUT_S,
     invoke: Callable[..., dict[str, Any]] = headless.invoke_claude,
 ) -> dict[str, Any]:
     """Judge one completed run from its stored artifacts only.
+
+    The judge call requests structured output: the CLI validates the reply
+    against verdicts_schema() and returns the parsed object, eliminating the
+    "judge reply unparseable" data-loss class (35 dead rows across E13 and
+    P-compose). One re-ask remains for the residual case of a reply that
+    passes the CLI's validation surface but fails coerce_verdicts here.
 
     Raises ArmLeakError (caller marks the judge run skipped), RateLimited
     (caller returns it to pending), or RuntimeError (caller marks it error).
@@ -220,15 +284,20 @@ def score_run(
     scratch = results_dir / "judge-scratch"
     scratch.mkdir(parents=True, exist_ok=True)
 
-    cli_result = invoke(prompt, model, scratch, timeout_s)
-    raw_text = cli_result.get("result") or ""
-    verdicts = parse_verdicts(raw_text, len(task.criteria))
+    schema = json.dumps(verdicts_schema(len(task.criteria)))
+    cli_result = invoke(
+        prompt, model, scratch, timeout_s,
+        json_schema=schema, timeout_class="judge",
+    )
+    verdicts = extract_verdicts(cli_result, len(task.criteria))
     if verdicts is None:
-        cli_result = invoke(RETRY_PREFIX + prompt, model, scratch, timeout_s)
-        raw_text = cli_result.get("result") or ""
-        verdicts = parse_verdicts(raw_text, len(task.criteria))
+        cli_result = invoke(
+            RETRY_PREFIX + prompt, model, scratch, timeout_s,
+            json_schema=schema, timeout_class="judge",
+        )
+        verdicts = extract_verdicts(cli_result, len(task.criteria))
     if verdicts is None:
-        raise RuntimeError("judge reply unparseable after one retry")
+        raise RuntimeError("judge reply failed schema validation after one re-ask")
 
     payload = {
         "judge_run_id": f"{run_id}--judge--{model}--r{rep}",
@@ -236,7 +305,8 @@ def score_run(
         "model": model,
         "rep": rep,
         "verdicts": verdicts,
-        "raw_result_text": raw_text,
+        "raw_result_text": cli_result.get("result") or "",
+        "structured_output": cli_result.get("structured_output"),
         "diff_scrubbed": scrubbed,
         "diff_truncated": truncated,
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),

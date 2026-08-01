@@ -32,7 +32,19 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-DEFAULT_TIMEOUT_S = 30 * 60
+# --- timeout classes -------------------------------------------------------
+# One named constant per invocation class. Two different "claude run timed
+# out" durations (600s vs 1800s) surfaced from the same drain because the
+# compose pre-call (arms.COMPOSE_TIMEOUT_S = 600) shared the run timeout's
+# error string; every invoke now names its class in the error so a timeout
+# is attributable at a glance. Classes:
+#   run      RUN_TIMEOUT_S here (the main coding-task invocation)
+#   judge    JUDGE_TIMEOUT_S here (one grading reply)
+#   compose  arms.COMPOSE_TIMEOUT_S (frozen P-compose probe config)
+#   skill-turn / trigger  skill_runner / trigger_check module constants
+RUN_TIMEOUT_S = 30 * 60
+JUDGE_TIMEOUT_S = 15 * 60
+DEFAULT_TIMEOUT_S = RUN_TIMEOUT_S  # back-compat alias (re-exported by runner)
 RATE_LIMIT_BACKOFF = timedelta(minutes=60)
 
 # Env vars always kept even though they match the secret-ish drop patterns
@@ -94,13 +106,21 @@ STDIN_PROMPT_THRESHOLD = 20_000
 
 
 def build_command(
-    prompt: str, model: str, resume_session: str | None = None
+    prompt: str,
+    model: str,
+    resume_session: str | None = None,
+    json_schema: str | None = None,
 ) -> tuple[list[str], str | None]:
     """Assemble the headless CLI invocation; `resume_session` continues a session.
 
     Returns (argv, stdin_payload). Short prompts ride argv (the proven path);
     prompts past STDIN_PROMPT_THRESHOLD are piped to `claude -p` on stdin,
     which accepts the prompt there when no positional prompt is given.
+
+    `json_schema` (a JSON Schema as a string) enables the CLI's structured
+    output: the model's reply is validated against the schema server-side and
+    the parsed object lands in the result JSON's `structured_output` key
+    (verified live on 2.1.175). Schemas are small, so they always ride argv.
     """
     claude = shutil.which("claude")
     if claude is None:
@@ -116,6 +136,8 @@ def build_command(
         model,
         "--dangerously-skip-permissions",
     ]
+    if json_schema:
+        cmd += ["--json-schema", json_schema]
     if resume_session:
         cmd += ["-r", resume_session]
     return cmd, (prompt if via_stdin else None)
@@ -259,13 +281,19 @@ def invoke_claude(
     workspace_dir: Path,
     timeout_s: int = DEFAULT_TIMEOUT_S,
     resume_session: str | None = None,
+    *,
+    json_schema: str | None = None,
+    timeout_class: str = "run",
 ) -> dict[str, Any]:
     """Run headless Claude Code. Returns the parsed result JSON (stdout only).
 
     Raises RateLimited on rate/usage-limit failures, RuntimeError otherwise.
     `resume_session` continues a prior session (`claude -p -r <session_id>`).
+    `json_schema` requests structured output (see build_command).
+    `timeout_class` names which timeout constant governs this call (run,
+    judge, compose, skill-turn, trigger) so a timeout error is attributable.
     """
-    cmd, stdin_payload = build_command(prompt, model, resume_session)
+    cmd, stdin_payload = build_command(prompt, model, resume_session, json_schema)
     proc = subprocess.Popen(
         cmd,
         cwd=str(workspace_dir),
@@ -281,7 +309,9 @@ def invoke_claude(
         stdout, stderr = proc.communicate(input=stdin_payload, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
-        raise RuntimeError(f"claude run timed out after {timeout_s}s")
+        raise RuntimeError(
+            f"claude call timed out after {timeout_s}s (timeout class: {timeout_class})"
+        )
 
     combined = (stdout or "") + "\n" + (stderr or "")
     result: dict[str, Any] | None

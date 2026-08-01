@@ -239,7 +239,8 @@ def execute_skill_run(
 
     for turn in range(1, scenario.max_turns + 1):
         cli_result = headless.invoke_claude(
-            prompt, run_row["model"], session_cwd, timeout_s, resume_session=session_id
+            prompt, run_row["model"], session_cwd, timeout_s,
+            resume_session=session_id, timeout_class="skill-turn",
         )
         session_id = cli_result.get("session_id") or session_id
         wall_time_s += float(cli_result.get("duration_ms") or 0) / 1000.0

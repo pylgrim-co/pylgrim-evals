@@ -127,6 +127,92 @@ def test_mark_done_error_and_summary(conn):
     assert errored["error"] == "boom"
 
 
+def test_init_db_migrates_legacy_schema_idempotently(tmp_path):
+    """A pre-heartbeat runs.db gains heartbeat_at via init_db; re-running
+    init_db on any database is a no-op (idempotence is what makes every
+    command's unconditional init_db safe)."""
+    legacy = queue.connect(tmp_path / "legacy.db")
+    legacy.executescript(
+        "CREATE TABLE runs (run_id TEXT PRIMARY KEY, repo TEXT NOT NULL, "
+        "task_id TEXT NOT NULL, arm TEXT NOT NULL, model TEXT NOT NULL, "
+        "rep INTEGER NOT NULL, seed INTEGER NOT NULL, order_key INTEGER NOT NULL, "
+        "status TEXT NOT NULL DEFAULT 'pending', attempt INTEGER NOT NULL DEFAULT 0, "
+        "session_id TEXT, transcript_path TEXT, workspace_slot INTEGER, "
+        "started_at TEXT, finished_at TEXT, error TEXT, resume_after TEXT);"
+        "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);"
+    )
+    legacy.commit()
+    cols = {r[1] for r in legacy.execute("PRAGMA table_info(runs)")}
+    assert "heartbeat_at" not in cols
+
+    queue.init_db(legacy)
+    queue.init_db(legacy)  # idempotent
+    cols = {r[1] for r in legacy.execute("PRAGMA table_info(runs)")}
+    assert "heartbeat_at" in cols
+
+
+def test_claim_stamps_heartbeat_and_heartbeat_refreshes(conn):
+    queue.insert_schedule(conn, _rows())
+    row = queue.claim_next(conn, now="2026-08-01T10:00:00+00:00")
+    stored = conn.execute(
+        "SELECT heartbeat_at FROM runs WHERE run_id = ?", (row["run_id"],)
+    ).fetchone()
+    assert stored["heartbeat_at"] == "2026-08-01T10:00:00+00:00"
+
+    queue.heartbeat(conn, row["run_id"], now="2026-08-01T10:01:00+00:00")
+    stored = conn.execute(
+        "SELECT heartbeat_at FROM runs WHERE run_id = ?", (row["run_id"],)
+    ).fetchone()
+    assert stored["heartbeat_at"] == "2026-08-01T10:01:00+00:00"
+
+    # heartbeat only touches live claims: a done run keeps its timestamp
+    queue.mark_done(conn, row["run_id"])
+    queue.heartbeat(conn, row["run_id"], now="2026-08-01T11:00:00+00:00")
+    stored = conn.execute(
+        "SELECT heartbeat_at FROM runs WHERE run_id = ?", (row["run_id"],)
+    ).fetchone()
+    assert stored["heartbeat_at"] == "2026-08-01T10:01:00+00:00"
+
+
+def test_reclaim_stale_only_takes_cold_heartbeats(conn):
+    """The parallel-safe replacement for the all-or-nothing reset: a live
+    sibling's fresh claim is never touched, a dead process's cold claim is."""
+    queue.insert_schedule(conn, _rows())
+    dead = queue.claim_next(conn, now="2026-08-01T10:00:00+00:00")
+    live = queue.claim_next(conn, now="2026-08-01T11:59:30+00:00")
+
+    reclaimed = queue.reclaim_stale(
+        conn, stale_after_s=600, now="2026-08-01T12:00:00+00:00"
+    )
+    assert reclaimed == 1
+    dead_row = conn.execute(
+        "SELECT * FROM runs WHERE run_id = ?", (dead["run_id"],)
+    ).fetchone()
+    assert dead_row["status"] == "pending"
+    assert dead_row["attempt"] == 1  # the dead attempt burned quota
+    assert dead_row["heartbeat_at"] is None
+    live_row = conn.execute(
+        "SELECT * FROM runs WHERE run_id = ?", (live["run_id"],)
+    ).fetchone()
+    assert live_row["status"] == "running"  # untouched
+
+    # the reclaimed run is claimable again
+    assert queue.claim_next(conn, now="2026-08-01T12:00:01+00:00") is not None
+
+
+def test_reclaim_stale_falls_back_to_started_at_for_legacy_claims(conn):
+    """Rows claimed by pre-heartbeat code (heartbeat_at NULL) reclaim on
+    started_at, so long-dead legacy claims do not sit forever."""
+    queue.insert_schedule(conn, _rows())
+    row = queue.claim_next(conn, now="2026-08-01T10:00:00+00:00")
+    conn.execute(
+        "UPDATE runs SET heartbeat_at = NULL WHERE run_id = ?", (row["run_id"],)
+    )
+    conn.commit()
+    assert queue.reclaim_stale(conn, 600, now="2026-08-01T10:05:00+00:00") == 0
+    assert queue.reclaim_stale(conn, 600, now="2026-08-01T12:00:00+00:00") == 1
+
+
 def test_claim_next_repo_filter(conn):
     queue.insert_schedule(
         conn,

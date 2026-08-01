@@ -221,8 +221,8 @@ def test_compose_claude_md_returns_block_and_result(tmp_path, monkeypatch):
     _patch_vague(tmp_path, monkeypatch)
     seen = {}
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
-        seen.update(prompt=prompt, model=model, cwd=cwd, timeout_s=timeout_s)
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
+        seen.update(prompt=prompt, model=model, cwd=cwd, timeout_s=timeout_s, **kwargs)
         return {"result": "# Project instructions\n\n- keep API stable",
                 "session_id": "sess-1", "total_cost_usd": 0.001}
 
@@ -232,6 +232,7 @@ def test_compose_claude_md_returns_block_and_result(tmp_path, monkeypatch):
         arms._vague_prompts.cache_clear()
     assert seen["model"] == arms.COMPOSE_MODEL == "haiku"
     assert seen["timeout_s"] == arms.COMPOSE_TIMEOUT_S
+    assert seen["timeout_class"] == "compose"  # timeouts name their class
     assert "Frobnicator broken" in seen["prompt"]
     assert composed == "# Project instructions\n\n- keep API stable\n"
     assert cli["session_id"] == "sess-1"
@@ -240,7 +241,7 @@ def test_compose_claude_md_returns_block_and_result(tmp_path, monkeypatch):
 def test_compose_strips_one_wrapping_fence(tmp_path, monkeypatch):
     _patch_vague(tmp_path, monkeypatch)
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
         return {"result": "```markdown\n# Block\n```", "session_id": "s"}
 
     try:
@@ -254,7 +255,7 @@ def test_compose_empty_result_raises(tmp_path, monkeypatch):
     """No silent fallback: an empty composition fails the run."""
     _patch_vague(tmp_path, monkeypatch)
 
-    def fake_invoke(prompt, model, cwd, timeout_s):
+    def fake_invoke(prompt, model, cwd, timeout_s, **kwargs):
         return {"result": "   \n", "session_id": "s"}
 
     try:
