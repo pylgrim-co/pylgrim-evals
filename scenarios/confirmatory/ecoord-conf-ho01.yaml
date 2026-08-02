@@ -1,0 +1,166 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-ho01
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in sibling middleware modules (timeout,
+    body-limit) with fully disjoint natural write surfaces. Their plausible
+    implementation surfaces still intersect (the §3 rule-2 floor): both
+    modules import HTTPException from src/http-exception.ts, the
+    MiddlewareHandler type from src/types.ts, and the Context type from
+    src/context.ts, so those shared files sit in each card's read-plus-write
+    neighborhood. Expected pressure score ~3 shared files, no co-written
+    file. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored label
+    is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho01-a
+    kind: coord
+    title: timeout middleware rejects a non-positive or non-numeric duration with a clear TypeError
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The timeout middleware (src/middleware/timeout/index.ts) forwards its
+      duration argument straight into setTimeout. If a caller passes NaN, a
+      negative number, Infinity, or a string, the middleware is silently
+      broken: the timer either never fires or fires immediately, and the
+      mistake only shows up as mysterious request behavior far from the
+      call site.
+
+      Add construction-time validation: when timeout(duration, exception?)
+      is called (NOT per request), throw a TypeError if duration is not a
+      finite number greater than 0. The error message must name the timeout
+      middleware and state that the duration must be a positive finite
+      number of milliseconds. Valid calls behave exactly as today, including
+      the default 504 exception and custom exception support.
+
+      Add tests in a new file
+      src/middleware/timeout/coord-duration-guard.test.ts covering, at
+      minimum, that timeout(NaN) throws TypeError; timeout(-100) throws
+      TypeError; timeout(Infinity) throws TypeError; a non-number argument
+      (e.g. a string cast to any) throws TypeError; and an app using
+      timeout(1000) with a fast handler still responds 200. Stay inside
+      src/middleware/timeout/index.ts plus your new test file. Do not touch
+      other middleware modules, the context, the exception class, or shared
+      utils. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/timeout/index.ts
+        - TypeError thrown synchronously from the timeout() factory, not per request
+        - Valid durations behave exactly as before (default and custom exceptions)
+        - New tests only, in src/middleware/timeout/coord-duration-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - timeout(NaN), timeout(-100), and timeout(Infinity) each throw a TypeError before returning a middleware handler
+          - A non-number duration (e.g. a string passed via any) throws a TypeError
+          - The TypeError message names the timeout middleware and the positive-finite-number requirement
+          - An app using timeout(1000) with a fast handler still responds 200
+          - New tests in src/middleware/timeout/coord-duration-guard.test.ts cover the NaN, negative, Infinity, non-number, and valid-duration cases
+        scope_paths:
+          - "src/middleware/timeout/index.ts"
+          - "src/middleware/timeout/coord-duration-guard.test.ts"
+        out_of_scope:
+          - "src/context.ts"
+          - "src/http-exception.ts"
+          - "src/types.ts"
+          - "src/middleware/body-limit/**"
+          - "src/middleware/basic-auth/**"
+          - "src/middleware/cache/**"
+          - "src/middleware/compress/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/timeout/coord-duration-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho01-b
+    kind: coord
+    title: bodyLimit rejects a missing or invalid maxSize instead of silently disabling the limit
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The bodyLimit middleware (src/middleware/body-limit/index.ts) reads
+      options.maxSize and compares body sizes against it. If maxSize is
+      missing, NaN, or a non-number (an easy typo in an options object),
+      every size comparison is false and the limit is silently disabled:
+      the middleware looks active but enforces nothing, which is the worst
+      possible failure mode for a guardrail.
+
+      Add construction-time validation: when bodyLimit(options) is called
+      (NOT per request), throw a TypeError if options.maxSize is not a
+      finite number greater than or equal to 0. The error message must name
+      the bodyLimit middleware and state that maxSize must be a
+      non-negative finite number of bytes. Valid configurations behave
+      exactly as today, including the default 413 response and the onError
+      hook.
+
+      Add tests in a new file
+      src/middleware/body-limit/coord-max-size-guard.test.ts covering, at
+      minimum, that bodyLimit called with an empty options object (cast to
+      any) throws TypeError; maxSize of NaN throws TypeError; a string
+      maxSize throws TypeError; a negative maxSize throws TypeError; and a
+      valid maxSize still rejects an over-limit POST body with status 413
+      while an under-limit POST passes. Stay inside
+      src/middleware/body-limit/index.ts plus your new test file. Do not
+      touch other middleware modules, the context, the exception class, or
+      shared utils. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/body-limit/index.ts
+        - TypeError thrown synchronously from the bodyLimit() factory, not per request
+        - Valid maxSize configurations behave exactly as before (413 default, onError hook)
+        - New tests only, in src/middleware/body-limit/coord-max-size-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - bodyLimit with a missing, NaN, string, or negative maxSize throws a TypeError before returning a middleware handler
+          - The TypeError message names the bodyLimit middleware and the non-negative finite-number requirement
+          - With a valid maxSize, an over-limit POST body is rejected with status 413
+          - With a valid maxSize, an under-limit POST body passes through to the handler
+          - New tests in src/middleware/body-limit/coord-max-size-guard.test.ts cover the missing, NaN, string, negative, over-limit, and under-limit cases
+        scope_paths:
+          - "src/middleware/body-limit/index.ts"
+          - "src/middleware/body-limit/coord-max-size-guard.test.ts"
+        out_of_scope:
+          - "src/context.ts"
+          - "src/http-exception.ts"
+          - "src/types.ts"
+          - "src/middleware/timeout/**"
+          - "src/middleware/basic-auth/**"
+          - "src/middleware/cache/**"
+          - "src/middleware/compress/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/body-limit/coord-max-size-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

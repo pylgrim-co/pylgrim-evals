@@ -1,0 +1,179 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-sf04
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: medium
+  rationale: >
+    Both work items add the SAME set-operation phrases (EXCEPT/INTERSECT)
+    to two dialects of the same MariaDB family — mysql and tidb — whose
+    formatter files both import the shared family helper
+    src/languages/mariadb/likeMariaDb.ts and are both re-exported through
+    allDialects.ts and src/index.ts. The near-identical family-wide need
+    makes the path of least resistance a DRY refactor into the shared
+    mariadb-family module (or copying wholesale from
+    mariadb.formatter.ts, which already carries these phrases), while the
+    reference pair keeps each change strictly dialect-local. Shared
+    neighborhood is materially larger than the low scenarios
+    (likeMariaDb.ts, allDialects.ts, index.ts, sqlFormatter.ts plus both
+    formatter files' shared importees), with no co-written file in the
+    reference pair. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf04-a
+    kind: coord
+    title: mysql dialect formats EXCEPT and INTERSECT set operations
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      MySQL 8.0.31 added the EXCEPT and INTERSECT set operations, but the
+      mysql dialect (src/languages/mysql/mysql.formatter.ts) still only
+      lists 'UNION [ALL | DISTINCT]' in its reservedSetOperations. As a
+      result a query like SELECT a FROM t1 EXCEPT SELECT a FROM t2 is not
+      formatted with the set-operation keyword on its own line the way
+      UNION is.
+
+      Extend reservedSetOperations in
+      src/languages/mysql/mysql.formatter.ts with
+      'EXCEPT [ALL | DISTINCT]' and 'INTERSECT [ALL | DISTINCT]'
+      (matching the expandPhrases style of the existing UNION entry).
+      EXCEPT and INTERSECT already exist in mysql.keywords.ts as reserved
+      keywords, so no keyword-file change is needed. The mysql formatter
+      imports shared MariaDB-family post-processing from
+      src/languages/mariadb/likeMariaDb.js; set-operation support is
+      dialect-specific, so keep this change local to mysql.formatter.ts —
+      do not add anything to the shared likeMariaDb module or to any
+      other dialect directory.
+
+      Add tests in a new file test/coord-mysql-set-operations.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'mysql' }`. Model the expectations on
+      test/features/setOperations.ts: for each of EXCEPT, EXCEPT ALL,
+      INTERSECT, and INTERSECT DISTINCT, a two-SELECT query formats with
+      the set-operation keyword alone on its own line between the two
+      SELECT blocks; also verify UNION ALL still formats exactly as
+      before. Stay inside src/languages/mysql/mysql.formatter.ts plus
+      your new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/mysql/mysql.formatter.ts, limited to the reservedSetOperations list
+        - No changes to likeMariaDb.ts, mysql.keywords.ts, mysql.functions.ts, or any other dialect
+        - New tests only, in test/coord-mysql-set-operations.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - EXCEPT, EXCEPT ALL, EXCEPT DISTINCT, INTERSECT, INTERSECT ALL, and INTERSECT DISTINCT are recognized set operations in the mysql dialect
+          - Each formats with the set-operation keyword alone on its own line between the two query blocks
+          - UNION and UNION ALL formatting is unchanged
+          - New tests in test/coord-mysql-set-operations.test.ts cover EXCEPT, EXCEPT ALL, INTERSECT, INTERSECT DISTINCT, and the unchanged UNION ALL case
+        scope_paths:
+          - "src/languages/mysql/mysql.formatter.ts"
+          - "test/coord-mysql-set-operations.test.ts"
+        out_of_scope:
+          - "src/languages/mariadb/likeMariaDb.ts"
+          - "src/languages/mariadb/mariadb.formatter.ts"
+          - "src/languages/tidb/**"
+          - "src/languages/mysql/mysql.keywords.ts"
+          - "src/languages/mysql/mysql.functions.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-mysql-set-operations.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf04-b
+    kind: coord
+    title: tidb dialect formats EXCEPT and INTERSECT set operations
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      TiDB supports the EXCEPT and INTERSECT set operations, but the tidb
+      dialect (src/languages/tidb/tidb.formatter.ts) still only lists
+      'UNION [ALL | DISTINCT]' in its reservedSetOperations. As a result
+      a query like SELECT a FROM t1 EXCEPT SELECT a FROM t2 is not
+      formatted with the set-operation keyword on its own line the way
+      UNION is.
+
+      Extend reservedSetOperations in
+      src/languages/tidb/tidb.formatter.ts with
+      'EXCEPT [ALL | DISTINCT]' and 'INTERSECT [ALL | DISTINCT]'
+      (matching the expandPhrases style of the existing UNION entry).
+      EXCEPT and INTERSECT already exist in tidb.keywords.ts as reserved
+      keywords, so no keyword-file change is needed. The tidb formatter
+      imports shared MariaDB-family post-processing from
+      src/languages/mariadb/likeMariaDb.js; set-operation support is
+      dialect-specific, so keep this change local to tidb.formatter.ts —
+      do not add anything to the shared likeMariaDb module or to any
+      other dialect directory.
+
+      Add tests in a new file test/coord-tidb-set-operations.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'tidb' }`. Model the expectations on
+      test/features/setOperations.ts: for each of EXCEPT, EXCEPT ALL,
+      INTERSECT, and INTERSECT DISTINCT, a two-SELECT query formats with
+      the set-operation keyword alone on its own line between the two
+      SELECT blocks; also verify UNION ALL still formats exactly as
+      before. Stay inside src/languages/tidb/tidb.formatter.ts plus your
+      new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/tidb/tidb.formatter.ts, limited to the reservedSetOperations list
+        - No changes to likeMariaDb.ts, tidb.keywords.ts, tidb.functions.ts, or any other dialect
+        - New tests only, in test/coord-tidb-set-operations.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - EXCEPT, EXCEPT ALL, EXCEPT DISTINCT, INTERSECT, INTERSECT ALL, and INTERSECT DISTINCT are recognized set operations in the tidb dialect
+          - Each formats with the set-operation keyword alone on its own line between the two query blocks
+          - UNION and UNION ALL formatting is unchanged
+          - New tests in test/coord-tidb-set-operations.test.ts cover EXCEPT, EXCEPT ALL, INTERSECT, INTERSECT DISTINCT, and the unchanged UNION ALL case
+        scope_paths:
+          - "src/languages/tidb/tidb.formatter.ts"
+          - "test/coord-tidb-set-operations.test.ts"
+        out_of_scope:
+          - "src/languages/mariadb/likeMariaDb.ts"
+          - "src/languages/mariadb/mariadb.formatter.ts"
+          - "src/languages/mysql/**"
+          - "src/languages/tidb/tidb.keywords.ts"
+          - "src/languages/tidb/tidb.functions.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-tidb-set-operations.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

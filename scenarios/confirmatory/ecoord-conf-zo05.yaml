@@ -1,0 +1,185 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zo05
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: high
+  rationale: >
+    Both work items add a new top-level string format, which forces BOTH
+    cards to write the same two shared files: the custom-string-format
+    neighborhood of packages/zod/src/v4/classic/schemas.ts (the
+    hostname/hex/hash block, where the two natural insertion points sit
+    a dozen lines apart) and the regex catalog
+    packages/zod/src/v4/core/regexes.ts. Two co-written files, one of
+    them the pattern catalog imported across core and classic — the §3
+    rule-2 shared catalog case at full strength, and the closest zod
+    analogue of the pilot cl03 shape. A region-disjoint solution pair
+    exists: one factory inserted after hex() and the other after hash()
+    in schemas.ts (separated by the full hash function), and the two
+    regexes at distant positions in regexes.ts (the hex block vs the end
+    of the catalog). The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-zo05-a
+    kind: coord
+    title: "add a z.hexColor() string format for CSS hex color values"
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Zod's classic API ships first-class string formats for hostnames,
+      hex strings, and hash digests (packages/zod/src/v4/classic/
+      schemas.ts, the hostname/hex/hash block built on
+      core._stringFormat), but validating a CSS hex color — one of the
+      most common web-form fields — still requires a hand-written regex.
+
+      Add a hexColor regex to the catalog in
+      packages/zod/src/v4/core/regexes.ts (near the existing hex
+      pattern, following the file's export style): it must accept a
+      leading # followed by exactly 3, 4, 6, or 8 hex digits (so #abc,
+      #abcd, #a1b2c3, and #a1b2c3ff), case-insensitive via the character
+      class, anchored at both ends. Then add a hexColor() factory to
+      packages/zod/src/v4/classic/schemas.ts next to the existing hex()
+      factory, following the hostname()/hex() pattern exactly: it takes
+      _params?: string | core.$ZodStringFormatParams and returns
+      core._stringFormat(ZodCustomStringFormat, "hex_color",
+      core.regexes.hexColor, _params). The factory is picked up by the
+      package root automatically through the existing star export; do
+      not edit external.ts or index files.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-hex-color.test.ts (import
+      from "zod/v4") covering: "#fff", "#abcd", "#A1B2C3", and
+      "#a1b2c3ff" parse successfully; "fff" (missing #), "#ggg" (bad
+      digits), "#12345" (bad length), and "" fail; a custom error
+      message passed as params surfaces on failure; and z.hexColor() is
+      chainable with .min(4). Stay inside the two named files plus your
+      new test file. Do not touch core/api.ts, core/checks.ts, the
+      classic checks registry, or iso.ts. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation limited to a hexColor regex in packages/zod/src/v4/core/regexes.ts and a hexColor() factory in packages/zod/src/v4/classic/schemas.ts
+        - The factory follows the existing hostname()/hex() core._stringFormat pattern with format name hex_color
+        - No edits to external.ts, index files, core/api.ts, or the checks registry
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-hex-color.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "z.hexColor().parse(\"#a1b2c3\") succeeds; \"#fff\", \"#abcd\", and \"#a1b2c3ff\" also pass"
+          - "\"fff\", \"#ggg\", \"#12345\", and \"\" all fail validation"
+          - A custom error message passed as params appears in the failure issues
+          - core.regexes.hexColor is exported from the regex catalog and anchored at both ends
+          - New tests in coord-hex-color.test.ts cover valid, invalid, custom-message, and chaining cases
+        scope_paths:
+          - "packages/zod/src/v4/core/regexes.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/tests/coord-hex-color.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/iso.ts"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-hex-color.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo05-b
+    kind: coord
+    title: "add a z.semver() string format for Semantic Versioning 2.0.0 strings"
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Zod's classic API ships first-class string formats for hostnames,
+      hex strings, and hash digests (packages/zod/src/v4/classic/
+      schemas.ts, the hostname/hex/hash block built on
+      core._stringFormat), but validating a semantic version — package
+      manifests, API version fields, release tooling — still requires a
+      hand-written regex.
+
+      Add a semver regex to the catalog in
+      packages/zod/src/v4/core/regexes.ts (following the file's export
+      style; the official SemVer 2.0.0 suggested regex is the reference
+      behavior): it must accept MAJOR.MINOR.PATCH with non-negative
+      integers and no leading zeros, an optional dot-separated
+      prerelease after a hyphen, and optional build metadata after a
+      plus, anchored at both ends. Then add a semver() factory to
+      packages/zod/src/v4/classic/schemas.ts next to the existing custom
+      string formats, following the hostname()/hex() pattern exactly: it
+      takes _params?: string | core.$ZodStringFormatParams and returns
+      core._stringFormat(ZodCustomStringFormat, "semver",
+      core.regexes.semver, _params). The factory is picked up by the
+      package root automatically through the existing star export; do
+      not edit external.ts or index files.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-semver.test.ts (import
+      from "zod/v4") covering: "0.1.0", "1.2.3", "1.0.0-alpha.1",
+      "2.0.0+build.7", and "1.0.0-rc.1+sha.abc" parse successfully;
+      "1.2", "v1.2.3", "1.02.3" (leading zero), "1.2.3-" (empty
+      prerelease), and "" fail; a custom error message passed as params
+      surfaces on failure; and z.semver() is chainable with .max(64).
+      Stay inside the two named files plus your new test file. Do not
+      touch core/api.ts, core/checks.ts, the classic checks registry, or
+      iso.ts. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation limited to a semver regex in packages/zod/src/v4/core/regexes.ts and a semver() factory in packages/zod/src/v4/classic/schemas.ts
+        - The factory follows the existing hostname()/hex() core._stringFormat pattern with format name semver
+        - No edits to external.ts, index files, core/api.ts, or the checks registry
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-semver.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "z.semver().parse(\"1.2.3\") succeeds; \"0.1.0\", \"1.0.0-alpha.1\", \"2.0.0+build.7\", and \"1.0.0-rc.1+sha.abc\" also pass"
+          - "\"1.2\", \"v1.2.3\", \"1.02.3\", \"1.2.3-\", and \"\" all fail validation"
+          - A custom error message passed as params appears in the failure issues
+          - core.regexes.semver is exported from the regex catalog and anchored at both ends
+          - New tests in coord-semver.test.ts cover valid, invalid, custom-message, and chaining cases
+        scope_paths:
+          - "packages/zod/src/v4/core/regexes.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/tests/coord-semver.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/iso.ts"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-semver.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

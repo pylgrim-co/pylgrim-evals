@@ -1,0 +1,189 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-sf06
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME central file,
+    src/validateConfig.ts — the ~50-line config gatekeeper that every
+    format() and formatDialect() call runs through — and both naturally
+    insert new checks into the SAME validateConfig() function body,
+    directly alongside the existing expressionWidth check that both
+    prompts point at as the house style to follow. The careless path of
+    least resistance for both cards is the identical insertion point
+    right after that block, so this is maximal same-function pressure —
+    yet a region-disjoint solution pair exists (one card inserts its
+    checks immediately after the expressionWidth block, the other adds
+    its check just before the return with a helper appended after the
+    existing helpers at the end of the file), separated by the untouched
+    params/paramTypes blocks, keeping collision evitable per §3 rule 1.
+    validateConfig.ts's importers (sqlFormatter.ts, index.ts) and
+    importees (FormatOptions.ts, Params.ts, TokenizerOptions.ts) land in
+    both neighborhoods. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf06-a
+    kind: coord
+    title: validateConfig rejects negative or non-finite numeric layout options
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      validateConfig() in src/validateConfig.ts guards expressionWidth
+      (it must be a positive number) but lets the other numeric layout
+      options through unchecked: tabWidth of -2 silently yields broken
+      indentation via ' '.repeat clamping semantics, and a negative
+      linesBetweenQueries produces nonsense joins between statements.
+      JavaScript callers without type checking hit these regularly.
+
+      Add validation to validateConfig() in src/validateConfig.ts:
+      tabWidth must be a finite number greater than or equal to zero, and
+      linesBetweenQueries must be a finite number greater than or equal
+      to zero. When a value fails, throw ConfigError with a message that
+      names the option and the received value, following the wording
+      style of the existing expressionWidth check. Valid configs
+      (including tabWidth of 0) must pass through unchanged. Keep the
+      change inside src/validateConfig.ts; do not add checks to
+      src/sqlFormatter.ts, the formatter core, or anywhere else, and do
+      not alter the existing expressionWidth, removed-options, params, or
+      paramTypes checks.
+
+      Add tests in a new file
+      test/coord-numeric-option-validation.test.ts, importing the
+      formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';` plus ConfigError
+      from '../src/index.js'). Cover: formatting with tabWidth -2 throws
+      ConfigError with a message naming tabWidth and -2; formatting with
+      linesBetweenQueries -1 throws ConfigError naming
+      linesBetweenQueries; formatting with a non-finite tabWidth (NaN or
+      Infinity) throws ConfigError; tabWidth 0 is accepted; and a normal
+      config still formats correctly. Stay inside src/validateConfig.ts
+      plus your new test file. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/validateConfig.ts, adding numeric checks for tabWidth and linesBetweenQueries
+        - Failures throw ConfigError naming the option and the received value
+        - tabWidth 0 and all currently-valid configs still pass
+        - Existing checks are left untouched
+        - New tests only, in test/coord-numeric-option-validation.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A negative tabWidth throws ConfigError naming the option and value
+          - A negative linesBetweenQueries throws ConfigError naming the option
+          - A non-finite tabWidth throws ConfigError
+          - tabWidth 0 is accepted and normal configs format unchanged
+          - New tests in test/coord-numeric-option-validation.test.ts cover the negative-tabWidth, negative-linesBetweenQueries, non-finite, zero, and valid-config cases
+        scope_paths:
+          - "src/validateConfig.ts"
+          - "test/coord-numeric-option-validation.test.ts"
+        out_of_scope:
+          - "src/sqlFormatter.ts"
+          - "src/FormatOptions.ts"
+          - "src/index.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-numeric-option-validation.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf06-b
+    kind: coord
+    title: validateConfig rejects invalid case option values with a clear ConfigError
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The four casing options — keywordCase, identifierCase,
+      dataTypeCase, and functionCase — are typed as
+      'preserve' | 'upper' | 'lower' in src/FormatOptions.ts, but
+      validateConfig() in src/validateConfig.ts never checks them at
+      runtime. A JavaScript caller who passes keywordCase 'uppercase' (a
+      very natural guess) gets no error and no casing, because the switch
+      statements in the formatter simply fall through and return
+      undefined-ish behavior silently.
+
+      Add validation to validateConfig() in src/validateConfig.ts: each
+      of keywordCase, identifierCase, dataTypeCase, and functionCase must
+      be one of the strings preserve, upper, or lower. When a value is
+      anything else, throw ConfigError with a message that names the
+      offending option, the received value, and the three allowed values,
+      following the wording style of the existing expressionWidth check.
+      Implement the check once (for example a small helper alongside the
+      existing validateParams/validateParamTypes helpers) rather than
+      four copy-pasted blocks. All currently-valid configs must pass
+      through unchanged. Keep the change inside src/validateConfig.ts; do
+      not add checks to src/sqlFormatter.ts, src/FormatOptions.ts, the
+      formatter core, or anywhere else, and do not alter the existing
+      expressionWidth, removed-options, params, or paramTypes checks.
+
+      Add tests in a new file test/coord-case-option-validation.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';` plus ConfigError
+      from '../src/index.js'). Cover: formatting with keywordCase
+      'uppercase' throws ConfigError with a message naming keywordCase
+      and 'uppercase'; an invalid identifierCase value throws ConfigError
+      naming identifierCase; an invalid functionCase value and an invalid
+      dataTypeCase value each throw ConfigError; and each of the three
+      valid values (preserve, upper, lower) is accepted for keywordCase
+      and formats successfully. Stay inside src/validateConfig.ts plus
+      your new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/validateConfig.ts, adding a shared runtime check for the four case options
+        - Failures throw ConfigError naming the option, the received value, and the allowed values
+        - All currently-valid configs still pass
+        - Existing checks are left untouched
+        - New tests only, in test/coord-case-option-validation.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An invalid keywordCase value throws ConfigError naming the option and value
+          - Invalid identifierCase, dataTypeCase, and functionCase values each throw ConfigError naming the option
+          - The error message lists the allowed values preserve, upper, and lower
+          - All three valid values are accepted for the case options and formatting succeeds
+          - New tests in test/coord-case-option-validation.test.ts cover invalid values for all four options and the valid-value cases
+        scope_paths:
+          - "src/validateConfig.ts"
+          - "test/coord-case-option-validation.test.ts"
+        out_of_scope:
+          - "src/sqlFormatter.ts"
+          - "src/FormatOptions.ts"
+          - "src/index.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-case-option-validation.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

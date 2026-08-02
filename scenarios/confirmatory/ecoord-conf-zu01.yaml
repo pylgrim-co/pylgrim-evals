@@ -1,0 +1,177 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zu01
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in sibling middleware modules
+    (subscribeWithSelector, ssrSafe) with fully disjoint natural write
+    surfaces. Their plausible implementation surfaces still intersect (the
+    §3 rule-2 floor): both modules are typed against src/vanilla.ts
+    (StateCreator, StoreMutatorIdentifier) and both are re-exported through
+    the shared registry src/middleware.ts, so both files sit in each card's
+    read-plus-write neighborhood. Expected pressure score ~2 shared files,
+    no co-written file. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-zu01-a
+    kind: coord
+    title: subscribeWithSelector validates selector-form arguments with a clear TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The subscribeWithSelector middleware
+      (src/middleware/subscribeWithSelector.ts) wraps api.subscribe so it
+      can be called in a selector form, subscribe(selector, listener,
+      options?). At runtime nothing checks those arguments — calling
+      subscribe(selector, "oops") or subscribe(42, listener) registers
+      garbage that only blows up later, deep inside the notification path,
+      with a confusing stack trace far from the buggy call site.
+
+      Add argument validation to the selector form inside the wrapped
+      subscribe in src/middleware/subscribeWithSelector.ts: whenever a
+      second argument (the optListener slot) is provided, throw a TypeError
+      with a clear message if the first argument is not a function or the
+      second argument is not a function. Nothing may be registered when
+      validation fails. The single-argument form subscribe(listener) must
+      be forwarded exactly as today, unchanged, whatever its argument is.
+      Valid selector subscriptions must behave exactly as before.
+
+      Add tests in a new file tests/coord/select-subscribe-guard.test.ts
+      covering: a valid selector subscription still fires its listener when
+      the selected slice changes and stays silent when an unrelated slice
+      changes; calling the wrapped subscribe with a valid selector and a
+      non-function second argument throws TypeError; calling it with a
+      non-function first argument and a valid listener throws TypeError;
+      after a rejected call, a later setState still notifies only the
+      validly registered listeners; the single-argument listener form still
+      works. Stay inside src/middleware/subscribeWithSelector.ts plus your
+      new test file. Do not touch other middleware modules, the middleware
+      registry, or the vanilla core. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/subscribeWithSelector.ts
+        - Validation applies only when a second argument is provided; the single-argument form is untouched
+        - Valid selector subscriptions behave exactly as before
+        - New tests only, in tests/coord/select-subscribe-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - Calling the wrapped subscribe with a selector and a non-function listener throws TypeError and registers nothing
+          - Calling the wrapped subscribe with a non-function selector and a function listener throws TypeError and registers nothing
+          - A valid selector subscription fires on selected-slice changes and not on unrelated changes, exactly as before
+          - The single-argument subscribe(listener) form is forwarded unchanged
+          - New tests in tests/coord/select-subscribe-guard.test.ts cover the valid, bad-listener, bad-selector, post-rejection, and single-argument cases
+        scope_paths:
+          - "src/middleware/subscribeWithSelector.ts"
+          - "tests/coord/select-subscribe-guard.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/select-subscribe-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu01-b
+    kind: coord
+    title: ssrSafe gains a warnOnly option that reports SSR setState instead of throwing
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The experimental ssrSafe middleware (src/middleware/ssrSafe.ts)
+      replaces setState with a function that throws 'Cannot set state of
+      Zustand store in SSR' whenever isSSR is true. For stores that receive
+      fire-and-forget updates from shared code paths, throwing is too
+      blunt — teams want the server render to survive and the stray update
+      to be reported instead of crashing the whole render.
+
+      Extend the signature in src/middleware/ssrSafe.ts to
+      ssrSafe(config, isSSR?, options?) where options is
+      { warnOnly?: boolean }. When warnOnly is true and the store is in SSR
+      mode, a setState call must become a no-op that calls console.warn
+      once per call with a message saying the zustand store cannot be set
+      during SSR; state must not change and nothing may throw. When
+      warnOnly is absent or false, the current throwing behavior is
+      preserved exactly, same message. When isSSR is false the middleware
+      remains a pure pass-through regardless of options. The no-op-or-throw
+      replacement must apply on both paths ssrSafe covers today, the
+      api.setState method and the set function handed to config.
+
+      Add tests in a new file tests/coord/ssr-safe-warn.test.ts covering:
+      with isSSR true and no options, setState still throws with the
+      existing message; with isSSR true and warnOnly true, setState does
+      not throw, console.warn is called, and getState() is unchanged; with
+      isSSR false, setState updates state normally whether or not options
+      are passed. Stay inside src/middleware/ssrSafe.ts plus your new test
+      file. Do not touch other middleware modules, the middleware registry,
+      or the vanilla core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/ssrSafe.ts
+        - Default behavior (throw during SSR) unchanged when warnOnly is absent or false
+        - warnOnly SSR sets are silent no-ops apart from one console.warn per call; state never changes
+        - Non-SSR behavior is a pass-through regardless of options
+        - New tests only, in tests/coord/ssr-safe-warn.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With isSSR true and no options, setState throws with the existing SSR message
+          - With isSSR true and warnOnly true, setState does not throw, calls console.warn once per call, and leaves getState() unchanged
+          - With isSSR false, state updates work normally with or without options
+          - Both api.setState and the set passed to config follow the same warn-or-throw rule
+          - New tests in tests/coord/ssr-safe-warn.test.ts cover the default-throw, warn-only, and non-SSR cases
+        scope_paths:
+          - "src/middleware/ssrSafe.ts"
+          - "tests/coord/ssr-safe-warn.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/ssr-safe-warn.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

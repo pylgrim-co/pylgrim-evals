@@ -1,0 +1,159 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5.
+# Cards are authored and committed BEFORE any reference solution exists;
+# the git sequence of this file is the audit trail.
+scenario_id: ecoord-conf-cl04
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: medium
+  rationale: >
+    Both cards fix the same failure class, an OSError whose strerror is
+    None surfacing as "unknown error" or a literal "None", on the two
+    file-opening paths: card A in utils.LazyFile.open, card B in
+    types.File.convert. File.convert directly constructs LazyFile, the
+    exact class card A modifies, and types.py imports it from utils.py at
+    module top, so card B's surface flows through card A's module. The
+    obvious careless refactor is one shared fallback helper placed in
+    utils.py (or _compat.py) and imported from both files, which would
+    co-write card A's module; the reference pair keeps each fix local to
+    its own file, so no file is co-written. Both files share core.py and
+    _compat.py as first-degree neighbors. Measured score computed by
+    scripts/scenario-check.sh; stratum re-checked against the measurement
+    before freeze.
+cards:
+  - id: ecoord-conf-cl04-a
+    kind: coord
+    title: LazyFile.open reports the real error when strerror is missing
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      LazyFile.open in src/click/utils.py wraps an OSError from
+      open_stream into FileError with hint=e.strerror. OSErrors raised
+      programmatically with a single argument (OSError("disk quota
+      exceeded"), common from wrapped stream openers and filesystem
+      shims) carry strerror None, so the user sees "Could not open file
+      '...': unknown error" and the real reason is dropped on the floor.
+
+      Change LazyFile.open in src/click/utils.py so the FileError hint
+      falls back to str(e) when e.strerror is None or empty; when strerror
+      is present, behavior is byte-for-byte unchanged. Keep the fix inline
+      inside LazyFile.open. Do not add helper functions elsewhere, and do
+      not modify _compat.py.
+
+      Add tests in a new file tests/test_coord_lazyfile_oserror.py
+      covering: with click.utils.open_stream monkeypatched to raise
+      OSError("disk quota exceeded"), LazyFile("x.txt", "w").open() raises
+      FileError whose formatted message contains "disk quota exceeded" and
+      not "unknown error"; with open_stream monkeypatched to raise
+      OSError(13, "Permission denied"), the message still contains
+      "Permission denied" exactly as today; unpatched, a LazyFile opened
+      for "w" under tmp_path still opens and writes normally. Scope:
+      src/click/utils.py plus your new test file. Do not touch types.py,
+      _compat.py, core.py, or exceptions.py. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/utils.py, limited to LazyFile.open's OSError handler
+        - Fallback applies only when strerror is None or empty; present strerror behavior unchanged
+        - No new shared helpers; the fix stays inline in LazyFile.open
+        - New tests only, in tests/test_coord_lazyfile_oserror.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An OSError with strerror None yields a FileError message containing str(e) instead of "unknown error"
+          - An OSError with a populated strerror yields the same message as today
+          - The unpatched happy path still opens and writes a real file
+          - New tests in tests/test_coord_lazyfile_oserror.py cover the None-strerror, populated-strerror, and happy-path cases via monkeypatched click.utils.open_stream
+        scope_paths:
+          - "src/click/utils.py"
+          - "tests/test_coord_lazyfile_oserror.py"
+        out_of_scope:
+          - "src/click/types.py"
+          - "src/click/_compat.py"
+          - "src/click/core.py"
+          - "src/click/exceptions.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_lazyfile_oserror.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl04-b
+    kind: coord
+    title: File param type reports the real error when strerror is missing
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      File.convert in src/click/types.py reports open failures with the
+      f-string "'{filename}': {e.strerror}". An OSError raised with a
+      single argument (OSError("kaboom"), typical of wrapped stream
+      openers and custom filesystem layers) has strerror None, so the CLI
+      user is told "'x.txt': None", which is worse than no message.
+
+      Change the OSError handler in File.convert in src/click/types.py so
+      the message falls back to str(e) when e.strerror is None or empty;
+      when strerror is present, the message is byte-for-byte unchanged.
+      Keep the fix inline inside File.convert. Do not modify utils.py or
+      _compat.py, and do not introduce shared helper functions.
+
+      Add tests in a new file tests/test_coord_file_type_oserror.py
+      covering: with click.types.open_stream monkeypatched to raise
+      OSError("kaboom"), File("r").convert("x.txt", None, None) raises a
+      click.UsageError (BadParameter) whose message contains "kaboom" and
+      does not contain the substring "None"; with open_stream
+      monkeypatched to raise OSError(2, "No such file or directory"), the
+      message still contains "No such file or directory" exactly as
+      today; unpatched, a CliRunner invocation of a command taking an
+      option of type File("r") pointed at a missing path still exits 2
+      and names the file. Scope: src/click/types.py plus your new test
+      file. Do not touch utils.py, _compat.py, core.py, or exceptions.py.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/types.py, limited to File.convert's OSError handler
+        - Fallback applies only when strerror is None or empty; present strerror behavior unchanged
+        - No new shared helpers; the fix stays inline in File.convert
+        - New tests only, in tests/test_coord_file_type_oserror.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An OSError with strerror None yields a conversion error containing str(e) and no literal "None"
+          - An OSError with a populated strerror yields the same message as today
+          - A CliRunner run against a genuinely missing file still exits 2 and names the file
+          - New tests in tests/test_coord_file_type_oserror.py cover the None-strerror, populated-strerror, and real-missing-file cases via monkeypatched click.types.open_stream
+        scope_paths:
+          - "src/click/types.py"
+          - "tests/test_coord_file_type_oserror.py"
+        out_of_scope:
+          - "src/click/utils.py"
+          - "src/click/_compat.py"
+          - "src/click/core.py"
+          - "src/click/exceptions.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_file_type_oserror.py"
+      deterministic_checks: []
+    source:
+      authored: true

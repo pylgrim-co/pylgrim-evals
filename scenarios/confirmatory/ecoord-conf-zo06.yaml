@@ -1,0 +1,195 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zo06
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: high
+  rationale: >
+    Both work items add a new standalone overwrite check, which forces
+    BOTH cards to write the same two shared files: the transform-factory
+    block of packages/zod/src/v4/core/api.ts (the _overwrite / _normalize
+    / _trim / _toLowerCase / _toUpperCase / _slugify run, where both new
+    factories naturally land) and the 33-line alias registry
+    packages/zod/src/v4/classic/checks.ts (one new "_x as x" line each,
+    in the same short export list). A co-written central catalog PLUS a
+    co-written registry — the pilot cl03 shape at full strength, and the
+    likeliest same-file collision in the zod set because the careless
+    default is to append both factories at the end of the transform
+    block and both aliases at the end of the registry list. A
+    region-disjoint solution pair exists: one factory after _normalize
+    and the other after _slugify in api.ts (roughly twenty lines apart),
+    and the two alias lines four lines apart in checks.ts (after
+    "_normalize as normalize" vs after "_slugify as slugify"), which
+    git merge-tree merges cleanly. The measured score is computed
+    mechanically by scripts/scenario-check.sh from the reference diffs;
+    this authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-zo06-a
+    kind: coord
+    title: "add a z.capitalize() standalone overwrite check for strings"
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Zod v4 exposes standalone transform checks — z.trim(),
+      z.normalize(), z.toLowerCase(), z.toUpperCase(), z.slugify() —
+      usable as z.string().check(z.trim()). They are implemented as
+      small factories in the transform block of
+      packages/zod/src/v4/core/api.ts (each wraps _overwrite) and
+      surfaced through the alias registry
+      packages/zod/src/v4/classic/checks.ts. Capitalizing a value
+      (uppercase the first character, leave the rest untouched) is a
+      routine display-name cleanup with no first-class check.
+
+      Add _capitalize to packages/zod/src/v4/core/api.ts in the
+      transform block, following the _trim pattern exactly: a
+      no-argument factory returning
+      checks.$ZodCheckOverwrite<string> built on _overwrite, whose
+      transform uppercases the first character of the input and leaves
+      every other character unchanged (an empty string stays empty; a
+      first character with no uppercase form is left as is). Include the
+      same leading comment style as its neighbors. Then register the
+      classic alias in packages/zod/src/v4/classic/checks.ts by adding
+      "_capitalize as capitalize" to the existing export list, following
+      its "_x as x" pattern. No other file changes: the top-level
+      z.capitalize comes from the existing star exports.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts
+      (import from "zod/v4") covering:
+      z.string().check(z.capitalize()).parse("hello world") returns
+      "Hello world"; an already-capitalized input is unchanged; ""
+      stays ""; a single character is uppercased; and the check composes
+      after z.trim() in the same .check(...) call ("  hello" with trim
+      then capitalize yields "Hello"). Stay inside the two named files
+      plus your new test file. Do not touch core/checks.ts,
+      core/util.ts, classic/schemas.ts, or the export registries. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation limited to a _capitalize factory in packages/zod/src/v4/core/api.ts and one alias line in packages/zod/src/v4/classic/checks.ts
+        - The factory mirrors _trim (no arguments, _overwrite-based, $ZodCheckOverwrite<string> return type)
+        - Only the first character is affected; no locale-specific casing logic
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "z.string().check(z.capitalize()).parse(\"hello world\") returns \"Hello world\""
+          - "Already-capitalized input and the empty string pass through unchanged"
+          - A single-character input is uppercased
+          - "z.string().check(z.trim(), z.capitalize()).parse(\"  hello\") returns \"Hello\""
+          - New tests in coord-check-capitalize.test.ts cover basic, no-op, empty, single-char, and composition cases
+        scope_paths:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/core/index.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo06-b
+    kind: coord
+    title: "add a z.truncate() standalone overwrite check that caps string length"
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Zod v4 exposes standalone transform checks — z.trim(),
+      z.normalize(), z.toLowerCase(), z.toUpperCase(), z.slugify() —
+      usable as z.string().check(z.trim()). They are implemented as
+      small factories in the transform block of
+      packages/zod/src/v4/core/api.ts (each wraps _overwrite) and
+      surfaced through the alias registry
+      packages/zod/src/v4/classic/checks.ts. Capping a string to a
+      maximum length instead of rejecting it (denormalized display
+      fields, log-safe payloads) has no first-class check: z.maxLength
+      rejects, it never repairs.
+
+      Add _truncate to packages/zod/src/v4/core/api.ts in the transform
+      block, following the _trim pattern: a factory taking
+      maxLength: number and returning checks.$ZodCheckOverwrite<string>
+      built on _overwrite, whose transform returns the input unchanged
+      when its length is at most maxLength and otherwise returns
+      input.slice(0, maxLength). The factory must validate its argument
+      up front: if maxLength is not a non-negative integer, throw a
+      TypeError with a clear message at check-construction time. Include
+      the same leading comment style as its neighbors. Then register the
+      classic alias in packages/zod/src/v4/classic/checks.ts by adding
+      "_truncate as truncate" to the existing export list, following its
+      "_x as x" pattern. No other file changes: the top-level z.truncate
+      comes from the existing star exports.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts
+      (import from "zod/v4") covering:
+      z.string().check(z.truncate(5)).parse("hello world") returns
+      "hello"; a string shorter than the cap is unchanged; truncate(0)
+      maps any string to ""; z.truncate(2.5 as any) and z.truncate(-1)
+      throw TypeError at construction; and the check composes after
+      z.trim() in the same .check(...) call. Stay inside the two named
+      files plus your new test file. Do not touch core/checks.ts,
+      core/util.ts, classic/schemas.ts, or the export registries. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation limited to a _truncate factory in packages/zod/src/v4/core/api.ts and one alias line in packages/zod/src/v4/classic/checks.ts
+        - The factory mirrors _trim (single maxLength argument, _overwrite-based, $ZodCheckOverwrite<string> return type)
+        - Invalid maxLength (negative or non-integer) throws TypeError when the check is constructed, not at parse time
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "z.string().check(z.truncate(5)).parse(\"hello world\") returns \"hello\""
+          - "Strings at or under the cap pass through unchanged; truncate(0) maps any input to \"\""
+          - "z.truncate(-1) and z.truncate(2.5 as any) throw TypeError at construction"
+          - "z.string().check(z.trim(), z.truncate(5)).parse(\"  hello world\") returns \"hello\""
+          - New tests in coord-check-truncate.test.ts cover truncation, no-op, zero-cap, bad-argument, and composition cases
+        scope_paths:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/core/index.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

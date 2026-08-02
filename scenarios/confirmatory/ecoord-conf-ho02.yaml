@@ -1,0 +1,171 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-ho02
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: medium
+  rationale: >
+    Card A modifies serialize/_serialize in src/utils/cookie.ts; card B's
+    prompt names that exact function and file as the place where the
+    Set-Cookie string is built, and the path of least resistance for card
+    B's oversize warning IS the serializer itself (one central place that
+    sees every cookie string), even though the card scopes the change to
+    the helper layer src/helper/cookie/index.ts. So src/utils/cookie.ts
+    sits squarely in both cards' plausible implementation surfaces (the
+    cl02-class named-function pressure), while the reference pair stays
+    file-disjoint (utils serializer vs cookie helper). The helper imports
+    parse/serialize from the utils module, putting the whole cookie
+    vertical in both neighborhoods. The measured score is computed
+    mechanically by scripts/scenario-check.sh from the reference diffs;
+    this authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-ho02-a
+    kind: coord
+    title: cookie serializer enforces that SameSite=None requires the Secure attribute
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The cookie serializer in src/utils/cookie.ts (_serialize, reached via
+      the public serialize function) already enforces cookie-prefix rules
+      with clear errors, for example that a __Secure- cookie must have the
+      Secure attribute and that a Partitioned cookie must have the Secure
+      attribute. But it happily serializes a SameSite=None cookie without
+      Secure, which every modern browser rejects (Chrome has refused such
+      cookies since 2020). Serializing one is always a bug that only
+      surfaces later in the browser, silently.
+
+      Add the same style of guard: when opt.sameSite is 'None' in any
+      casing ('None' or 'none') and opt.secure is not true, throw an Error
+      whose message states that SameSite=None cookies must have the Secure
+      attribute. All valid combinations serialize exactly as today,
+      including SameSite None with secure true, and Strict/Lax without
+      secure. Keep the change local to the serializer in
+      src/utils/cookie.ts.
+
+      Add tests in a new file src/utils/coord-cookie-samesite-none.test.ts
+      covering, at minimum, that serialize with sameSite 'None' and secure
+      true produces a string containing '; Secure; SameSite=None'; sameSite
+      'None' without secure throws with the expected message; lowercase
+      'none' without secure also throws; and sameSite 'Lax' without secure
+      still serializes fine. Stay inside src/utils/cookie.ts plus your new
+      test file. Do not touch the cookie helper in src/helper/cookie, any
+      middleware, or other utils. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/utils/cookie.ts, local to the serializer
+        - SameSite None (any casing) without secure true throws an Error naming the Secure requirement
+        - All currently valid attribute combinations serialize byte-for-byte as before
+        - New tests only, in src/utils/coord-cookie-samesite-none.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - serialize with sameSite 'None' and secure true returns a string containing '; Secure; SameSite=None'
+          - serialize with sameSite 'None' and no secure attribute throws an Error whose message names the Secure requirement
+          - serialize with lowercase sameSite 'none' and no secure attribute also throws
+          - serialize with sameSite 'Lax' and no secure attribute still succeeds
+          - New tests in src/utils/coord-cookie-samesite-none.test.ts cover the valid-None, throwing-None, lowercase-none, and Lax cases
+        scope_paths:
+          - "src/utils/cookie.ts"
+          - "src/utils/coord-cookie-samesite-none.test.ts"
+        out_of_scope:
+          - "src/helper/cookie/**"
+          - "src/middleware/**"
+          - "src/context.ts"
+          - "src/request.ts"
+          - "src/utils/url.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/utils/coord-cookie-samesite-none.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho02-b
+    kind: coord
+    title: setCookie warns when a serialized cookie exceeds the 4096-byte browser limit
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The cookie helper's setCookie (src/helper/cookie/index.ts) appends a
+      Set-Cookie header using the string built by generateCookie, which
+      delegates to the serialize function in src/utils/cookie.ts. Browsers
+      silently drop cookies whose full serialized name=value-plus-attributes
+      string exceeds about 4096 bytes. No error appears anywhere; the data
+      just vanishes on the next request, and developers burn hours before
+      discovering the size limit.
+
+      Make the helper surface this: in setCookie, after the cookie string
+      has been generated, call console.warn exactly once when that string's
+      length exceeds 4096, with a message naming the cookie name and the
+      actual serialized length. The header must still be set exactly as
+      today (warn, do not block or truncate). Implement this entirely in
+      src/helper/cookie/index.ts; do NOT modify the serializer in
+      src/utils/cookie.ts.
+
+      Add tests in a new file
+      src/helper/cookie/coord-oversize-warning.test.ts, using
+      vi.spyOn(console, 'warn'), covering, at minimum, that setting a
+      cookie with a roughly 5000-character value warns once with a message
+      containing the cookie name and the length while the Set-Cookie header
+      is still appended; a normal-size cookie produces no warning; and two
+      oversized setCookie calls warn twice. You can construct a context
+      directly with new Context(new Request('http://localhost/')) and
+      inspect c.res.headers. Stay inside src/helper/cookie/index.ts plus
+      your new test file. Do not touch the utils cookie module, any
+      middleware, or the context implementation. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/helper/cookie/index.ts, local to setCookie
+        - console.warn called exactly once per oversized setCookie call, naming the cookie and its serialized length
+        - The Set-Cookie header is still appended unchanged for oversized cookies
+        - No warning for cookies at or under 4096 serialized bytes
+        - New tests only, in src/helper/cookie/coord-oversize-warning.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - setCookie with a ~5000-character value calls console.warn once with a message containing the cookie name and the serialized length
+          - The oversized cookie's Set-Cookie header is still present on the response
+          - setCookie with a small value does not call console.warn
+          - Two oversized setCookie calls produce two warnings
+          - New tests in src/helper/cookie/coord-oversize-warning.test.ts cover the warn, header-still-set, no-warn, and repeat-warn cases
+        scope_paths:
+          - "src/helper/cookie/index.ts"
+          - "src/helper/cookie/coord-oversize-warning.test.ts"
+        out_of_scope:
+          - "src/utils/cookie.ts"
+          - "src/utils/**"
+          - "src/middleware/**"
+          - "src/context.ts"
+          - "src/request.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/helper/cookie/coord-oversize-warning.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

@@ -1,0 +1,173 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zu04
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME core file, src/vanilla.ts (the
+    ~100-line store implementation every other module imports): one adds
+    argument validation to the subscribe function, the other adds a
+    development-only warning inside setState's next-state computation.
+    The two natural edit regions sit roughly fifteen lines apart in the
+    same short file, so the careless path of least resistance for both
+    agents runs through the same handful of lines — yet a region-disjoint
+    solution pair exists (the subscribe body versus the top of the
+    setState body, with the untouched getState/getInitialState
+    definitions between them), keeping collision evitable per §3 rule 1.
+    Nearly the whole import graph of vanilla.ts lands in both
+    neighborhoods, placing this scenario at the top of the zustand
+    pressure range. Measured score computed by scripts/scenario-check.sh;
+    the authored label is re-checked against the measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-zu04-a
+    kind: coord
+    title: vanilla subscribe rejects non-function listeners with a TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      In src/vanilla.ts, the store's subscribe function adds whatever it
+      is given straight into the listeners Set. Calling
+      store.subscribe(undefined) or store.subscribe("handler") succeeds
+      silently, and the store only explodes later, inside the notification
+      loop of an unrelated setState call, with a stack trace pointing
+      nowhere near the buggy subscribe call.
+
+      Make subscribe validate its argument in src/vanilla.ts: if the
+      listener is not a function, throw a TypeError whose message clearly
+      says the subscribe listener must be a function, and register
+      nothing. Valid listeners must behave exactly as today, including the
+      returned unsubscribe function. Keep the change local to the
+      subscribe implementation; do not restructure the store and do not
+      change setState, getState, or getInitialState.
+
+      Add tests in a new file tests/coord/subscribe-guard.test.ts
+      covering: a valid listener is notified on setState and the returned
+      unsubscribe stops notifications; subscribe(undefined) throws
+      TypeError; subscribe("handler") throws TypeError; after a rejected
+      subscribe call, a later setState still completes and notifies the
+      validly registered listeners. Scope is src/vanilla.ts plus your new
+      test file. Do not touch the middleware tree or react bindings. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/vanilla.ts, limited to the subscribe implementation
+        - Non-function listeners throw TypeError and are never registered
+        - Valid subscribe and unsubscribe behavior unchanged
+        - No changes to setState, getState, or getInitialState
+        - New tests only, in tests/coord/subscribe-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - subscribe of a non-function value throws TypeError and registers nothing
+          - A valid listener still receives (state, prevState) on updates and its unsubscribe still works
+          - A later setState after a rejected subscribe completes normally and notifies valid listeners
+          - New tests in tests/coord/subscribe-guard.test.ts cover the valid, undefined-listener, string-listener, and post-rejection cases
+        scope_paths:
+          - "src/vanilla.ts"
+          - "tests/coord/subscribe-guard.test.ts"
+        out_of_scope:
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/react.ts"
+          - "src/traditional.ts"
+          - "src/index.ts"
+          - "src/vanilla/shallow.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/subscribe-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu04-b
+    kind: coord
+    title: setState warns in development when a functional updater returns undefined
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      In src/vanilla.ts, setState accepts a functional updater and uses
+      its return value as the next state. A very common authoring mistake
+      is an arrow function with a block body that forgets to return —
+      setState((s) => { s.count + 1 }) — which yields undefined; because
+      undefined is not an object, the replace branch then sets the entire
+      store state to undefined, silently destroying it.
+
+      Add a development-only warning: when the value passed to setState is
+      a function and that function returns undefined, call console.warn
+      once for that setState call with a message saying the setState
+      updater returned undefined and the store state is being replaced
+      with undefined. The warning must be skipped entirely when
+      process.env.NODE_ENV === 'production'. Committed behavior must be
+      byte-for-byte what it is today — the state still becomes undefined,
+      listeners still fire the same way; this card only adds the warning.
+      Keep the change local to the next-state computation at the top of
+      setState; do not restructure the store and do not change subscribe,
+      getState, or getInitialState.
+
+      Add tests in a new file
+      tests/coord/set-state-undefined-warn.test.ts covering: a functional
+      updater that returns undefined triggers exactly one console.warn and
+      the state still becomes undefined (current semantics preserved); a
+      functional updater returning an object triggers no warning; passing
+      a plain object (non-function) triggers no warning; with NODE_ENV
+      stubbed to 'production', the undefined-returning updater triggers no
+      warning. Scope is src/vanilla.ts plus your new test file. Do not
+      touch the middleware tree or react bindings. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/vanilla.ts, limited to the next-state computation inside setState
+        - Warning gated on process.env.NODE_ENV !== 'production'
+        - Warning fires only for functional updaters that return undefined; one warn per offending call
+        - State transition and listener notification behavior unchanged
+        - No changes to subscribe, getState, or getInitialState
+        - New tests only, in tests/coord/set-state-undefined-warn.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A functional updater returning undefined produces exactly one console.warn and the store state still becomes undefined
+          - A functional updater returning an object produces no warning and updates normally
+          - A non-function setState argument produces no warning
+          - With NODE_ENV set to 'production', no warning fires for the undefined-returning updater
+          - New tests in tests/coord/set-state-undefined-warn.test.ts cover the warn, object-updater, non-function, and production-mode cases
+        scope_paths:
+          - "src/vanilla.ts"
+          - "tests/coord/set-state-undefined-warn.test.ts"
+        out_of_scope:
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/react.ts"
+          - "src/traditional.ts"
+          - "src/index.ts"
+          - "src/vanilla/shallow.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/set-state-undefined-warn.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

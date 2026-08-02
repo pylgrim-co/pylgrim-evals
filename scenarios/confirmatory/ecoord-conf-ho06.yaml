@@ -1,0 +1,174 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-ho06
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME core file, src/hono-base.ts (the
+    545-line HonoBase class behind every app instance): one guards the
+    route() grouping method (around lines 208-232), the other guards the
+    adjacent onError and notFound registration methods (around lines
+    271-294). The two natural edit regions sit roughly forty lines apart
+    in the same file — zu03-class same-file pressure, with both cards'
+    scope_paths running through hono-base.ts — yet a region-disjoint
+    solution pair exists (top of route() vs the two registration arrow
+    functions), keeping collision evitable per §3 rule 1. The file's
+    import graph (hono.ts, the presets, every adapter entry point) lands
+    in both neighborhoods. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho06-a
+    kind: coord
+    title: app.route rejects a second argument that is not a Hono instance with a clear TypeError
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      In src/hono-base.ts, the route(path, app) method immediately reads
+      app.routes and maps over it. Passing something that is not a Hono
+      instance — undefined from a bad import, a handler function written
+      by someone who confused route() with on(), a plain object — crashes
+      with a cryptic error like "Cannot read properties of undefined
+      (reading 'map')" that points inside the framework instead of at the
+      caller's mistake.
+
+      Harden route(): at the top of the method, throw a TypeError when the
+      second argument is null or undefined, or lacks an array routes
+      property (a duck-type check is preferred over instanceof so
+      subclasses and cross-realm instances keep working). The message must
+      say that route() expects a Hono instance as its second argument.
+      Valid grouping is unchanged, including sub-apps with their own
+      errorHandler. Keep the change local to the route method; do not
+      restructure the class or touch any other method.
+
+      Add tests in a new file src/coord-route-arg-guard.test.ts covering,
+      at minimum, that grouping still works (a sub-app with a GET /user
+      handler mounted via app.route('/api', sub) serves GET /api/user);
+      app.route('/api', undefined) (cast via any) throws a TypeError whose
+      message mentions a Hono instance; and passing a handler function
+      (cast via any) as the second argument throws a TypeError. Scope is
+      src/hono-base.ts plus your new test file. Do not touch the Hono
+      subclass in src/hono.ts, the context, compose, the router, or the
+      request class. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/hono-base.ts, limited to the route method
+        - TypeError thrown before any sub-app routes are read when the argument is not a Hono instance
+        - Valid grouping unchanged, including sub-apps with a custom errorHandler
+        - New tests only, in src/coord-route-arg-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A sub-app mounted with app.route('/api', sub) still serves its routes under /api
+          - app.route('/api', undefined) throws a TypeError whose message mentions a Hono instance
+          - app.route('/api', someHandlerFunction) throws a TypeError
+          - New tests in src/coord-route-arg-guard.test.ts cover the valid-grouping, undefined, and function-argument cases
+        scope_paths:
+          - "src/hono-base.ts"
+          - "src/coord-route-arg-guard.test.ts"
+        out_of_scope:
+          - "src/hono.ts"
+          - "src/context.ts"
+          - "src/compose.ts"
+          - "src/request.ts"
+          - "src/router.ts"
+          - "src/middleware/**"
+          - "src/helper/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/coord-route-arg-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho06-b
+    kind: coord
+    title: app.onError and app.notFound reject non-function handlers with a clear TypeError
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      In src/hono-base.ts, the onError and notFound registration methods
+      assign whatever they are given to the app's error handler and
+      not-found handler. A typo like app.onError(myHandler()) (calling the
+      handler instead of passing it) or passing a string registers a
+      non-function that only fails much later, during error dispatch or a
+      404, with a "handler is not a function" error far from the
+      registration site.
+
+      Harden both registration methods: throw a TypeError when the
+      argument is not a function. Each message must name the method being
+      called (onError or notFound). Valid registrations are unchanged,
+      including the chaining behavior where both methods return the app
+      instance. Keep the change local to the onError and notFound methods;
+      do not restructure the class or touch any other method, and do not
+      change how the stored handlers are invoked during dispatch.
+
+      Add tests in a new file src/coord-handler-arg-guard.test.ts
+      covering, at minimum, that a custom onError still runs (a route that
+      throws yields a 500 with the custom body); a custom notFound still
+      runs (an unmatched path yields the custom 404 body); app.onError
+      with a string argument (cast via any) throws a TypeError naming
+      onError; app.notFound(null) (cast via any) throws a TypeError naming
+      notFound; and both methods still return the app instance for valid
+      handlers. Scope is src/hono-base.ts plus your new test file. Do not
+      touch the Hono subclass in src/hono.ts, the context, compose, the
+      router, or the request class. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/hono-base.ts, limited to the onError and notFound methods
+        - TypeError thrown at registration time for non-function arguments, naming the method
+        - Valid handler registration, dispatch behavior, and chaining unchanged
+        - New tests only, in src/coord-handler-arg-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A custom onError handler still produces its response when a route throws
+          - A custom notFound handler still produces its response for unmatched paths
+          - app.onError('boom') throws a TypeError whose message names onError
+          - app.notFound(null) throws a TypeError whose message names notFound
+          - Both methods still return the app instance when given valid functions
+          - New tests in src/coord-handler-arg-guard.test.ts cover the custom-onError, custom-notFound, string, null, and chaining cases
+        scope_paths:
+          - "src/hono-base.ts"
+          - "src/coord-handler-arg-guard.test.ts"
+        out_of_scope:
+          - "src/hono.ts"
+          - "src/context.ts"
+          - "src/compose.ts"
+          - "src/request.ts"
+          - "src/router.ts"
+          - "src/middleware/**"
+          - "src/helper/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/coord-handler-arg-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

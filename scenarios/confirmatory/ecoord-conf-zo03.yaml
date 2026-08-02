@@ -1,0 +1,175 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zo03
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: medium
+  rationale: >
+    Materially larger shared neighborhood, again in the cl02 shape: card
+    B's prompt names the exact function card A modifies. Card A extends
+    prettifyError in packages/zod/src/v4/core/errors.ts; card B adds a
+    pretty() method to the classic ZodError in
+    packages/zod/src/v4/classic/errors.ts and is explicitly told to
+    delegate to that same prettifyError. The core errors module is in
+    both neighborhoods (A writes it, B wraps it), classic/errors.ts
+    imports the core barrel, and the tempting careless path for B is to
+    implement pretty() by editing prettifyError or the core $ZodError
+    initializer directly — the same region A must change. Natural write
+    surfaces remain disjoint (core/errors.ts vs classic/errors.ts), so
+    no co-written file is required. The measured score is computed
+    mechanically by scripts/scenario-check.sh from the reference diffs;
+    this authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-zo03-a
+    kind: coord
+    title: "prettifyError gains an optional maxIssues cap for large error reports"
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      prettifyError in packages/zod/src/v4/core/errors.ts renders every
+      issue in the error, one block per issue. For a schema over a large
+      payload that fails in hundreds of places, the pretty output is
+      unbounded and unusable in logs.
+
+      Extend prettifyError in packages/zod/src/v4/core/errors.ts with an
+      optional second parameter params?: { maxIssues?: number }. When
+      maxIssues is provided, is a positive integer, and the error has
+      MORE issues than maxIssues, render only the first maxIssues issues
+      (after the existing sort by path length, exactly as today) and
+      append one final line consisting of +N more, where N is the number
+      of omitted issues. When params or maxIssues is omitted, maxIssues
+      is not a positive integer, or the issue count is less than or
+      equal to maxIssues, the output must be byte-for-byte identical to
+      the current behavior. Keep the change local to the prettifyError
+      function; do not touch toDotPath, treeifyError, formatError,
+      flattenError, or the $ZodError initializer.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts
+      (import * as z from "zod/v4"): build an object schema with three
+      failing fields via safeParse, then cover: the default one-argument
+      output is unchanged (identical to calling with no params); maxIssues
+      of 1 renders exactly one issue block plus a final +2 more line;
+      maxIssues equal to or greater than the issue count matches the
+      default output; and maxIssues of 0 is ignored. Stay inside
+      packages/zod/src/v4/core/errors.ts plus your new test file. Do not
+      touch classic/errors.ts or the export registries. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/core/errors.ts, limited to the prettifyError function
+        - Output with maxIssues omitted, non-positive, non-integer, or >= issue count is byte-for-byte identical to current behavior
+        - Truncated output ends with a single final line +N more with the correct omitted count
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "With three issues, z.prettifyError(error, { maxIssues: 1 }) contains exactly one issue marker and ends with the line +2 more"
+          - "z.prettifyError(error) output is unchanged from current behavior"
+          - "maxIssues >= issue count and maxIssues 0 both produce the same output as the one-argument call"
+          - New tests in coord-prettify-max-issues.test.ts cover default, truncation, boundary, and ignored-maxIssues cases
+        scope_paths:
+          - "packages/zod/src/v4/core/errors.ts"
+          - "packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/core/index.ts"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo03-b
+    kind: coord
+    title: "classic ZodError instances gain a pretty() convenience method"
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      The classic ZodError in packages/zod/src/v4/classic/errors.ts
+      already exposes format() and flatten() convenience methods on every
+      error instance, installed by the initializer via
+      Object.defineProperties. The pretty human-readable rendering,
+      however, is only reachable through the standalone z.prettifyError
+      function — result.error.pretty() does not exist, and users pipe
+      errors through the free function by hand.
+
+      Add a pretty() method to the classic ZodError in
+      packages/zod/src/v4/classic/errors.ts: declare pretty(): string on
+      the ZodError interface and install it in the initializer alongside
+      format and flatten, delegating to the existing prettifyError
+      function exported from packages/zod/src/v4/core/errors.ts (the
+      core barrel is already imported as core in this file). The method
+      must return exactly what prettifyError returns for the same error.
+      Do not modify prettifyError itself, the core $ZodError initializer,
+      or anything else under v4/core — the method is a classic-layer
+      wrapper only.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts
+      (import * as z from "zod/v4") covering: a failing safeParse result
+      exposes error.pretty as a function; error.pretty() returns a string
+      strictly equal to z.prettifyError(error); pretty() works on an
+      error with nested paths (an object field failure renders the path
+      line); and the existing format() and flatten() methods still work
+      on the same instance. Stay inside
+      packages/zod/src/v4/classic/errors.ts plus your new test file. Do
+      not touch anything under v4/core or the export registries. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/errors.ts
+        - pretty() delegates to core prettifyError and returns an identical string
+        - No changes to prettifyError, the core $ZodError initializer, or any v4/core file
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A failing safeParse result has a callable error.pretty method
+          - error.pretty() is strictly equal to z.prettifyError(error) for the same error
+          - pretty() output includes the path line for a nested field failure
+          - format() and flatten() still work on the same error instance
+          - New tests in coord-error-pretty-method.test.ts cover presence, equality, nested-path, and untouched-siblings cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/errors.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/parse.ts"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

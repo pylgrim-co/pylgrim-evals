@@ -1,0 +1,173 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-ho04
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: medium
+  rationale: >
+    Card A modifies the basicAuth middleware
+    (src/middleware/basic-auth/index.ts); card B's prompt names that exact
+    file and its onAuthSuccess option as the parity model for the feature
+    it adds to bearerAuth — the cl02-class pressure where one card's prompt
+    names the surface the other card is rewriting, inviting a careless
+    agent to "align" both middlewares or hoist shared option types. The two
+    modules also share src/utils/buffer.ts (timingSafeEqual),
+    src/http-exception.ts, and the Context/MiddlewareHandler types, so the
+    whole auth vertical sits in both read-plus-write neighborhoods, while
+    the reference pair stays file-disjoint (basic-auth vs bearer-auth). The
+    measured score is computed mechanically by scripts/scenario-check.sh
+    from the reference diffs; this authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho04-a
+    kind: coord
+    title: basicAuth gains a charset option for the WWW-Authenticate challenge
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      RFC 7617 section 2.1 defines a charset auth-param for the Basic
+      scheme's challenge, telling clients which encoding to use for
+      credentials (the only allowed value is 'UTF-8'). The basicAuth
+      middleware (src/middleware/basic-auth/index.ts) currently emits a
+      challenge of the form Basic realm="..." with no way to advertise the
+      charset, so browsers fall back to guessing the encoding of non-ASCII
+      passwords.
+
+      Add an optional charset option (a string) to both branches of
+      BasicAuthOptions. When it is set, the 401 challenge's
+      WWW-Authenticate header value becomes the current realm form
+      followed by a comma, a space, and charset="<value>", with double
+      quotes in the value escaped the same way the realm is escaped. When
+      the option is not set, the header must be byte-for-byte what it is
+      today. Successful authentication is unaffected either way.
+
+      Add tests in a new file
+      src/middleware/basic-auth/coord-charset-option.test.ts covering, at
+      minimum, that with charset 'UTF-8' an unauthenticated request gets a
+      401 whose WWW-Authenticate header contains both the realm and
+      charset="UTF-8"; without the option the header contains no charset
+      auth-param; and a request with valid credentials still succeeds when
+      charset is configured. Stay inside
+      src/middleware/basic-auth/index.ts plus your new test file. Do not
+      touch the bearer-auth middleware, the auth or buffer utils, or the
+      exception class. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/basic-auth/index.ts
+        - charset auth-param appended to the WWW-Authenticate challenge only when the option is set
+        - Challenge header unchanged when the option is absent; successful auth unaffected
+        - New tests only, in src/middleware/basic-auth/coord-charset-option.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "With charset 'UTF-8' configured, an unauthenticated request receives 401 with a WWW-Authenticate header containing the realm and charset=\"UTF-8\""
+          - "Without the charset option, the WWW-Authenticate header contains no charset auth-param"
+          - "Valid credentials still authenticate successfully when charset is configured"
+          - "New tests in src/middleware/basic-auth/coord-charset-option.test.ts cover the charset-present, charset-absent, and valid-credentials cases"
+        scope_paths:
+          - "src/middleware/basic-auth/index.ts"
+          - "src/middleware/basic-auth/coord-charset-option.test.ts"
+        out_of_scope:
+          - "src/middleware/bearer-auth/**"
+          - "src/utils/basic-auth.ts"
+          - "src/utils/buffer.ts"
+          - "src/http-exception.ts"
+          - "src/context.ts"
+          - "src/middleware/jwt/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/basic-auth/coord-charset-option.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho04-b
+    kind: coord
+    title: bearerAuth gains an onAuthSuccess callback invoked with the validated token
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The basicAuth middleware (src/middleware/basic-auth/index.ts) already
+      supports an onAuthSuccess callback that is awaited with the context
+      and the authenticated username before the request proceeds — useful
+      for stashing the identity on the context or audit logging. The
+      bearerAuth middleware (src/middleware/bearer-auth/index.ts) has no
+      equivalent, so every project re-implements "record which token
+      authenticated this request" with a second middleware.
+
+      Add an optional onAuthSuccess callback, typed
+      (c: Context, token: string) => void | Promise<void>, to both
+      branches of BearerAuthOptions. Invoke and await it exactly once with
+      the validated token string after verification succeeds (whether via
+      the token/token-array comparison or via verifyToken) and before
+      next() is called. It must NOT be invoked when the header is missing,
+      when the header is malformed, or when the token is rejected. All
+      existing behavior, including every error path, is unchanged.
+      Implement this entirely in src/middleware/bearer-auth/index.ts; do
+      not modify basic-auth or any shared utils.
+
+      Add tests in a new file
+      src/middleware/bearer-auth/coord-on-auth-success.test.ts covering,
+      at minimum, that a request with a valid token invokes the callback
+      once with that token string and the request succeeds; a request with
+      a wrong token gets 401 and the callback is not invoked; a request
+      with no Authorization header gets 401 and the callback is not
+      invoked; and an async callback that sets a context variable is
+      awaited, so a downstream handler can read the value with c.get.
+      Stay inside src/middleware/bearer-auth/index.ts plus your new test
+      file. Do not touch the basic-auth middleware, the buffer utils, or
+      the exception class. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/bearer-auth/index.ts
+        - onAuthSuccess awaited exactly once with the validated token, after verification and before next()
+        - Callback never invoked on missing-header, malformed-header, or invalid-token paths
+        - All existing success and error behavior unchanged when the option is absent
+        - New tests only, in src/middleware/bearer-auth/coord-on-auth-success.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A valid bearer token invokes onAuthSuccess once with the token string and the request succeeds
+          - A wrong token yields 401 and onAuthSuccess is not invoked
+          - A missing Authorization header yields 401 and onAuthSuccess is not invoked
+          - An async onAuthSuccess that sets a context variable is awaited so a downstream handler can read it
+          - New tests in src/middleware/bearer-auth/coord-on-auth-success.test.ts cover the success, wrong-token, missing-header, and async-await cases
+        scope_paths:
+          - "src/middleware/bearer-auth/index.ts"
+          - "src/middleware/bearer-auth/coord-on-auth-success.test.ts"
+        out_of_scope:
+          - "src/middleware/basic-auth/**"
+          - "src/utils/basic-auth.ts"
+          - "src/utils/buffer.ts"
+          - "src/http-exception.ts"
+          - "src/context.ts"
+          - "src/middleware/jwt/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/bearer-auth/coord-on-auth-success.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

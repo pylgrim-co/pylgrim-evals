@@ -1,0 +1,186 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-sf03
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: medium
+  rationale: >
+    The second card's prompt names the exact function the first card
+    modifies: card A changes Params.get() in src/formatter/Params.ts (the
+    placeholder-substitution path), while card B improves the params
+    validation warning in src/validateConfig.ts and its prompt explicitly
+    points at Params.get() as the consumer of those values. Each card's
+    tempting shortcut is the other card's write surface — the natural
+    place to "fix" missing params is validateConfig, and the natural
+    place to "sanitize" non-string params is Params.get — so both
+    neighborhoods contain src/formatter/Params.ts, src/validateConfig.ts,
+    src/FormatOptions.ts, and src/sqlFormatter.ts. A materially larger
+    shared neighborhood than the low scenarios, with no co-written file
+    in the reference pair. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf03-a
+    kind: coord
+    title: Params.get falls back to the original placeholder when no value is available
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      Placeholder substitution lives in src/formatter/Params.ts. Its
+      get({ key, text }) method looks up named/numbered placeholders by
+      key in the params object and positional placeholders by an
+      incrementing index in the params array. When a lookup misses (the
+      params object has no such key, or there are fewer array values than
+      positional placeholders), get() returns undefined, and the literal
+      string "undefined" ends up spliced into the formatted SQL — a
+      corrupt query instead of a graceful degradation.
+
+      Make Params.get() fall back to the original placeholder: whenever
+      no param value exists for a placeholder, return the placeholder's
+      raw text (the `text` argument) exactly as it does today when no
+      params config is given at all. For positional placeholders the
+      internal index must still advance on a missed lookup so that later
+      placeholders keep their positions. Lookups that do find a value
+      behave exactly as today. Keep the change local to
+      src/formatter/Params.ts; do not add params checking to the config
+      validation layer (src/validateConfig.ts) or anywhere else.
+
+      Add tests in a new file test/coord-params-missing-fallback.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'sqlite' }`. Cover: a named placeholder whose key
+      is absent from the params object is left as-is in the output (for
+      example :missing stays :missing while another named placeholder
+      with a value is substituted); positional placeholders beyond the
+      end of the params array are left as ? while earlier ones are
+      substituted; fully-supplied params behave exactly as before; and
+      queries formatted without any params config are unchanged. Stay
+      inside src/formatter/Params.ts plus your new test file. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/formatter/Params.ts, limited to the get() lookup behavior
+        - Missing named keys and exhausted positional arrays yield the original placeholder text instead of undefined
+        - The positional index still advances on a missed lookup
+        - Successful lookups and the no-params-config path behave exactly as before
+        - New tests only, in test/coord-params-missing-fallback.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A named placeholder with no matching params key is emitted as its original text
+          - A positional placeholder beyond the supplied array is emitted as its original text
+          - Earlier positional placeholders are still substituted in order when later ones miss
+          - Queries with fully-supplied params format exactly as before
+          - Queries without a params config format exactly as before
+          - New tests in test/coord-params-missing-fallback.test.ts cover the missing-key, exhausted-array, order-preservation, fully-supplied, and no-config cases
+        scope_paths:
+          - "src/formatter/Params.ts"
+          - "test/coord-params-missing-fallback.test.ts"
+        out_of_scope:
+          - "src/validateConfig.ts"
+          - "src/sqlFormatter.ts"
+          - "src/FormatOptions.ts"
+          - "src/formatter/ExpressionFormatter.ts"
+          - "src/formatter/Formatter.ts"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-params-missing-fallback.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf03-b
+    kind: coord
+    title: params validation warning names the offending keys and their types
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      When the params option contains non-string values, validateConfig()
+      in src/validateConfig.ts emits a single vague console.warn line
+      ('WARNING: All "params" option values should be strings.') from its
+      validateParams() helper check. The warning never says WHICH values
+      are wrong, so users with a large params object get no actionable
+      information. These values matter because they are inlined verbatim
+      into the formatted SQL by Params.get() in src/formatter/Params.ts.
+
+      Improve the warning in src/validateConfig.ts so it names each
+      offending entry: for an object params config, list the offending
+      key together with the typeof of its value; for an array config,
+      list the offending index and typeof. For example a params object
+      with a numeric age value should produce a warning that mentions
+      "age" and "number". It must remain a console.warn (never a throw),
+      it must still fire only when at least one value is a non-string,
+      and no warning may fire when all values are strings. Keep the
+      change local to src/validateConfig.ts (the validateParams helper
+      and its call site); do not modify src/formatter/Params.ts or the
+      formatting pipeline.
+
+      Add tests in a new file test/coord-params-warning-detail.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`), spying on
+      console.warn with jest.spyOn(...).mockImplementation(() => {}).
+      Cover: formatting with an object params config containing a
+      non-string value warns once with a message naming the offending key
+      and its type; an array params config with a non-string element
+      warns with a message naming the offending index; an all-string
+      params config produces no warning; and the query still formats
+      successfully (with substitution) in every case. Restore the spy
+      after each test. Stay inside src/validateConfig.ts plus your new
+      test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/validateConfig.ts, limited to the params warning path
+        - The warning names each offending key or index and the typeof of its value
+        - Behavior stays a console.warn; formatting still succeeds
+        - No warning when all params values are strings
+        - New tests only, in test/coord-params-warning-detail.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An object params config with a non-string value triggers exactly one console.warn naming the offending key and its type
+          - An array params config with a non-string element triggers a console.warn naming the offending index
+          - All-string params configs trigger no warning
+          - Formatting completes successfully whether or not the warning fires
+          - New tests in test/coord-params-warning-detail.test.ts cover the object-key, array-index, no-warning, and still-formats cases
+        scope_paths:
+          - "src/validateConfig.ts"
+          - "test/coord-params-warning-detail.test.ts"
+        out_of_scope:
+          - "src/formatter/Params.ts"
+          - "src/sqlFormatter.ts"
+          - "src/FormatOptions.ts"
+          - "src/formatter/ExpressionFormatter.ts"
+          - "src/formatter/Formatter.ts"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-params-warning-detail.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

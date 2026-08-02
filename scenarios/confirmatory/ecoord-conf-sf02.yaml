@@ -1,0 +1,181 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-sf02
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in sibling dialect modules
+    (src/languages/snowflake/ and src/languages/trino/) with fully
+    disjoint natural write surfaces: each card only appends names to its
+    own dialect's functions catalog. Their plausible implementation
+    surfaces still intersect (the §3 rule-2 floor): both catalogs feed
+    reservedFunctionNames consumed by the shared tokenizer and the
+    functionCase logic in src/formatter/ExpressionFormatter.ts, and both
+    new tests format through the shared entry point src/sqlFormatter.ts
+    (the dialect registry). Expected pressure of a couple of shared
+    read-side files, no co-written file. The measured score is computed
+    mechanically by scripts/scenario-check.sh from the reference diffs;
+    this authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-sf02-a
+    kind: coord
+    title: snowflake dialect recognizes newer Snowflake array and utility functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The snowflake dialect's function catalog
+      (src/languages/snowflake/snowflake.functions.ts, the exported
+      `functions` array used as reservedFunctionNames by
+      snowflake.formatter.ts) is missing several real Snowflake built-ins:
+      the array functions ARRAY_MIN, ARRAY_MAX, ARRAY_SORT, and
+      ARRAY_REVERSE, the conditional function DIV0NULL, and the GETDATE
+      date/time alias. Because they are not in the catalog, calls like
+      array_min(v) are tokenized as plain identifiers, so the functionCase
+      option ignores them while correctly transforming the functions that
+      are listed.
+
+      Add these six names to the `functions` array in
+      src/languages/snowflake/snowflake.functions.ts, following the
+      existing style of the surrounding entries (uppercase names within
+      the alphabetized listing). Change nothing else; the tokenizer and
+      formatter already handle every listed function generically.
+
+      Add tests in a new file
+      test/coord-snowflake-array-functions.test.ts, importing the
+      formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'snowflake' }`. Cover: functionCase 'upper'
+      uppercases calls to array_min, array_sort, div0null, and getdate;
+      functionCase 'lower' lowercases calls to ARRAY_MAX and
+      ARRAY_REVERSE; the default (no functionCase given) preserves
+      mixed-case spellings like Array_Min( unchanged; a call to an unknown
+      function such as my_custom_fn(x) is NOT uppercased by functionCase
+      'upper'. Stay inside src/languages/snowflake/snowflake.functions.ts
+      plus your new test file. Do not touch other dialect directories, the
+      formatter core, the lexer, or the public entry points. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/snowflake/snowflake.functions.ts, adding entries to the existing functions array
+        - No changes to the tokenizer, formatter core, or any other dialect
+        - New tests only, in test/coord-snowflake-array-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - ARRAY_MIN, ARRAY_MAX, ARRAY_SORT, ARRAY_REVERSE, DIV0NULL, and GETDATE are present in the snowflake functions catalog
+          - With functionCase 'upper' and language snowflake, calls to array_min, array_sort, div0null, and getdate are uppercased
+          - With functionCase 'lower', calls to ARRAY_MAX and ARRAY_REVERSE are lowercased
+          - Without a functionCase option the original casing of these calls is preserved
+          - Unknown function names remain untouched by functionCase
+          - New tests in test/coord-snowflake-array-functions.test.ts cover the upper, lower, preserve, and unknown-name cases
+        scope_paths:
+          - "src/languages/snowflake/snowflake.functions.ts"
+          - "test/coord-snowflake-array-functions.test.ts"
+        out_of_scope:
+          - "src/languages/snowflake/snowflake.formatter.ts"
+          - "src/languages/snowflake/snowflake.keywords.ts"
+          - "src/languages/trino/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-snowflake-array-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf02-b
+    kind: coord
+    title: trino dialect recognizes newer Trino vector and aggregate functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The trino dialect's function catalog
+      (src/languages/trino/trino.functions.ts, the exported `functions`
+      array used as reservedFunctionNames by trino.formatter.ts) is
+      missing several real Trino built-ins added in recent releases: the
+      vector similarity functions COSINE_DISTANCE, EUCLIDEAN_DISTANCE,
+      and DOT_PRODUCT, the ARRAY_HISTOGRAM map-returning function, the
+      ANY_VALUE aggregate, and the SINH hyperbolic math function. Because
+      they are not in the catalog, calls like any_value(x) are tokenized
+      as plain identifiers, so the functionCase option ignores them while
+      correctly transforming the functions that are listed.
+
+      Add these six names to the `functions` array in
+      src/languages/trino/trino.functions.ts, following the existing
+      style of the surrounding entries (uppercase names in the listing).
+      Change nothing else; the tokenizer and formatter already handle
+      every listed function generically.
+
+      Add tests in a new file test/coord-trino-vector-functions.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'trino' }`. Cover: functionCase 'upper' uppercases
+      calls to cosine_distance, dot_product, any_value, and sinh;
+      functionCase 'lower' lowercases calls to EUCLIDEAN_DISTANCE and
+      ARRAY_HISTOGRAM; the default (no functionCase given) preserves
+      mixed-case spellings like Any_Value( unchanged; a call to an
+      unknown function such as my_custom_fn(x) is NOT uppercased by
+      functionCase 'upper'. Stay inside
+      src/languages/trino/trino.functions.ts plus your new test file. Do
+      not touch other dialect directories, the formatter core, the lexer,
+      or the public entry points. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/trino/trino.functions.ts, adding entries to the existing functions array
+        - No changes to the tokenizer, formatter core, or any other dialect
+        - New tests only, in test/coord-trino-vector-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - COSINE_DISTANCE, EUCLIDEAN_DISTANCE, DOT_PRODUCT, ARRAY_HISTOGRAM, ANY_VALUE, and SINH are present in the trino functions catalog
+          - With functionCase 'upper' and language trino, calls to cosine_distance, dot_product, any_value, and sinh are uppercased
+          - With functionCase 'lower', calls to EUCLIDEAN_DISTANCE and ARRAY_HISTOGRAM are lowercased
+          - Without a functionCase option the original casing of these calls is preserved
+          - Unknown function names remain untouched by functionCase
+          - New tests in test/coord-trino-vector-functions.test.ts cover the upper, lower, preserve, and unknown-name cases
+        scope_paths:
+          - "src/languages/trino/trino.functions.ts"
+          - "test/coord-trino-vector-functions.test.ts"
+        out_of_scope:
+          - "src/languages/trino/trino.formatter.ts"
+          - "src/languages/trino/trino.keywords.ts"
+          - "src/languages/snowflake/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-trino-vector-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

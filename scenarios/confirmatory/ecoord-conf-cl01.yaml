@@ -1,0 +1,158 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5.
+# Cards are authored and committed BEFORE any reference solution exists;
+# the git sequence of this file is the audit trail.
+scenario_id: ecoord-conf-cl01
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in sibling modules (globals.py, formatting.py)
+    with fully disjoint natural write surfaces and no import edge between
+    the two written files in either direction. Their plausible
+    implementation surfaces still intersect (the §3 rule-2 floor): core.py
+    imports both modules directly, and decorators.py/termui.py import
+    globals.py, so the shared read-side neighborhood is small but non-empty
+    with no co-written file. Measured score computed by
+    scripts/scenario-check.sh; stratum re-checked against the measurement
+    before freeze.
+cards:
+  - id: ecoord-conf-cl01-a
+    kind: coord
+    title: pop_context raises a clear RuntimeError when no context is active
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.globals.pop_context blindly executes _local.stack.pop(), so
+      calling it when no context has ever been pushed raises AttributeError
+      and calling it once too often raises IndexError. Both surface as
+      confusing errors from library internals instead of telling the caller
+      what actually went wrong, while the sibling get_current_context
+      already raises a descriptive RuntimeError for the same situation.
+
+      Change pop_context in src/click/globals.py so that when the context
+      stack is missing or empty it raises RuntimeError with a clear message
+      (for example "There is no active click context to pop.") instead of
+      AttributeError or IndexError. Balanced push/pop behavior must be
+      completely unchanged, including LIFO ordering and what
+      get_current_context returns between pushes and pops. Add a short
+      docstring note about the new error behavior.
+
+      Add tests in a new file tests/test_coord_context_stack.py covering:
+      calling pop_context with no context ever pushed raises RuntimeError
+      (not AttributeError) with a message mentioning the missing context;
+      push_context followed by pop_context works, after which
+      get_current_context(silent=True) returns None; pushing two contexts
+      (build them as click.Context(click.Command("x"))) and popping twice
+      preserves LIFO order (get_current_context returns the most recently
+      pushed context between the pops); one extra pop_context after the
+      balanced pops raises RuntimeError. Scope: src/click/globals.py plus
+      your new test file. Do not touch core.py, decorators.py, termui.py,
+      or utils.py. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/globals.py, limited to pop_context and its docstring
+        - Balanced push/pop and get_current_context behavior byte-for-byte unchanged
+        - Empty or missing stack raises RuntimeError with a clear message, never AttributeError or IndexError
+        - New tests only, in tests/test_coord_context_stack.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - pop_context with no active context raises RuntimeError with a message describing the missing context
+          - pop_context never raises AttributeError or IndexError for the empty-stack case
+          - Balanced push_context/pop_context sequences behave exactly as before, including LIFO ordering
+          - get_current_context(silent=True) returns None after the stack is emptied
+          - New tests in tests/test_coord_context_stack.py cover fresh-state pop, balanced push/pop, LIFO order, and over-pop
+        scope_paths:
+          - "src/click/globals.py"
+          - "tests/test_coord_context_stack.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/decorators.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_context_stack.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl01-b
+    kind: coord
+    title: HelpFormatter.write_dl treats an empty row list as a no-op
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      HelpFormatter.write_dl in src/click/formatting.py crashes on an empty
+      definition list: measure_table over zero rows yields zero columns, so
+      write_dl raises TypeError("Expected two columns for definition list")
+      even though the caller passed a perfectly reasonable "nothing to
+      show" value. Anyone building help sections dynamically (render a
+      section only if it has entries) has to guard every call site.
+
+      Change write_dl in src/click/formatting.py so that an empty rows
+      iterable writes nothing and returns without error, leaving the
+      formatter buffer untouched. Rows that are present but do not have
+      exactly two columns must still raise the existing TypeError, and
+      normal two-column rendering must be byte-for-byte unchanged. Note the
+      empty-input behavior in the docstring.
+
+      Add tests in a new file tests/test_coord_empty_dl.py covering:
+      write_dl([]) raises nothing and getvalue() is unchanged; the same
+      holds for an empty generator (iter(())); a normal two-column call
+      still renders both terms and definitions into getvalue(); a
+      three-column row still raises TypeError. Scope:
+      src/click/formatting.py plus your new test file. Do not touch
+      core.py, termui.py, parser.py, or _compat.py. No new dependencies,
+      no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/formatting.py, limited to write_dl and its docstring
+        - Empty rows input becomes a silent no-op; the buffer is left untouched
+        - Wrong column counts on non-empty rows still raise the existing TypeError
+        - Two-column rendering output byte-for-byte unchanged
+        - New tests only, in tests/test_coord_empty_dl.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - write_dl([]) returns without raising and leaves getvalue() unchanged
+          - write_dl(iter(())) behaves the same as the empty list
+          - A two-column definition list renders exactly as before
+          - A row with three columns still raises TypeError
+          - New tests in tests/test_coord_empty_dl.py cover empty list, empty generator, normal rendering, and the TypeError case
+        scope_paths:
+          - "src/click/formatting.py"
+          - "tests/test_coord_empty_dl.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/termui.py"
+          - "src/click/parser.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_empty_dl.py"
+      deterministic_checks: []
+    source:
+      authored: true

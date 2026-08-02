@@ -1,0 +1,189 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zu05
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME central middleware file,
+    src/middleware/persist.ts (~400 lines, the heaviest module in the
+    middleware tree): one hardens the parse path inside
+    createJSONStorage, the other rewrites the migration-missing error
+    inside the hydrate flow. Both cards' storage-and-hydration mental
+    model overlaps heavily — a careless agent on either card naturally
+    reads and touches the same helper region, and both test files
+    exercise the same storage plumbing — while a region-disjoint
+    reference pair exists (the createJSONStorage getItem closure near the
+    top of the file versus the version-mismatch branch inside hydrate,
+    roughly 230 lines apart), keeping collision evitable per §3 rule 1.
+    The persist import surface (vanilla types plus the registry
+    re-export) lands in both neighborhoods. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    the measurement before freeze.
+cards:
+  - id: ecoord-conf-zu05-a
+    kind: coord
+    title: createJSONStorage survives corrupted persisted JSON by returning null
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      createJSONStorage in src/middleware/persist.ts wraps a StateStorage
+      in JSON parse/stringify. Its getItem path calls JSON.parse on
+      whatever the underlying storage returns; a corrupted or truncated
+      value (a half-written localStorage entry, an old incompatible blob)
+      makes JSON.parse throw, and that exception escapes to the caller —
+      one bad byte in storage takes the whole store hydration down.
+
+      Harden the parse path inside createJSONStorage in
+      src/middleware/persist.ts: when parsing the stored string throws,
+      call console.error with a message that names the storage key being
+      read, and return null (the same result as a missing item) instead of
+      letting the exception escape. The fix must cover both delivery
+      shapes the code handles today — the synchronous return and the
+      Promise return from the underlying storage. Valid stored values,
+      including the reviver option, must round-trip exactly as before.
+      Keep the change local to createJSONStorage; do not modify the
+      persist middleware implementation itself.
+
+      Add tests in a new file tests/coord/json-storage-corrupt.test.ts
+      covering: a storage whose getItem returns a corrupted string makes
+      the wrapped getItem return null and log a console.error naming the
+      key; a storage whose getItem resolves a Promise of a corrupted
+      string makes the wrapped getItem resolve to null; a valid JSON value
+      still parses to its StorageValue, with the reviver applied when one
+      is configured; setItem behavior is unchanged. Scope is
+      src/middleware/persist.ts plus your new test file. Do not touch
+      other middleware modules, the middleware registry, or the vanilla
+      core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/persist.ts, limited to the createJSONStorage getItem parse path
+        - Corrupted values return null plus one console.error naming the key, never a thrown parse error
+        - Both the synchronous and the Promise-returning storage shapes are covered
+        - Valid values, including reviver handling, round-trip exactly as before
+        - No changes to persistImpl, hydrate, or the persist api object
+        - New tests only, in tests/coord/json-storage-corrupt.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A corrupted synchronous stored string yields null from getItem and a console.error that names the storage key
+          - A corrupted Promise-delivered stored string yields a getItem result resolving to null
+          - Valid stored JSON still parses to its StorageValue and the reviver option still applies
+          - setItem and removeItem behavior is unchanged
+          - New tests in tests/coord/json-storage-corrupt.test.ts cover the corrupt-sync, corrupt-async, valid-roundtrip, and reviver cases
+        scope_paths:
+          - "src/middleware/persist.ts"
+          - "tests/coord/json-storage-corrupt.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/json-storage-corrupt.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu05-b
+    kind: coord
+    title: persist migration-missing error names the store and both versions
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      When the persist middleware (src/middleware/persist.ts) hydrates a
+      store and finds a stored state whose version does not match the
+      configured version, and no migrate function was provided, it logs a
+      generic console.error — "State loaded from storage couldn't be
+      migrated since no migrate function was provided" — and silently
+      discards the persisted state. In an app with several persisted
+      stores this message is useless for debugging because it says
+      neither WHICH store hit the mismatch nor which versions were
+      involved.
+
+      Improve that error path inside the hydrate flow in
+      src/middleware/persist.ts: the console.error message must include
+      the configured storage name (options.name), the version number found
+      in storage, and the version number the store expects, and must still
+      say that no migrate function was provided and the persisted state
+      was discarded. Behavior must not change otherwise — the persisted
+      state is still discarded, hydration still completes with the current
+      state, matching-version hydration stays silent, and a provided
+      migrate function still runs without any error being logged. Keep the
+      change local to the version-mismatch branch of the hydrate flow.
+
+      Add tests in a new file tests/coord/persist-migrate-error.test.ts
+      covering: hydrating from a storage whose stored value carries a
+      mismatched version, with no migrate configured, logs exactly one
+      console.error whose message contains the storage name and both
+      version numbers, and the store keeps its current state; hydrating
+      with matching versions logs no error and applies the stored state;
+      hydrating with a mismatched version and a configured migrate
+      function logs no error and applies the migrated state. Use a small
+      synchronous fake PersistStorage in the tests. Scope is
+      src/middleware/persist.ts plus your new test file. Do not touch
+      other middleware modules, the middleware registry, or the vanilla
+      core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/persist.ts, limited to the migration-missing error inside the hydrate flow
+        - The error message includes the storage name, the stored version, and the expected version
+        - Discard-and-continue hydration semantics unchanged; migrate-present and version-match paths stay silent
+        - No changes to createJSONStorage or the persist api object
+        - New tests only, in tests/coord/persist-migrate-error.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A version mismatch with no migrate function logs exactly one console.error containing the storage name and both version numbers
+          - The persisted state is still discarded and the store keeps its current state on that path
+          - Matching-version hydration applies the stored state with no error logged
+          - A configured migrate function still runs with no error logged
+          - New tests in tests/coord/persist-migrate-error.test.ts cover the mismatch-no-migrate, matching-version, and migrate-present cases
+        scope_paths:
+          - "src/middleware/persist.ts"
+          - "tests/coord/persist-migrate-error.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/persist-migrate-error.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

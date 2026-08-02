@@ -1,0 +1,168 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5.
+# Cards are authored and committed BEFORE any reference solution exists;
+# the git sequence of this file is the audit trail.
+scenario_id: ecoord-conf-cl05
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: high
+  rationale: >
+    Both cards' natural implementations land in src/click/termui.py, the
+    terminal UI hub. Card A rewrites the color interpretation that style
+    and secho share (_interpret_color, around line 570); card B rewrites
+    confirm's answer parsing roughly 280 lines earlier in the same file
+    (plus one line in the .types import block at the top). The path of
+    least resistance for both agents runs through the same central file,
+    the §3 rule-2 same-file co-write at full strength, while a
+    region-disjoint reference pair exists: the two edit regions are
+    hundreds of lines apart and merge cleanly. termui.py's importer set
+    (the package __init__, core, decorators through core) joins both
+    neighborhoods, driving the measured score. Measured score computed by
+    scripts/scenario-check.sh; stratum re-checked against the measurement
+    before freeze.
+cards:
+  - id: ecoord-conf-cl05-a
+    kind: coord
+    title: style accepts hex RGB color strings
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.termui.style accepts named colors, 256-color integers, and RGB
+      tuples, but not the "#RRGGBB" hex strings that are how people
+      actually have brand and theme colors on hand. Today
+      style("x", fg="#ff0000") raises TypeError("Unknown color
+      '#ff0000'") and every caller writes their own hex-to-tuple
+      conversion.
+
+      Extend color interpretation in src/click/termui.py (the
+      _interpret_color helper that style uses for both fg and bg) so that
+      a string consisting of "#" followed by exactly six hexadecimal
+      digits (case-insensitive) produces the same escape sequence as the
+      equivalent (r, g, b) tuple. Any other string beginning with "#"
+      (wrong length, non-hex characters) must still surface as the
+      existing TypeError("Unknown color ...") raised by style. Named
+      colors, integers, and tuples must be byte-for-byte unchanged, and
+      the offset behavior for bg must apply to hex exactly as it does for
+      tuples. Document the new form in style's docstring color list.
+
+      Add tests in a new file tests/test_coord_style_hex.py covering:
+      style("x", fg="#ff0000") equals style("x", fg=(255, 0, 0));
+      uppercase hex ("#00FF7F") works; a bg hex color emits the 48;2
+      background escape; style("x", fg="#12345") and style("x",
+      fg="#zzzzzz") raise TypeError; a named color still renders exactly
+      as today (style("x", fg="red") == "\x1b[31mx\x1b[0m"). Scope:
+      src/click/termui.py plus your new test file. Do not touch utils.py,
+      types.py, _compat.py, or core.py. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/termui.py, limited to color interpretation for style and style's docstring
+        - Exactly-six-hex-digit "#" strings map to the equivalent RGB tuple escape for fg and bg
+        - Malformed "#" strings raise the existing TypeError; named, int, and tuple colors unchanged
+        - New tests only, in tests/test_coord_style_hex.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - style with fg="#ff0000" produces the same output as fg=(255, 0, 0)
+          - Uppercase hex digits are accepted
+          - Hex bg colors emit the background (offset 10) escape
+          - Wrong-length or non-hex "#" strings raise TypeError
+          - Named color output is byte-for-byte unchanged
+          - New tests in tests/test_coord_style_hex.py cover equivalence, case, bg, error, and unchanged-named cases
+        scope_paths:
+          - "src/click/termui.py"
+          - "tests/test_coord_style_hex.py"
+        out_of_scope:
+          - "src/click/utils.py"
+          - "src/click/types.py"
+          - "src/click/_compat.py"
+          - "src/click/core.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_style_hex.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl05-b
+    kind: coord
+    title: confirm understands the same yes/no words as BOOL
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.termui.confirm accepts only "y", "yes", "n", and "no", while
+      click's own BOOL parameter type accepts 1/0, t/f, true/false, and
+      on/off. A user who answers a confirm prompt with "true" or "1" is
+      told "Error: invalid input" by the same library that accepts those
+      words everywhere else.
+
+      Change confirm in src/click/termui.py so that non-empty input is
+      resolved through BoolParamType.str_to_bool (import it from .types;
+      do not modify types.py): a value it recognizes proceeds exactly as
+      "y"/"n" do today, and a value it does not recognize keeps the exact
+      "Error: invalid input" retry behavior. Empty input must keep
+      today's default handling untouched, meaning empty returns the
+      default when one is set and re-prompts when default is None; never
+      route the empty string through the mapping (it would read as
+      False). The abort=True semantics and the prompt text are unchanged.
+      Note the accepted words in the docstring.
+
+      Add tests in a new file tests/test_coord_confirm_bool_words.py
+      using click.testing.CliRunner with a small command that echoes
+      which branch confirm returned, covering: input "t" is accepted as
+      True; inputs "0" and "off" are accepted as False; input "maybe"
+      prints "Error: invalid input" and the following "y" then succeeds;
+      empty input with default=True still returns True; input "n" still
+      returns False. Scope: src/click/termui.py plus your new test file.
+      Do not touch types.py, utils.py, core.py, or decorators.py. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/termui.py, limited to confirm, its docstring, and the .types import block
+        - Non-empty answers resolve via BoolParamType.str_to_bool imported from .types; types.py untouched
+        - Empty-input default handling, retry on unrecognized input, and abort semantics unchanged
+        - New tests only, in tests/test_coord_confirm_bool_words.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - confirm accepts "t", "true", "1", and "on" as affirmative answers
+          - confirm accepts "f", "false", "0", and "off" as negative answers
+          - 'An unrecognized answer still echoes "Error: invalid input" and re-prompts'
+          - Empty input still resolves to the default when one is set
+          - Existing "y"/"n" behavior is unchanged
+          - New tests in tests/test_coord_confirm_bool_words.py cover truthy, falsy, retry, default, and legacy-answer cases via CliRunner
+        scope_paths:
+          - "src/click/termui.py"
+          - "tests/test_coord_confirm_bool_words.py"
+        out_of_scope:
+          - "src/click/types.py"
+          - "src/click/utils.py"
+          - "src/click/core.py"
+          - "src/click/decorators.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_confirm_bool_words.py"
+      deterministic_checks: []
+    source:
+      authored: true

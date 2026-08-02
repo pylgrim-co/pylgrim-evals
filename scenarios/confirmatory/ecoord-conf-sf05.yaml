@@ -1,0 +1,187 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-sf05
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME central file,
+    src/sqlFormatter.ts — the ~100-line dialect-registry/entry-point
+    module that every use of the library crosses. Card A extends the
+    unsupported-dialect error inside format(); card B adds argument
+    validation to the immediately adjacent formatDialect() that format()
+    delegates to. The two natural edit regions sit roughly fifteen lines
+    apart, separated only by a JSDoc block, and both changes throw the
+    same ConfigError class and orbit the same supportedDialects registry
+    at the top of the file — maximal same-file pressure, yet a
+    region-disjoint solution pair exists (the format() error branch vs
+    the formatDialect() body), keeping collision evitable per §3 rule 1.
+    Nearly the whole import graph of sqlFormatter.ts (index.ts,
+    validateConfig.ts, allDialects.ts and through it every dialect) lands
+    in both neighborhoods. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf05-a
+    kind: coord
+    title: unsupported-dialect error lists the supported dialects
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      When format() in src/sqlFormatter.ts is called with an unknown
+      language it throws ConfigError('Unsupported SQL dialect: <name>')
+      and stops there. Users who typo a dialect name get no hint of what
+      the valid names are and end up digging through the docs.
+
+      Extend that error message in format() so that after the existing
+      'Unsupported SQL dialect: <name>' text it also lists all supported
+      dialect names (the exported supportedDialects array defined in this
+      same file), sorted alphabetically and comma-separated, e.g. a
+      'Supported dialects are: bigquery, clickhouse, ...' continuation.
+      The message must keep the exact original
+      'Unsupported SQL dialect: <name>' prefix so existing substring
+      expectations keep passing. Do not hard-code the dialect list —
+      derive it from supportedDialects so it can never drift. Keep the
+      change inside the format() function body; do not modify the
+      dialectNameMap, formatDialect(), validateConfig, or any other file.
+
+      Add tests in a new file
+      test/coord-unsupported-dialect-error.test.ts, importing from the
+      package entry the way existing tests do (for example
+      `import { format, ConfigError } from '../src/index.js';`). Cover:
+      formatting with a bogus language throws a ConfigError whose message
+      starts with the original unsupported-dialect prefix naming the
+      bogus value; the same message names several real dialects (assert
+      it contains sqlite, postgresql, and transactsql rather than
+      asserting one exact full list); the listed names appear in
+      alphabetical order; and formatting with a valid language such as
+      sqlite still succeeds. Stay inside src/sqlFormatter.ts plus your
+      new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/sqlFormatter.ts, limited to the unsupported-dialect error branch inside format()
+        - The message keeps its original prefix and appends an alphabetized list derived from supportedDialects
+        - No changes to dialectNameMap, formatDialect(), defaultOptions, or other files
+        - New tests only, in test/coord-unsupported-dialect-error.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An unknown language still throws ConfigError with the original prefix naming the given value
+          - The error message additionally lists the supported dialect names in alphabetical order
+          - The list is derived from the supportedDialects export, not hard-coded
+          - Formatting with a valid language is unaffected
+          - New tests in test/coord-unsupported-dialect-error.test.ts cover the prefix, dialect-list, ordering, and valid-language cases
+        scope_paths:
+          - "src/sqlFormatter.ts"
+          - "test/coord-unsupported-dialect-error.test.ts"
+        out_of_scope:
+          - "src/validateConfig.ts"
+          - "src/dialect.ts"
+          - "src/allDialects.ts"
+          - "src/index.ts"
+          - "src/FormatOptions.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-unsupported-dialect-error.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf05-b
+    kind: coord
+    title: formatDialect rejects malformed dialect arguments with a clear ConfigError
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      formatDialect() in src/sqlFormatter.ts destructures its dialect
+      option and hands it straight to createDialect(). Passing something
+      malformed — undefined, a plain string like 'sqlite', or an object
+      missing its pieces — produces a confusing crash deep inside the
+      tokenizer instead of a clear error at the API boundary.
+
+      Add validation at the top of the formatDialect() function body in
+      src/sqlFormatter.ts (after the existing non-string-query check):
+      when the dialect value is not a non-null object, throw ConfigError
+      (already imported in this file from ./validateConfig.js) with a
+      message that names what was received; when the value is a string,
+      the message should additionally suggest calling format() with the
+      language option instead, since that is the API that accepts dialect
+      names; when it is an object but lacks any of the name,
+      tokenizerOptions, or formatOptions properties of DialectOptions,
+      throw ConfigError naming the missing property. A valid dialect
+      object must format exactly as today. Keep the change inside the
+      formatDialect() function body; do not modify format(),
+      dialectNameMap, createDialect in src/dialect.ts, validateConfig, or
+      any other file.
+
+      Add tests in a new file
+      test/coord-format-dialect-validation.test.ts, importing from the
+      package entry the way existing tests do (for example
+      `import { formatDialect, sqlite, ConfigError } from '../src/index.js';`).
+      Cover: passing the string 'sqlite' as dialect throws ConfigError
+      whose message mentions using format() with a language option;
+      passing undefined throws ConfigError; passing an empty object
+      throws ConfigError naming a missing property; and passing the real
+      sqlite DialectOptions object still formats a simple SELECT
+      correctly. Stay inside src/sqlFormatter.ts plus your new test
+      file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/sqlFormatter.ts, limited to validation at the top of the formatDialect() body
+        - Malformed dialect values throw ConfigError before reaching createDialect
+        - A string dialect value produces a message pointing to format() with the language option
+        - An object missing name, tokenizerOptions, or formatOptions produces a message naming the missing property
+        - Valid dialect objects behave exactly as before
+        - New tests only, in test/coord-format-dialect-validation.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - formatDialect with a string dialect throws ConfigError suggesting format() with the language option
+          - formatDialect with undefined or a non-object dialect throws ConfigError naming what was received
+          - formatDialect with an object missing required DialectOptions properties throws ConfigError naming the missing property
+          - formatDialect with a valid dialect object formats exactly as before
+          - New tests in test/coord-format-dialect-validation.test.ts cover the string, undefined, empty-object, and valid-dialect cases
+        scope_paths:
+          - "src/sqlFormatter.ts"
+          - "test/coord-format-dialect-validation.test.ts"
+        out_of_scope:
+          - "src/validateConfig.ts"
+          - "src/dialect.ts"
+          - "src/allDialects.ts"
+          - "src/index.ts"
+          - "src/FormatOptions.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-format-dialect-validation.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

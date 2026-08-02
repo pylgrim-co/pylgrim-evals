@@ -1,0 +1,186 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zu02
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: medium
+  rationale: >
+    Both work items add a brand-new middleware, and every zustand
+    middleware is re-exported through the shared registry
+    src/middleware.ts, so BOTH cards must write the same 17-line registry
+    file (shared registry/index pressure, §3 rule 2) while their main
+    implementation lands in separate new files. The registry co-write plus
+    the shared vanilla.ts typing surface puts the expected pressure score
+    well above the low stratum (the registry's direct importees are in
+    both neighborhoods) with exactly one co-written file, whose small size
+    makes collision pressure real but evitable through disjoint insertion
+    points. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against the measurement before freeze.
+cards:
+  - id: ecoord-conf-zu02-a
+    kind: coord
+    title: add a validate middleware that runs an assertion on every new state
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Teams keep hand-rolling invariant checks around their stores (state
+      shape assertions, dev-time sanity checks). Add it as a first-class
+      middleware: a `validate` export that wraps a state creator and runs a
+      caller-supplied assertion function against the new state after every
+      state change.
+
+      Create src/middleware/validate.ts following the house middleware
+      style (a typed public signature over a loose impl, like combine's
+      non-mutator style since no new store methods are added):
+      validate(initializer, validator) returns a StateCreator, where
+      validator is a function of the new state returning void. After every
+      state change — whether performed through the set function passed to
+      the initializer or through api.setState — validator must be called
+      exactly once with the post-update state from get(). The middleware is
+      an observer, not a gatekeeper: the state update is committed first,
+      and if validator throws, that error propagates to the setState caller
+      while the store keeps the already-updated state. The validator is not
+      called during store creation. Register the export in the middleware
+      registry src/middleware.ts so `import { validate } from
+      'zustand/middleware'` resolves.
+
+      Add tests in a new file tests/coord/validate-middleware.test.ts
+      covering: the validator is called with the post-update state after
+      each setState; a throwing validator propagates its error to the
+      setState caller and the store still holds the updated state; the
+      validator fires for updates made through the initializer-provided set
+      as well as through api.setState; no validator call happens at store
+      creation. Scope is your new middleware file, the one-line registry
+      export in src/middleware.ts, and your new test file. Do not modify
+      existing middleware modules or the vanilla core. No new dependencies,
+      no CI or docs changes.
+    intent:
+      constraints:
+        - New implementation file src/middleware/validate.ts; registry edit in src/middleware.ts limited to exporting validate
+        - Validator runs after the update is committed, on both the initializer-set and api.setState paths
+        - A throwing validator propagates to the caller; the committed update is not rolled back
+        - No validator call at store creation
+        - New tests only, in tests/coord/validate-middleware.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "`import { validate } from 'zustand/middleware'` resolves"
+          - The validator is called exactly once with the post-update state after each state change
+          - A throwing validator propagates its error to the setState caller while getState() keeps the updated state
+          - Updates through both the initializer-provided set and api.setState trigger the validator
+          - New tests in tests/coord/validate-middleware.test.ts cover the called-with-new-state, throwing, both-set-paths, and no-call-at-creation cases
+        scope_paths:
+          - "src/middleware/validate.ts"
+          - "src/middleware.ts"
+          - "tests/coord/validate-middleware.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/validate-middleware.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu02-b
+    kind: coord
+    title: add a freeze middleware that shallow-freezes store state after every update
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Accidental direct mutation of zustand state (state.count++ instead of
+      setState) is a classic bug class that silently desynchronizes
+      subscribers. Add an opt-in guard as a first-class middleware: a
+      `freeze` export that wraps a state creator and shallow-freezes the
+      store's state object, so direct mutation attempts throw in strict
+      mode instead of corrupting state silently.
+
+      Create src/middleware/freeze.ts following the house middleware style
+      (a typed public signature over a loose impl, like combine's
+      non-mutator style since no new store methods are added):
+      freeze(initializer) returns a StateCreator. The state object must be
+      frozen with Object.freeze immediately after store creation and again
+      after every state change — whether performed through the set function
+      passed to the initializer or through api.setState. The freeze is
+      shallow: nested objects are not frozen. Update semantics are
+      otherwise unchanged; setState with a partial must still merge and
+      notify exactly as without the middleware. Register the export in the
+      middleware registry src/middleware.ts so `import { freeze } from
+      'zustand/middleware'` resolves.
+
+      Add tests in a new file tests/coord/freeze-middleware.test.ts
+      covering: Object.isFrozen(store.getState()) is true right after
+      creation; it is true again after a setState; a direct property
+      assignment on getState() throws TypeError (strict mode); setState
+      updates still apply and notify subscribers normally; a nested object
+      inside the state is not frozen. Scope is your new middleware file,
+      the one-line registry export in src/middleware.ts, and your new test
+      file. Do not modify existing middleware modules or the vanilla core.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - New implementation file src/middleware/freeze.ts; registry edit in src/middleware.ts limited to exporting freeze
+        - State object frozen after creation and after every update, on both set paths
+        - Shallow freeze only; nested objects untouched
+        - Store update and subscriber semantics unchanged apart from the freezing
+        - New tests only, in tests/coord/freeze-middleware.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "`import { freeze } from 'zustand/middleware'` resolves"
+          - Object.isFrozen(store.getState()) is true after creation and after each setState
+          - Direct property assignment on the state object throws TypeError under strict mode
+          - setState merging and subscriber notification behave exactly as without the middleware
+          - Nested objects inside the state are not frozen
+          - New tests in tests/coord/freeze-middleware.test.ts cover the frozen-at-creation, frozen-after-update, mutation-throws, updates-still-work, and shallow-only cases
+        scope_paths:
+          - "src/middleware/freeze.ts"
+          - "src/middleware.ts"
+          - "tests/coord/freeze-middleware.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/freeze-middleware.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

@@ -1,0 +1,163 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5.
+# Cards are authored and committed BEFORE any reference solution exists;
+# the git sequence of this file is the audit trail.
+scenario_id: ecoord-conf-cl03
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: medium
+  rationale: >
+    Card A extends confirmation_option in decorators.py, and its new code
+    path CALLS echo, which decorators.py imports from utils.py, the module
+    card B is writing; card B changes make_default_short_help in utils.py,
+    the function core.Command.get_short_help_str runs for every command a
+    group lists, and decorators.py imports core directly. Card A's
+    implementation surface therefore flows through card B's module, and
+    both neighborhoods meet again in core.py: a materially larger shared
+    neighborhood than cl01's, with no co-written file in the reference
+    pair. Measured score computed by scripts/scenario-check.sh; stratum
+    re-checked against the measurement before freeze.
+cards:
+  - id: ecoord-conf-cl03-a
+    kind: coord
+    title: confirmation_option can explain the abort
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.decorators.confirmation_option adds a --yes safety prompt, but
+      when the user declines, the program dies with a bare "Aborted!" and
+      no explanation of what was (not) done. Destructive commands want to
+      say "Nothing was deleted." on the way out, and today that requires
+      abandoning the decorator and hand-rolling the callback.
+
+      Add an `abort_message: str | None = None` keyword parameter to
+      confirmation_option in src/click/decorators.py. With the default
+      None, behavior is byte-for-byte unchanged. When set and the
+      confirmation is declined (the callback receives a false value), the
+      message is echoed to stderr (echo(abort_message, err=True)) before
+      the context abort is raised, so the user sees the explanation
+      followed by the normal "Aborted" output. When the user confirms, the
+      message must not appear. Implement inside confirmation_option's
+      callback closure and document the parameter in the docstring.
+
+      Add tests in a new file tests/test_coord_confirm_abort_message.py
+      using click.testing.CliRunner covering: a command decorated with
+      confirmation_option(abort_message="Nothing was deleted.") fed input
+      "n" exits with code 1 and its output contains both "Nothing was
+      deleted." and "Aborted"; the same command fed "y" runs the command
+      body and does not print the abort message; a command using the
+      default confirmation_option() fed "n" aborts exactly as today with
+      no extra line. Scope: src/click/decorators.py plus your new test
+      file. Do not touch core.py, termui.py, or utils.py. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/decorators.py, limited to confirmation_option and its docstring
+        - Default abort_message=None behavior byte-for-byte unchanged
+        - The message is echoed to stderr before the abort, only on decline
+        - New tests only, in tests/test_coord_confirm_abort_message.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - confirmation_option accepts an abort_message keyword defaulting to None
+          - Declining with abort_message set exits 1 and shows the message plus the normal Aborted output
+          - Confirming never shows the abort message and runs the command body
+          - Default confirmation_option decline output is unchanged
+          - New tests in tests/test_coord_confirm_abort_message.py cover decline-with-message, confirm, and default-unchanged cases via CliRunner
+        scope_paths:
+          - "src/click/decorators.py"
+          - "tests/test_coord_confirm_abort_message.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/exceptions.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_confirm_abort_message.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl03-b
+    kind: coord
+    title: short help stops at exclamation and question marks
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.utils.make_default_short_help condenses a command's help text
+      into the one-line summary shown in a group's command listing. It
+      truncates at the first sentence end, but only recognizes "." as a
+      sentence terminator (the word[-1] == "." check), so a docstring like
+      "Run it! Second sentence here." produces a short help containing
+      both sentences while "Run it. Second sentence here." correctly stops
+      after the first.
+
+      Change make_default_short_help in src/click/utils.py so that words
+      ending in "!" or "?" also count as sentence ends, with identical
+      truncation semantics to the existing "." handling (return the words
+      up to and including the terminator, no "..." suffix). Period
+      behavior, the max_length budget, the "\b" marker handling, and the
+      "..." over-length truncation must all be unchanged. Note the change
+      in the docstring.
+
+      Add tests in a new file tests/test_coord_short_help_sentences.py
+      covering: make_default_short_help("Run it! Second sentence here.")
+      returns "Run it!"; a question-mark first sentence truncates the same
+      way; "First. Second." still returns "First."; end-to-end, a
+      click.Command with help "Deploy everything! Also does other things."
+      reports get_short_help_str() == "Deploy everything!"; a single long
+      sentence with no terminal punctuation still truncates with "..." as
+      today. Scope: src/click/utils.py plus your new test file. Do not
+      touch core.py, decorators.py, formatting.py, or termui.py. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/utils.py, limited to make_default_short_help and its docstring
+        - Exclamation and question marks gain the exact truncation semantics periods already have
+        - Period, max_length, no-rewrap marker, and "..." truncation behavior unchanged
+        - New tests only, in tests/test_coord_short_help_sentences.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A first sentence ending in "!" truncates the short help at that word
+          - A first sentence ending in "?" truncates the short help at that word
+          - Period-terminated behavior is unchanged
+          - Command.get_short_help_str reflects the new truncation for a help text with an exclamation-ended first sentence
+          - Over-length truncation with "..." is unchanged
+          - New tests in tests/test_coord_short_help_sentences.py cover exclamation, question, period, command-level, and ellipsis cases
+        scope_paths:
+          - "src/click/utils.py"
+          - "tests/test_coord_short_help_sentences.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/decorators.py"
+          - "src/click/formatting.py"
+          - "src/click/termui.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_short_help_sentences.py"
+      deterministic_checks: []
+    source:
+      authored: true

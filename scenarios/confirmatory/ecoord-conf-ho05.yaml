@@ -1,0 +1,169 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-ho05
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME core file, src/context.ts (the
+    780-line Context class every handler and middleware touches): one
+    hardens the redirect method (around line 750), the other hardens the
+    status method (around line 529). Both cards' natural implementations —
+    and their scope_paths — run through src/context.ts, so a careless
+    agent's path of least resistance co-writes the file; yet a
+    region-disjoint solution pair exists because the two edit regions sit
+    roughly 220 lines apart in distinct methods, keeping collision
+    evitable per §3 rule 1. Nearly the whole import graph of context.ts
+    (hono-base, compose, every middleware and helper) lands in both
+    neighborhoods. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho05-a
+    kind: coord
+    title: c.redirect rejects Location values containing CR or LF with a clear TypeError
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      In src/context.ts, the Context class's redirect method stringifies
+      its location argument and hands it to this.header('Location', ...).
+      A location containing a carriage return or line feed is a classic
+      response-splitting / header-injection payload (or corrupted input);
+      today it surfaces, at best, as a cryptic error from the platform
+      Headers implementation with no hint of which call site is at fault.
+
+      Harden redirect: before setting the Location header, throw a
+      TypeError whose message states that the redirect location must not
+      contain CR or LF characters, if the stringified location contains
+      '\r' or '\n'. Everything else stays identical — default 302, custom
+      redirect status codes, and the existing encodeURI handling for
+      multibyte locations. Keep the change local to the redirect method;
+      do not restructure the class or touch any other method.
+
+      Add tests in a new file src/coord-redirect-location-guard.test.ts
+      (you can construct a context directly with
+      new Context(new Request('http://localhost/'))) covering, at minimum,
+      that c.redirect('/next') returns a 302 response whose Location
+      header is '/next'; c.redirect('/next', 301) returns 301; a location
+      containing '\r\n' throws a TypeError whose message mentions the
+      forbidden characters; and a location containing a lone '\n' also
+      throws TypeError. Scope is src/context.ts plus your new test file.
+      Do not touch hono-base, the request class, compose, middleware, or
+      helpers. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/context.ts, limited to the redirect method
+        - TypeError thrown before the Location header is set when the location contains CR or LF
+        - Valid redirects unchanged (default 302, custom status, multibyte encoding path)
+        - New tests only, in src/coord-redirect-location-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - c.redirect('/next') still returns status 302 with Location '/next'
+          - c.redirect('/next', 301) still returns status 301
+          - A location containing '\r\n' throws a TypeError whose message names the CR/LF restriction
+          - A location containing a lone '\n' throws a TypeError
+          - New tests in src/coord-redirect-location-guard.test.ts cover the default, custom-status, CRLF, and lone-LF cases
+        scope_paths:
+          - "src/context.ts"
+          - "src/coord-redirect-location-guard.test.ts"
+        out_of_scope:
+          - "src/hono-base.ts"
+          - "src/hono.ts"
+          - "src/request.ts"
+          - "src/compose.ts"
+          - "src/middleware/**"
+          - "src/helper/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/coord-redirect-location-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho05-b
+    kind: coord
+    title: c.status rejects out-of-range or non-integer status codes with a clear RangeError
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      In src/context.ts, the Context class's status method stores whatever
+      it is given for use by the next response-building call. The
+      StatusCode type only protects TypeScript users; from JavaScript,
+      c.status(9999), c.status(200.5), or c.status('404') is accepted
+      silently and blows up much later inside the Response constructor
+      with an error that points nowhere near the offending call.
+
+      Harden status: throw a RangeError at call time when the argument is
+      not an integer between 100 and 599 inclusive (this also rejects
+      non-number values). The message must name the status method and the
+      allowed 100-599 integer range. Valid calls behave exactly as today:
+      the code is stored and applied by the next c.body / c.text / c.json.
+      Keep the change local to the status method; do not restructure the
+      class or touch any other method.
+
+      Add tests in a new file src/coord-status-code-guard.test.ts (you can
+      construct a context directly with
+      new Context(new Request('http://localhost/'))) covering, at minimum,
+      that c.status(201) followed by c.body('created') yields a 201
+      response; c.status(9999) (cast via any) throws a RangeError whose
+      message mentions the 100-599 range; c.status(204.5) throws
+      RangeError; and a string argument like '404' (cast via any) throws
+      RangeError. Scope is src/context.ts plus your new test file. Do not
+      touch hono-base, the request class, compose, middleware, or helpers.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/context.ts, limited to the status method
+        - RangeError thrown at call time for non-integer, out-of-range, or non-number arguments
+        - Valid status codes stored and applied exactly as before
+        - New tests only, in src/coord-status-code-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - c.status(201) then c.body('created') still produces a 201 response
+          - c.status(9999) throws a RangeError whose message names the 100-599 integer range
+          - c.status(204.5) throws a RangeError
+          - A non-number argument such as '404' throws a RangeError
+          - New tests in src/coord-status-code-guard.test.ts cover the valid, out-of-range, non-integer, and non-number cases
+        scope_paths:
+          - "src/context.ts"
+          - "src/coord-status-code-guard.test.ts"
+        out_of_scope:
+          - "src/hono-base.ts"
+          - "src/hono.ts"
+          - "src/request.ts"
+          - "src/compose.ts"
+          - "src/middleware/**"
+          - "src/helper/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/coord-status-code-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

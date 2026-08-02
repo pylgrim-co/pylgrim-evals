@@ -1,0 +1,183 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-ho03
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: medium
+  rationale: >
+    Both work items add a new fixed-header entry to the secure-headers
+    middleware, which forces BOTH cards to write the same three parallel
+    registry blocks in src/middleware/secure-headers/secure-headers.ts
+    (the SecureHeadersOptions interface, HEADERS_MAP, and DEFAULT_OPTIONS)
+    — the zu02-class shared-registry co-write, at module scope rather than
+    package scope. A region-disjoint pair exists because card A inserts its
+    key as the FIRST entry of each block and card B appends as the LAST
+    entry, keeping the insertion points ten-plus lines apart in every
+    block, but a careless agent that rewrites or reorders the blocks
+    collides immediately. The module's re-export shim
+    (src/middleware/secure-headers/index.ts) and importers join both
+    neighborhoods. The measured score is computed mechanically by
+    scripts/scenario-check.sh from the reference diffs; this authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho03-a
+    kind: coord
+    title: secureHeaders gains an opt-in Cache-Control no-store header entry
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The secureHeaders middleware
+      (src/middleware/secure-headers/secure-headers.ts) keeps its fixed
+      response headers in three parallel blocks: the SecureHeadersOptions
+      interface, the HEADERS_MAP object mapping each option key to a
+      [header name, default value] pair, and DEFAULT_OPTIONS. OWASP
+      secure-headers guidance recommends sending Cache-Control
+      'no-store, max-age=0' on sensitive responses so shared caches and
+      browser history never retain them, but the middleware has no entry
+      for it.
+
+      Add a cacheControl entry, opt-in (disabled by default so existing
+      default output is unchanged; crossOriginEmbedderPolicy is the
+      precedent for a default-off entry). Concretely, add cacheControl as
+      an overridableHeader field placed as the FIRST entry of the
+      SecureHeadersOptions interface, the FIRST entry of HEADERS_MAP with
+      the pair ['Cache-Control', 'no-store, max-age=0'], and the FIRST
+      entry of DEFAULT_OPTIONS with the value false. No other logic
+      changes are needed; getFilteredHeaders already picks up new map
+      entries, and a string option value already overrides the default
+      header value.
+
+      Add tests in a new file
+      src/middleware/secure-headers/coord-cache-control.test.ts covering,
+      at minimum, that an app using secureHeaders({ cacheControl: true })
+      responds with the Cache-Control header set to
+      'no-store, max-age=0'; a string option (for example 'no-cache')
+      becomes the header value verbatim; the default secureHeaders() sets
+      no Cache-Control header; and an existing default header such as
+      X-Frame-Options is unaffected. Stay inside
+      src/middleware/secure-headers/secure-headers.ts plus your new test
+      file. Do not touch the module's index re-export, permissions-policy,
+      other middleware, or shared utils. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/secure-headers/secure-headers.ts
+        - cacheControl added as the first entry of the interface, HEADERS_MAP, and DEFAULT_OPTIONS blocks
+        - Disabled by default; secureHeaders() default output unchanged
+        - New tests only, in src/middleware/secure-headers/coord-cache-control.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "secureHeaders({ cacheControl: true }) sets the Cache-Control response header to 'no-store, max-age=0'"
+          - "A string value for cacheControl becomes the Cache-Control header value verbatim"
+          - "Default secureHeaders() does not set a Cache-Control header"
+          - "Existing default headers such as X-Frame-Options are unchanged"
+          - "New tests in src/middleware/secure-headers/coord-cache-control.test.ts cover the enabled, string-override, default-absent, and unaffected-defaults cases"
+        scope_paths:
+          - "src/middleware/secure-headers/secure-headers.ts"
+          - "src/middleware/secure-headers/coord-cache-control.test.ts"
+        out_of_scope:
+          - "src/middleware/secure-headers/index.ts"
+          - "src/middleware/secure-headers/permissions-policy.ts"
+          - "src/utils/encode.ts"
+          - "src/context.ts"
+          - "src/middleware/cors/**"
+          - "src/middleware/csrf/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/secure-headers/coord-cache-control.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho03-b
+    kind: coord
+    title: secureHeaders gains an opt-in X-Robots-Tag header entry
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The secureHeaders middleware
+      (src/middleware/secure-headers/secure-headers.ts) keeps its fixed
+      response headers in three parallel blocks: the SecureHeadersOptions
+      interface, the HEADERS_MAP object mapping each option key to a
+      [header name, default value] pair, and DEFAULT_OPTIONS. Teams
+      routinely need to keep auth-gated dashboards, admin panels, and
+      internal APIs out of search indexes; the standard mechanism is the
+      X-Robots-Tag response header with the value 'noindex', but the
+      middleware has no entry for it.
+
+      Add an xRobotsTag entry, opt-in (disabled by default so existing
+      default output is unchanged; crossOriginEmbedderPolicy is the
+      precedent for a default-off entry). Concretely, add xRobotsTag as an
+      overridableHeader field appended as the LAST entry of the
+      SecureHeadersOptions interface, the LAST entry of HEADERS_MAP with
+      the pair ['X-Robots-Tag', 'noindex'], and the LAST entry of
+      DEFAULT_OPTIONS with the value false. No other logic changes are
+      needed; getFilteredHeaders already picks up new map entries, and a
+      string option value already overrides the default header value.
+
+      Add tests in a new file
+      src/middleware/secure-headers/coord-x-robots-tag.test.ts covering,
+      at minimum, that an app using secureHeaders({ xRobotsTag: true })
+      responds with the X-Robots-Tag header set to 'noindex'; a string
+      option (for example 'noindex, nofollow') becomes the header value
+      verbatim; the default secureHeaders() sets no X-Robots-Tag header;
+      and an existing default header such as X-Content-Type-Options is
+      unaffected. Stay inside
+      src/middleware/secure-headers/secure-headers.ts plus your new test
+      file. Do not touch the module's index re-export, permissions-policy,
+      other middleware, or shared utils. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/secure-headers/secure-headers.ts
+        - xRobotsTag appended as the last entry of the interface, HEADERS_MAP, and DEFAULT_OPTIONS blocks
+        - Disabled by default; secureHeaders() default output unchanged
+        - New tests only, in src/middleware/secure-headers/coord-x-robots-tag.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "secureHeaders({ xRobotsTag: true }) sets the X-Robots-Tag response header to 'noindex'"
+          - "A string value for xRobotsTag becomes the X-Robots-Tag header value verbatim"
+          - "Default secureHeaders() does not set an X-Robots-Tag header"
+          - "Existing default headers such as X-Content-Type-Options are unchanged"
+          - "New tests in src/middleware/secure-headers/coord-x-robots-tag.test.ts cover the enabled, string-override, default-absent, and unaffected-defaults cases"
+        scope_paths:
+          - "src/middleware/secure-headers/secure-headers.ts"
+          - "src/middleware/secure-headers/coord-x-robots-tag.test.ts"
+        out_of_scope:
+          - "src/middleware/secure-headers/index.ts"
+          - "src/middleware/secure-headers/permissions-policy.ts"
+          - "src/utils/encode.ts"
+          - "src/context.ts"
+          - "src/middleware/cors/**"
+          - "src/middleware/csrf/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/secure-headers/coord-x-robots-tag.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

@@ -1,0 +1,190 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-zu06
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: high
+  rationale: >
+    Both work items must modify the SAME central middleware file,
+    src/middleware/devtools.ts (~440 lines): one adds a warning on the
+    extension-unavailable early-return path, the other makes the cleanup
+    handle stop devtools traffic. The tempting careless implementation
+    for BOTH cards is the same few lines — the devtoolsImpl entry block
+    and the recording flag consulted by the api.setState wrapper sit
+    directly between the two natural edit regions, and an agent that
+    "generalizes" either fix drifts into the other's territory — while a
+    region-disjoint reference pair exists (the no-connector early return
+    around the extensionConnector check versus the devtools cleanup
+    block, roughly forty lines apart), keeping collision evitable per §3
+    rule 1. The devtools import surface (vanilla types, the registry
+    re-export, and redux's NamedSet dependency) lands in both
+    neighborhoods. Measured score computed by scripts/scenario-check.sh;
+    the authored label is re-checked against the measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-zu06-a
+    kind: coord
+    title: devtools warns when explicitly enabled but the extension is unavailable
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The devtools middleware (src/middleware/devtools.ts) computes an
+      extensionConnector from the enabled option and
+      window.__REDUX_DEVTOOLS_EXTENSION__, and when the connector is
+      falsy it silently degrades to a pass-through — even when the caller
+      passed enabled true and clearly expects devtools to be live. People
+      lose real debugging time to this silent degrade before noticing the
+      extension was missing or blocked.
+
+      Add a development-only warning on that early-return path in
+      src/middleware/devtools.ts: when the resolved extensionConnector is
+      falsy AND the caller explicitly passed enabled as true, call
+      console.warn once during store creation with a message saying the
+      devtools middleware is enabled but the Redux DevTools extension is
+      not available; then degrade to the pass-through exactly as today.
+      Follow the file's existing development gate style — the warning is
+      skipped when import.meta.env?.MODE is 'production'. No warning when
+      enabled is false, when it is omitted, or when the extension is
+      present. The store must remain fully functional in every case. Keep
+      the change local to the no-connector early-return path; do not
+      touch the connected code path.
+
+      Add tests in a new file tests/coord/devtools-missing-warn.test.ts
+      covering (with window.__REDUX_DEVTOOLS_EXTENSION__ left undefined,
+      the natural jsdom state): creating a store with devtools and
+      enabled true logs exactly one console.warn at creation; creating
+      one with enabled false logs no warning; creating one with no
+      devtoolsOptions logs no warning; in all three cases setState and
+      getState work normally. Scope is src/middleware/devtools.ts plus
+      your new test file. Do not touch other middleware modules, the
+      middleware registry, or the vanilla core. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/devtools.ts, limited to the no-connector early-return path
+        - Warning fires only when enabled was explicitly true and the connector is falsy, once per store creation
+        - Warning gated on the file's existing import.meta.env MODE development check
+        - Pass-through degrade behavior unchanged; the connected path untouched
+        - New tests only, in tests/coord/devtools-missing-warn.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With no extension present and enabled true, store creation logs exactly one console.warn
+          - With no extension present and enabled false or omitted, no warning is logged
+          - The store works normally (setState, getState, subscribe) in all cases
+          - New tests in tests/coord/devtools-missing-warn.test.ts cover the enabled-true, enabled-false, omitted-options, and still-functional cases
+        scope_paths:
+          - "src/middleware/devtools.ts"
+          - "tests/coord/devtools-missing-warn.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/devtools-missing-warn.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu06-b
+    kind: coord
+    title: devtools cleanup stops sending actions to the extension connection
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The devtools middleware (src/middleware/devtools.ts) exposes
+      api.devtools.cleanup(), which unsubscribes from the extension
+      connection and removes the store from the tracked-connections map.
+      But the api.setState wrapper keeps calling connection.send on every
+      later state change — after cleanup, a store that is supposed to be
+      detached keeps streaming actions into a connection the caller
+      considers dead.
+
+      Fix this inside the devtools cleanup path in
+      src/middleware/devtools.ts: after api.devtools.cleanup() has run,
+      subsequent setState calls must no longer send anything to the
+      connection, while the state updates themselves still apply and
+      listeners still fire normally. Cleanup's existing behavior — calling
+      the connection's unsubscribe when one exists and removing the store
+      from the tracked connections — must be preserved. Keep the change
+      local to the cleanup block; do not restructure the setState wrapper
+      or the message-subscription handling.
+
+      Add tests in a new file tests/coord/devtools-cleanup-send.test.ts.
+      In the tests, install a minimal fake extension before creating the
+      store — set window.__REDUX_DEVTOOLS_EXTENSION__ to an object whose
+      connect returns a connection stub with init, send, subscribe, and
+      unsubscribe functions (vi.fn() stubs; subscribe can return
+      undefined) — and remove it again after each test. Cover: before
+      cleanup, a setState triggers a connection.send call; after
+      cleanup(), further setState calls trigger no additional send calls;
+      those post-cleanup setState calls still update getState() and still
+      notify store subscribers; cleanup still invoked the connection's
+      unsubscribe. Scope is src/middleware/devtools.ts plus your new test
+      file. Do not touch other middleware modules, the middleware
+      registry, or the vanilla core. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/devtools.ts, limited to the devtools cleanup path
+        - After cleanup, no further connection.send occurs for setState calls
+        - Post-cleanup state updates and store subscriber notifications work normally
+        - Existing cleanup behavior (connection unsubscribe, tracked-connection removal) preserved
+        - New tests only, in tests/coord/devtools-cleanup-send.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - Before cleanup, setState produces a connection.send call
+          - After cleanup, additional setState calls produce no additional connection.send calls
+          - Post-cleanup setState still updates getState() and notifies subscribers
+          - Cleanup still calls the connection's unsubscribe function
+          - New tests in tests/coord/devtools-cleanup-send.test.ts cover the pre-cleanup send, post-cleanup silence, still-updating, and unsubscribe cases using a fake extension installed and removed per test
+        scope_paths:
+          - "src/middleware/devtools.ts"
+          - "tests/coord/devtools-cleanup-send.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/devtools-cleanup-send.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

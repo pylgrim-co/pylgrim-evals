@@ -1,0 +1,170 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5.
+# Cards are authored and committed BEFORE any reference solution exists;
+# the git sequence of this file is the audit trail.
+scenario_id: ecoord-conf-cl06
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: high
+  rationale: >
+    Both natural implementations live in src/click/core.py, the package's
+    central module: card A inside Group.add_command (around line 1730),
+    card B inside Option.__init__'s existing validation block (around
+    line 3040). Same central file, the §3 rule-2 co-write case at full
+    strength, while a region-disjoint reference pair exists because the
+    two edit regions sit roughly 1,300 lines apart in a 3,681-line file
+    and merge cleanly. core.py imports formatting, globals, parser,
+    termui, types, utils, and exceptions and is imported by decorators,
+    shell_completion, and testing, so nearly the whole package joins the
+    shared neighborhood; expected to measure alongside cl05 as the
+    highest-pressure click scenarios. Measured score computed by
+    scripts/scenario-check.sh; stratum re-checked against the measurement
+    before freeze.
+cards:
+  - id: ecoord-conf-cl06-a
+    kind: coord
+    title: Group.add_command warns before silently replacing a command
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.core.Group.add_command silently overwrites: registering a
+      second command under an already-used name (a copy-pasted
+      @cli.command() function name, two plugins claiming the same name)
+      replaces the first with no signal of any kind, and the loser simply
+      vanishes from the group's help. That is almost always an authoring
+      mistake, and today it fails silently.
+
+      Change add_command in src/click/core.py so that when the resolved
+      registration name is already present in self.commands and maps to a
+      different Command object, a UserWarning is issued naming the
+      duplicate command name (and, if available, the group's name). The
+      replacement itself must still happen, so this warns rather than
+      raises, and re-registering the identical Command object under the
+      same name must stay completely silent. The @group.command()
+      decorator path routes through add_command and must inherit the
+      warning with no changes elsewhere. Note the behavior in
+      add_command's docstring.
+
+      Add tests in a new file tests/test_coord_group_duplicate.py
+      covering: adding two distinct Commands named "sync" to one Group
+      triggers pytest.warns(UserWarning) with "sync" in the message, and
+      group.commands["sync"] is the second command afterwards; adding the
+      same Command object twice raises no warning (assert with
+      warnings.simplefilter("error") inside warnings.catch_warnings);
+      adding two commands with distinct names raises no warning; defining
+      two @group.command() functions that resolve to the same name warns
+      too. Scope: src/click/core.py plus your new test file. Do not touch
+      decorators.py, termui.py, types.py, or utils.py. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/core.py, limited to Group.add_command and its docstring
+        - Duplicate name registered to a different Command object warns via UserWarning; replacement still happens
+        - Re-adding the identical object and adding distinct names both stay silent
+        - New tests only, in tests/test_coord_group_duplicate.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - Registering a different Command under an existing name issues a UserWarning naming the duplicate
+          - The later registration still wins (group.commands holds the second command)
+          - Re-registering the identical Command object is silent
+          - Registrations under distinct names are silent
+          - The @group.command() decorator path inherits the warning
+          - New tests in tests/test_coord_group_duplicate.py cover warn, replacement, idempotent-silent, distinct-silent, and decorator cases
+        scope_paths:
+          - "src/click/core.py"
+          - "tests/test_coord_group_duplicate.py"
+        out_of_scope:
+          - "src/click/decorators.py"
+          - "src/click/termui.py"
+          - "src/click/types.py"
+          - "src/click/utils.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_group_duplicate.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl06-b
+    kind: coord
+    title: Option rejects prompt together with multiple
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.core.Option happily constructs with prompt=True and
+      multiple=True, but the combination is broken at runtime: prompting
+      collects a single string, and the multiple-value pipeline then
+      iterates it, and since a string is iterable, the user's answer is
+      silently split into per-character conversions instead of becoming a
+      list of values. Nobody has ever wanted that; it should fail fast at
+      declaration time like the other invalid combinations already do.
+
+      Change Option.__init__ in src/click/core.py: inside the existing
+      __debug__ validation block (the one that already rejects
+      count-with-multiple, count-with-is_flag, and similar combinations),
+      raise TypeError when prompting is enabled (prompt=True or a prompt
+      string) together with multiple=True, with a message clearly stating
+      that 'prompt' is not valid with 'multiple'. Only that combination
+      may be rejected: multiple without prompt, prompt without multiple,
+      and every other existing validation must behave exactly as today.
+
+      Add tests in a new file tests/test_coord_option_prompt_multiple.py
+      covering: click.Option(["--tag"], prompt=True, multiple=True)
+      raises TypeError whose message mentions both 'prompt' and
+      'multiple'; the prompt-string form (prompt="Tag", multiple=True)
+      also raises TypeError; click.Option(["--tag"], multiple=True) and
+      click.Option(["--name"], prompt=True) still construct; a CliRunner
+      sanity run of a command with a plain prompt option (no multiple)
+      still prompts and echoes the value. Scope: src/click/core.py plus
+      your new test file. Do not touch decorators.py, termui.py,
+      types.py, or parser.py. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/core.py, limited to Option.__init__'s validation block
+        - Prompt enabled together with multiple=True raises TypeError naming both settings
+        - All other Option combinations and validations byte-for-byte unchanged
+        - New tests only, in tests/test_coord_option_prompt_multiple.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - Option with prompt=True and multiple=True raises TypeError mentioning both 'prompt' and 'multiple'
+          - Option with a prompt string and multiple=True raises the same TypeError
+          - Option with only multiple=True still constructs
+          - Option with only prompt=True still constructs and prompts normally in a CliRunner run
+          - New tests in tests/test_coord_option_prompt_multiple.py cover both rejected forms, both allowed forms, and the CliRunner sanity run
+        scope_paths:
+          - "src/click/core.py"
+          - "tests/test_coord_option_prompt_multiple.py"
+        out_of_scope:
+          - "src/click/decorators.py"
+          - "src/click/termui.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_option_prompt_multiple.py"
+      deterministic_checks: []
+    source:
+      authored: true

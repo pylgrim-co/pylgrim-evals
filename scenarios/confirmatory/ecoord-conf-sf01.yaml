@@ -1,0 +1,179 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5
+# (cards committed before any reference solution; git sequence is the
+# audit trail).
+scenario_id: ecoord-conf-sf01
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: low
+  rationale: >
+    The two work items live in sibling dialect modules
+    (src/languages/sqlite/ and src/languages/postgresql/) with fully
+    disjoint natural write surfaces: each card only appends names to its
+    own dialect's functions catalog. Their plausible implementation
+    surfaces still intersect (the §3 rule-2 floor): both catalogs feed
+    reservedFunctionNames consumed by the shared tokenizer and the
+    functionCase logic in src/formatter/ExpressionFormatter.ts, and both
+    new tests format through the shared entry point src/sqlFormatter.ts
+    (the dialect registry). Expected pressure of a couple of shared
+    read-side files, no co-written file. The measured score is computed
+    mechanically by scripts/scenario-check.sh from the reference diffs;
+    this authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-sf01-a
+    kind: coord
+    title: sqlite dialect recognizes modern SQLite built-in functions for functionCase
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The sqlite dialect's function catalog
+      (src/languages/sqlite/sqlite.functions.ts, the exported `functions`
+      array used as reservedFunctionNames by sqlite.formatter.ts) predates
+      SQLite 3.43/3.44 and is missing several built-ins that those releases
+      added: UNHEX, CONCAT, CONCAT_WS, OCTET_LENGTH (core functions),
+      STRING_AGG (aggregate), and TIMEDIFF (date/time). Because they are
+      not in the catalog, calls like concat_ws(',', a, b) are tokenized as
+      plain identifiers, so the functionCase option ignores them while
+      correctly transforming the functions that are listed.
+
+      Add these six names to the appropriate sections of the `functions`
+      array in src/languages/sqlite/sqlite.functions.ts. Follow the
+      existing style (uppercase entries, grouped under the sqlite.org doc
+      URL comments). Change nothing else; the tokenizer and formatter
+      already handle every listed function generically.
+
+      Add tests in a new file test/coord-sqlite-modern-functions.test.ts,
+      importing the formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'sqlite' }`. Cover: functionCase 'upper'
+      uppercases calls to concat_ws, unhex, string_agg, and timediff;
+      functionCase 'lower' lowercases calls to CONCAT and OCTET_LENGTH;
+      the default (no functionCase given) preserves mixed-case spellings
+      like Concat_Ws( unchanged; a call to an unknown function such as
+      my_custom_fn(x) is NOT uppercased by functionCase 'upper'. Stay
+      inside src/languages/sqlite/sqlite.functions.ts plus your new test
+      file. Do not touch other dialect directories, the formatter core,
+      the lexer, or the public entry points. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/sqlite/sqlite.functions.ts, adding entries to the existing functions array
+        - No changes to the tokenizer, formatter core, or any other dialect
+        - New tests only, in test/coord-sqlite-modern-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - UNHEX, CONCAT, CONCAT_WS, OCTET_LENGTH, STRING_AGG, and TIMEDIFF are present in the sqlite functions catalog
+          - With functionCase 'upper' and language sqlite, calls to concat_ws, unhex, string_agg, and timediff are uppercased
+          - With functionCase 'lower', calls to CONCAT and OCTET_LENGTH are lowercased
+          - Without a functionCase option the original casing of these calls is preserved
+          - Unknown function names remain untouched by functionCase
+          - New tests in test/coord-sqlite-modern-functions.test.ts cover the upper, lower, preserve, and unknown-name cases
+        scope_paths:
+          - "src/languages/sqlite/sqlite.functions.ts"
+          - "test/coord-sqlite-modern-functions.test.ts"
+        out_of_scope:
+          - "src/languages/sqlite/sqlite.formatter.ts"
+          - "src/languages/sqlite/sqlite.keywords.ts"
+          - "src/languages/postgresql/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-sqlite-modern-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf01-b
+    kind: coord
+    title: postgresql dialect recognizes PostgreSQL 16 built-in functions for functionCase
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The postgresql dialect's function catalog
+      (src/languages/postgresql/postgresql.functions.ts, the exported
+      `functions` array used as reservedFunctionNames by
+      postgresql.formatter.ts) is missing several functions added in
+      PostgreSQL 16: TO_BIN and TO_OCT (string/number conversion),
+      RANDOM_NORMAL (random), ERF and ERFC (math), and the ANY_VALUE
+      aggregate. Because they are not in the catalog, calls like
+      any_value(x) are tokenized as plain identifiers, so the functionCase
+      option ignores them while correctly transforming the functions that
+      are listed.
+
+      Add these six names to the appropriate sections of the `functions`
+      array in src/languages/postgresql/postgresql.functions.ts. Follow
+      the existing style (uppercase entries, grouped under the section
+      comments). Change nothing else; the tokenizer and formatter already
+      handle every listed function generically.
+
+      Add tests in a new file
+      test/coord-postgresql-pg16-functions.test.ts, importing the
+      formatter the way existing tests do (for example
+      `import { format } from '../src/sqlFormatter.js';`) and formatting
+      with `{ language: 'postgresql' }`. Cover: functionCase 'upper'
+      uppercases calls to any_value, to_bin, erf, and random_normal;
+      functionCase 'lower' lowercases calls to TO_OCT and ERFC; the
+      default (no functionCase given) preserves mixed-case spellings like
+      Any_Value( unchanged; a call to an unknown function such as
+      my_custom_fn(x) is NOT uppercased by functionCase 'upper'. Stay
+      inside src/languages/postgresql/postgresql.functions.ts plus your
+      new test file. Do not touch other dialect directories, the formatter
+      core, the lexer, or the public entry points. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/postgresql/postgresql.functions.ts, adding entries to the existing functions array
+        - No changes to the tokenizer, formatter core, or any other dialect
+        - New tests only, in test/coord-postgresql-pg16-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - TO_BIN, TO_OCT, RANDOM_NORMAL, ERF, ERFC, and ANY_VALUE are present in the postgresql functions catalog
+          - With functionCase 'upper' and language postgresql, calls to any_value, to_bin, erf, and random_normal are uppercased
+          - With functionCase 'lower', calls to TO_OCT and ERFC are lowercased
+          - Without a functionCase option the original casing of these calls is preserved
+          - Unknown function names remain untouched by functionCase
+          - New tests in test/coord-postgresql-pg16-functions.test.ts cover the upper, lower, preserve, and unknown-name cases
+        scope_paths:
+          - "src/languages/postgresql/postgresql.functions.ts"
+          - "test/coord-postgresql-pg16-functions.test.ts"
+        out_of_scope:
+          - "src/languages/postgresql/postgresql.formatter.ts"
+          - "src/languages/postgresql/postgresql.keywords.ts"
+          - "src/languages/sqlite/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "src/index.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-postgresql-pg16-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

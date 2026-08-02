@@ -1,0 +1,166 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5.
+# Cards are authored and committed BEFORE any reference solution exists;
+# the git sequence of this file is the audit trail.
+scenario_id: ecoord-conf-cl02
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: medium
+  rationale: >
+    Card A changes Choice.get_invalid_choice_message in types.py; card B
+    changes FileError in exceptions.py. types.py imports exceptions.py
+    directly (BadParameter, the exact class card A's fail() path raises),
+    and the natural helper for card A's feature already lives in card B's
+    file, since _format_possibilities in exceptions.py is the existing
+    did-you-mean formatter used by NoSuchOption and NoSuchCommand. A
+    careless card-A implementation therefore reaches for exceptions.py,
+    the file card B is writing. Both files are import hubs (core, termui,
+    parser, decorators), so the shared neighborhood is materially larger
+    than cl01's, with no co-written file in the reference pair. Measured
+    score computed by scripts/scenario-check.sh; stratum re-checked
+    against the measurement before freeze.
+cards:
+  - id: ecoord-conf-cl02-a
+    kind: coord
+    title: Choice error suggests the closest valid choice
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.types.Choice reports a typo as "'puhs' is not one of 'push',
+      'pull'." and stops there, while misspelled option and command names
+      already get "Did you mean" suggestions. Typos in choice values are
+      at least as common, and the information needed to help is right
+      there in the choices tuple.
+
+      Change Choice.get_invalid_choice_message in src/click/types.py:
+      compute difflib.get_close_matches (stdlib) of the normalized input
+      value against the normalized choice values (the values of
+      self._normalized_mapping(ctx=ctx)); when there is at least one close
+      match, append a suggestion sentence to the existing message, for
+      example "Did you mean 'push'?" (multiple matches may be listed in
+      one sentence). When there is no close match the message must be
+      byte-for-byte unchanged. Implement this entirely inside
+      src/click/types.py with a direct difflib call; do not modify
+      exceptions.py or reuse helpers from it. Add a docstring note.
+
+      Add tests in a new file tests/test_coord_choice_suggestions.py
+      covering: Choice(["push", "pull"]).convert("puhs", None, None)
+      raises click.UsageError whose message contains both the existing
+      "is not one of" text and "Did you mean 'push'?"; converting a
+      far-off value like "zebra" raises with the current message and no
+      "Did you mean" text; an end-to-end CliRunner invocation of a
+      command with an option of type Choice(["push", "pull"]) given
+      --opt puhs exits with code 2 and shows the suggestion in the error
+      output. Scope: src/click/types.py plus your new test file. Do not
+      touch exceptions.py, core.py, termui.py, or shell_completion.py.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/types.py, limited to Choice.get_invalid_choice_message and its docstring
+        - Suggestions computed with stdlib difflib directly inside types.py; exceptions.py untouched
+        - Message unchanged byte-for-byte when there is no close match
+        - New tests only, in tests/test_coord_choice_suggestions.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A close-typo invalid value raises click.UsageError containing the existing message plus "Did you mean 'push'?"
+          - A far-off invalid value produces exactly the current message with no suggestion text
+          - Suggestions compare against normalized choice values via _normalized_mapping
+          - A CliRunner invocation with a typoed Choice option exits 2 and shows the suggestion
+          - New tests in tests/test_coord_choice_suggestions.py cover suggestion, no-suggestion, and CLI cases
+        scope_paths:
+          - "src/click/types.py"
+          - "tests/test_coord_choice_suggestions.py"
+        out_of_scope:
+          - "src/click/exceptions.py"
+          - "src/click/core.py"
+          - "src/click/termui.py"
+          - "src/click/shell_completion.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_choice_suggestions.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl02-b
+    kind: coord
+    title: str(FileError) includes the filename
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click.exceptions.FileError builds a helpful display message in
+      format_message ("Could not open file 'config.json': permission
+      denied"), but str() on the exception falls back to
+      ClickException.__str__, which returns only the raw hint. Anyone
+      logging a caught FileError, or reading a traceback where one was
+      re-raised, sees "permission denied" with no clue which file was
+      involved.
+
+      Add a __str__ override to FileError in src/click/exceptions.py that
+      returns self.format_message(), so the string form names the file.
+      The show() output must be unchanged (it already routes through
+      format_message), the message attribute must keep holding the raw
+      hint, and the default hint path (no hint given, "unknown error")
+      must be included in the string form the same way. No other
+      exception class may change.
+
+      Add tests in a new file tests/test_coord_file_error_str.py
+      covering: str(FileError("config.json", hint="permission denied"))
+      equals the format_message output and contains both the filename and
+      the hint; str of a FileError constructed without a hint names the
+      file and contains "unknown error"; the message attribute still
+      equals the raw hint; show(file=io.StringIO(...)) output is
+      identical to "Error: " plus format_message plus a newline, proving
+      display behavior did not change. Scope: src/click/exceptions.py
+      plus your new test file. Do not touch types.py, utils.py, core.py,
+      or _compat.py. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/exceptions.py, limited to a FileError.__str__ override
+        - show() output and the message attribute byte-for-byte unchanged
+        - No behavior change for any other exception class
+        - New tests only, in tests/test_coord_file_error_str.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - str(FileError(...)) equals format_message() and names both the file and the hint
+          - str of a hint-less FileError names the file and contains "unknown error"
+          - FileError.message still holds the raw hint only
+          - "show() writes the same 'Error: ...' line as before"
+          - New tests in tests/test_coord_file_error_str.py cover hinted str, default-hint str, message attribute, and show() output
+        scope_paths:
+          - "src/click/exceptions.py"
+          - "tests/test_coord_file_error_str.py"
+        out_of_scope:
+          - "src/click/types.py"
+          - "src/click/utils.py"
+          - "src/click/core.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_file_error_str.py"
+      deterministic_checks: []
+    source:
+      authored: true
