@@ -533,11 +533,18 @@ from confirmatory analysis regardless of outcome, per house rule.
   (2) **ledger-arm reps = 2** (the descriptive attribution arm absorbs
   the cut; the tested bundle-vs-control cells keep 3 reps). No other
   reduction may be introduced at or after freeze.
-- **Strictly serial episodes (O9, pinned at freeze):** one episode at a
-  time, three slots (§2), no cross-episode parallelism over the shared
-  bare clones — the observed lock-contention failure class stays
-  designed-out rather than mitigated, and the calendar cost is accepted
-  as the price. Bounded retry on transient git lock errors. (The
+- **Episode concurrency = 2 (O9, AMENDED, ratified 2026-08-02):** the
+  draft pinned strictly-serial episodes to design out the observed
+  lock-contention class. The pilot deviated (the runner claimed 2
+  episodes concurrently) and produced the amendment's evidence: 36/36
+  episodes, 349 turns, ZERO git-lock or workspace failures under 2-way
+  concurrency on the VM, at roughly half the serial calendar (270
+  confirmatory episodes ≈ 3.5 days vs ~7). Amended rule: at most TWO
+  episodes in flight, each with its own three slots; bounded retry on
+  transient git lock errors retained; any lock-class failure at
+  confirmatory time is a §5 mechanical defect (rerun, not dropped) and
+  3+ occurrences trigger a pre-committed fallback to serial. The
+  original serial pin and this amendment history both freeze. (The
   reviewed Windows-specific mitigations — Defender exclusions on the
   slots dir — are moot on the VM.)
 - Judge drain (C2 companion, descriptive): ≤ 2 × 270 = 540 verdicts plus
@@ -696,7 +703,7 @@ round or the amendment log, on the record.
    falsification package verbatim, closed exclusion taxonomy, seeds,
    environment pins, append mechanism) — committed, tagged, pushed
    public BEFORE any confirmatory row is appended.
-4. Pilot gate check → confirmatory drain (strictly serial) → analysis
+4. Pilot gate check → confirmatory drain (concurrency 2, O9 as amended) → analysis
    per the frozen plan. If coordination shows no effect, or costs more
    than it saves, that publishes with the same prominence; proof 4 dies
    honestly (the docs/10 §10 rule).
@@ -727,5 +734,5 @@ minimal fix landed.
 | O6 (orphaned children, sleep/wake, session_id loss) | §2 process hygiene in Linux/systemd form (per-turn process group + killpg, pre-turn PID assertion, atomic session_id persistence); sleep class removed by the §7 always-on VM |
 | O7 (judge scrub gap; in-worktree ledger leak; prompt mass) | §1 arm table + §2 injection point (ledger slice-only, never on disk in worktrees); §4 judge protocol (extended scrub denylist with skip-and-count, strict-JSON structured output per commit 779d687, truncation counting) |
 | O8 (ledger contaminates C1 untracked-path clause) | Subsumed by O7's slice-only fix; §4 C1 row states the belt-and-braces `.pylgrim/**` exclusion from capture, C1, and the pressure score at freeze |
-| O9 (episode parallelism reintroduces lock failures) | §7 strictly-serial pin (calendar cost accepted), bounded retry on lock errors |
+| O9 (episode parallelism reintroduces lock failures) | §7 concurrency-2 pin as amended 2026-08-02 (pilot evidence: 36/36 at 2-way, zero lock failures; serial fallback pre-committed on 3+ lock defects) |
 | O10 (spawn-chain fragility) | §2 runner topology (one long-lived Python process on the drain2 pattern, commit 779d687; systemd unit; heartbeat death detection) |
