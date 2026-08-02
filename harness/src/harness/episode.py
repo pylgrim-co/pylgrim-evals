@@ -118,6 +118,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -418,6 +419,7 @@ CREATE TABLE IF NOT EXISTS episode_turns (
     context_tokens    INTEGER,
     compaction_events INTEGER,
     tool_use_total    INTEGER,
+    wall_s       REAL,
     created_at   TEXT,
     finished_at  TEXT,
     PRIMARY KEY (episode_id, turn_idx)
@@ -434,7 +436,9 @@ def init_episode_db(conn: sqlite3.Connection, meta: dict[str, str] | None = None
     """Create the episode tables; idempotent (queue.py's migration style)."""
     with conn:
         conn.executescript(EPISODE_SCHEMA)
-        # Future additive migrations go here via queue._ensure_column.
+        # Additive migrations for pre-existing episodes.db files (the
+        # heartbeat_at idiom): old rows keep NULL for the new column.
+        queue._ensure_column(conn, "episode_turns", "wall_s", "REAL")
         for key, value in (meta or {}).items():
             conn.execute(
                 "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value))
@@ -1171,7 +1175,9 @@ def _finish_invoked_turns(
 ) -> list[dict[str, Any]]:
     """Complete post-turn steps for rows left 'invoked' by a crash (O6): the
     session is accountable (session_id was persisted first), so the turn is
-    finished from current worktree state rather than lost."""
+    finished from current worktree state rather than lost. wall_s was
+    checkpointed atomically with the 'invoked' row, so resume never re-times
+    a completed invocation (the UPDATE below leaves it untouched)."""
     episode_id = row["episode_id"]
     for turn in turn_rows:
         if turn["status"] != "invoked":
@@ -1284,7 +1290,13 @@ def _execute_turn(
 
     cli_result: dict[str, Any] | None = None
     last_error: Exception | None = None
+    wall_s: float | None = None
     for attempt in range(CLI_RETRIES + 1):
+        # wall_s SCOPE: monotonic wall seconds around the claude invocation
+        # ONLY — slice composition, checkpointing, transcript copy, and tree
+        # hashing are all outside the window. On a bounded retry, wall_s is
+        # the successful attempt's duration alone.
+        invoke_start = time.perf_counter()
         try:
             result = invoke(
                 message, row["model"], slot, timeout_s,
@@ -1301,6 +1313,7 @@ def _execute_turn(
                 )
             continue
         if result.get("session_id"):
+            wall_s = time.perf_counter() - invoke_start
             cli_result = result
             break
         last_error = RuntimeError("CLI returned no session_id")
@@ -1318,13 +1331,13 @@ def _execute_turn(
             """
             INSERT OR REPLACE INTO episode_turns
                 (episode_id, turn_idx, agent, round_idx, session_id,
-                 slice_path, slice_sha256, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'invoked', ?)
+                 slice_path, slice_sha256, wall_s, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'invoked', ?)
             """,
             (
                 episode_id, turn_idx, agent, round_idx, session_id,
                 str(tp["slice"]) if slice_text is not None else None,
-                slice_sha, queue.now_iso(),
+                slice_sha, wall_s, queue.now_iso(),
             ),
         )
     _atomic_write_text(
@@ -1644,6 +1657,7 @@ def _finalize_episode(
             "agent": t["agent"],
             "context_tokens": t["context_tokens"],
             "compaction_events": t["compaction_events"],
+            "wall_s": t["wall_s"],
         }
         for t in turn_rows
     ]
@@ -1670,7 +1684,7 @@ def _finalize_episode(
             {k: t[k] for k in (
                 "turn_idx", "agent", "round_idx", "session_id", "slice_path",
                 "slice_sha256", "tree_hash", "agent_completed",
-                "context_tokens", "compaction_events",
+                "context_tokens", "compaction_events", "wall_s",
             )}
             for t in turn_rows
         ],

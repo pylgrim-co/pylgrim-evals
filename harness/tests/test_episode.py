@@ -187,6 +187,30 @@ def run_one(conn, scenario, repo_dir, results_dir, mock, **kwargs):
     )
 
 
+# --- schema migration (wall_s; heartbeat_at idiom) ---------------------------
+
+
+def test_wall_s_migration_is_idempotent_and_leaves_old_rows_null(tmp_path):
+    """A pre-wall_s episodes.db picks up the column via init_episode_db;
+    existing rows read back NULL; re-running the init is a no-op."""
+    db_path = tmp_path / "episodes.db"
+    conn = queue.connect(db_path)
+    old_schema = episode.EPISODE_SCHEMA.replace("wall_s       REAL,\n", "")
+    assert "wall_s" not in old_schema  # guard: the pilot-era table shape
+    with conn:
+        conn.executescript(old_schema)
+        conn.execute(
+            "INSERT INTO episode_turns (episode_id, turn_idx, agent, round_idx) "
+            "VALUES ('old-ep', 0, 'a', 0)"
+        )
+    episode.init_episode_db(conn)  # migrates
+    episode.init_episode_db(conn)  # idempotent second pass
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(episode_turns)")}
+    assert "wall_s" in cols
+    assert conn.execute("SELECT wall_s FROM episode_turns").fetchone()["wall_s"] is None
+    conn.close()
+
+
 # --- first mover (M3) --------------------------------------------------------
 
 
@@ -308,6 +332,12 @@ def test_clean_episode_end_to_end_with_merged_slot(repo, tmp_path):
     assert c4["model_usage"]["sonnet"]["inputTokens"] == 400
     m9 = record["metrics_inputs"]["m9"]
     assert len(m9) == 4 and all(t["context_tokens"] == 115 for t in m9)
+    # per-turn wall time (invocation-only scope) present and plausible
+    # everywhere a turn is mirrored: episode.json turns, m9, and the DB rows
+    assert all(
+        isinstance(t["wall_s"], float) and t["wall_s"] > 0 for t in record["turns"]
+    )
+    assert all(isinstance(t["wall_s"], float) and t["wall_s"] > 0 for t in m9)
 
     # merged-tree slot: materialized, both features present, HEAD = merged commit
     merged = episode.merged_slot_dir(results_dir)
@@ -332,6 +362,7 @@ def test_clean_episode_end_to_end_with_merged_slot(repo, tmp_path):
     assert len(turns) == 4
     assert all(t["slice_path"] and t["slice_sha256"] for t in turns)
     assert all(t["status"] == "done" for t in turns)
+    assert all(t["wall_s"] is not None and t["wall_s"] > 0 for t in turns)
 
 
 def test_conflict_episode_records_c1_collision_and_c5_failure(repo, tmp_path):
@@ -427,6 +458,11 @@ def test_kill_mid_episode_then_resume_from_checkpoint(repo, tmp_path):
 
     # heartbeat-stale reclaim (the dead process stopped stamping), then resume
     assert episode.reclaim_stale_episodes(conn, 0, now="2999-01-01T00:00:00+00:00") == 1
+    # plant a sentinel wall_s on the checkpointed turn: resume must NOT
+    # re-time completed turns, so the sentinel has to survive verbatim
+    sentinel_wall_s = 123.456
+    with conn:
+        conn.execute("UPDATE episode_turns SET wall_s = ?", (sentinel_wall_s,))
     record = run_one(conn, scenario, repo_dir, results_dir, mock)
     assert record["metrics_inputs"]["c5"]["combined_success"] is True
     # the mover's checkpointed turn was NOT re-invoked: it executed exactly 2
@@ -443,6 +479,14 @@ def test_kill_mid_episode_then_resume_from_checkpoint(repo, tmp_path):
     mover_calls = [c for c in mock.calls if c["agent"] == mover]
     assert mover_calls[0]["resume_session"] is None
     assert mover_calls[1]["resume_session"] == f"sess-{mover}-0"
+    # checkpointed wall_s survived resume unchanged; freshly executed turns
+    # got their own measured (plausible, > 0) wall times
+    wall_rows = conn.execute(
+        "SELECT turn_idx, wall_s FROM episode_turns ORDER BY turn_idx"
+    ).fetchall()
+    assert wall_rows[0]["wall_s"] == sentinel_wall_s
+    assert all(r["wall_s"] is not None and r["wall_s"] > 0 for r in wall_rows[1:])
+    assert record["turns"][0]["wall_s"] == sentinel_wall_s
 
 
 def test_resume_tree_hash_gate_fires_on_tampered_worktree(repo, tmp_path):
@@ -486,12 +530,15 @@ def test_invoked_row_is_completed_on_resume_without_reinvoking(repo, tmp_path):
     calls_before = len(mock.calls)
     eid = episode.episode_id_for(scenario.scenario_id, "coord-none", 1)
     # simulate the crash window: last turn back to 'invoked', episode pending
+    # (wall_s was checkpointed with the 'invoked' row; plant a sentinel to
+    # prove the finish path never re-times it)
+    sentinel_wall_s = 777.5
     with conn:
         conn.execute(
-            "UPDATE episode_turns SET status = 'invoked', tree_hash = NULL "
-            "WHERE episode_id = ? AND turn_idx = "
+            "UPDATE episode_turns SET status = 'invoked', tree_hash = NULL, "
+            "wall_s = ? WHERE episode_id = ? AND turn_idx = "
             "(SELECT MAX(turn_idx) FROM episode_turns WHERE episode_id = ?)",
-            (eid, eid),
+            (sentinel_wall_s, eid, eid),
         )
         conn.execute(
             "UPDATE episodes SET status = 'pending', finished_at = NULL "
@@ -500,9 +547,11 @@ def test_invoked_row_is_completed_on_resume_without_reinvoking(repo, tmp_path):
     record = run_one(conn, scenario, repo_dir, results_dir, mock)
     assert len(mock.calls) == calls_before  # no re-invocation
     turns = conn.execute(
-        "SELECT status, tree_hash FROM episode_turns WHERE episode_id = ?", (eid,)
+        "SELECT status, tree_hash, wall_s FROM episode_turns "
+        "WHERE episode_id = ? ORDER BY turn_idx", (eid,)
     ).fetchall()
     assert all(t["status"] == "done" and t["tree_hash"] for t in turns)
+    assert turns[-1]["wall_s"] == sentinel_wall_s  # finished, not re-timed
     assert record["metrics_inputs"]["c5"]["combined_success"] is True
 
 
