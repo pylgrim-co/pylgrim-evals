@@ -1,0 +1,77 @@
+diff --git a/src/coord-exception-default-message.test.ts b/src/coord-exception-default-message.test.ts
+new file mode 100644
+index 00000000..841b9239
+--- /dev/null
++++ b/src/coord-exception-default-message.test.ts
+@@ -0,0 +1,34 @@
++import { HTTPException } from './http-exception'
++
++describe('HTTPException default status-text message', () => {
++  it('defaults message and body to Not Found for 404', async () => {
++    const exception = new HTTPException(404)
++    expect(exception.message).toBe('Not Found')
++    const res = exception.getResponse()
++    expect(res.status).toBe(404)
++    expect(await res.text()).toBe('Not Found')
++  })
++
++  it('defaults other mapped codes to their reason phrases', () => {
++    expect(new HTTPException(401).message).toBe('Unauthorized')
++    expect(new HTTPException(429).message).toBe('Too Many Requests')
++    expect(new HTTPException(503).message).toBe('Service Unavailable')
++  })
++
++  it('lets an explicit message win over the default', async () => {
++    const exception = new HTTPException(404, { message: 'missing thing' })
++    expect(exception.message).toBe('missing thing')
++    expect(await exception.getResponse().text()).toBe('missing thing')
++  })
++
++  it('keeps an empty message for statuses outside the map', () => {
++    expect(new HTTPException(418).message).toBe('')
++  })
++
++  it('still lets a provided res control the body', async () => {
++    const exception = new HTTPException(400, {
++      res: new Response('custom body', { status: 200 }),
++    })
++    expect(await exception.getResponse().text()).toBe('custom body')
++  })
++})
+diff --git a/src/http-exception.ts b/src/http-exception.ts
+index 8fe9c2bb..bff1fdc9 100644
+--- a/src/http-exception.ts
++++ b/src/http-exception.ts
+@@ -5,6 +5,23 @@
+ 
+ import type { ContentfulStatusCode } from './utils/http-status'
+ 
++const defaultMessages: Record<number, string> = {
++  400: 'Bad Request',
++  401: 'Unauthorized',
++  403: 'Forbidden',
++  404: 'Not Found',
++  405: 'Method Not Allowed',
++  408: 'Request Timeout',
++  409: 'Conflict',
++  413: 'Content Too Large',
++  429: 'Too Many Requests',
++  500: 'Internal Server Error',
++  501: 'Not Implemented',
++  502: 'Bad Gateway',
++  503: 'Service Unavailable',
++  504: 'Gateway Timeout',
++}
++
+ /**
+  * Options for creating an `HTTPException`.
+  * @property res - Optional response object to use.
+@@ -53,7 +70,7 @@ export class HTTPException extends Error {
+    * @param options - Additional options for the exception.
+    */
+   constructor(status: ContentfulStatusCode = 500, options?: HTTPExceptionOptions) {
+-    super(options?.message, { cause: options?.cause })
++    super(options?.message ?? defaultMessages[status] ?? '', { cause: options?.cause })
+     this.res = options?.res
+     this.status = status
+   }

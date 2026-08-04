@@ -1,0 +1,66 @@
+diff --git a/src/sqlFormatter.ts b/src/sqlFormatter.ts
+index d65159b6..3559c744 100644
+--- a/src/sqlFormatter.ts
++++ b/src/sqlFormatter.ts
+@@ -29,11 +29,11 @@ const dialectNameMap: Record<keyof typeof allDialects | 'tsql', keyof typeof all
+   snowflake: 'snowflake',
+ };
+ 
+-export const supportedDialects = Object.keys(dialectNameMap);
++export const supportedDialects = [...Object.keys(dialectNameMap), 'mssql'];
+ export type SqlLanguage = keyof typeof dialectNameMap;
+ 
+ export type FormatOptionsWithLanguage = Partial<FormatOptions> & {
+-  language?: SqlLanguage;
++  language?: SqlLanguage | 'mssql';
+ };
+ 
+ export type FormatOptionsWithDialect = Partial<FormatOptions> & {
+@@ -67,7 +67,8 @@ export const format = (query: string, cfg: FormatOptionsWithLanguage = {}): stri
+     throw new ConfigError(`Unsupported SQL dialect: ${cfg.language}`);
+   }
+ 
+-  const canonicalDialectName = dialectNameMap[cfg.language || 'sql'];
++  const language = cfg.language === 'mssql' ? 'transactsql' : cfg.language;
++  const canonicalDialectName = dialectNameMap[language || 'sql'];
+ 
+   return formatDialect(query, {
+     ...cfg,
+diff --git a/test/coord-mssql-alias.test.ts b/test/coord-mssql-alias.test.ts
+new file mode 100644
+index 00000000..f0d892f0
+--- /dev/null
++++ b/test/coord-mssql-alias.test.ts
+@@ -0,0 +1,32 @@
++import { format, supportedDialects, ConfigError } from '../src/index.js';
++
++describe('mssql language alias', () => {
++  const bracketQuery = 'SELECT [col name] FROM [my table] WHERE [id] = 1';
++  const multiClauseQuery =
++    'SELECT a, b FROM t1 JOIN t2 ON t1.id = t2.id WHERE t2.x > 10 GROUP BY a ORDER BY b';
++
++  it('formats a T-SQL-flavored query identically under mssql, transactsql, and tsql', () => {
++    const viaMssql = format(bracketQuery, { language: 'mssql' });
++    expect(viaMssql).toBe(format(bracketQuery, { language: 'transactsql' }));
++    expect(viaMssql).toBe(format(bracketQuery, { language: 'tsql' }));
++  });
++
++  it('formats a multi-clause query identically under all three names', () => {
++    const viaMssql = format(multiClauseQuery, { language: 'mssql' });
++    expect(viaMssql).toBe(format(multiClauseQuery, { language: 'transactsql' }));
++    expect(viaMssql).toBe(format(multiClauseQuery, { language: 'tsql' }));
++  });
++
++  it('lists mssql among supportedDialects alongside transactsql and tsql', () => {
++    expect(supportedDialects).toContain('mssql');
++    expect(supportedDialects).toContain('transactsql');
++    expect(supportedDialects).toContain('tsql');
++  });
++
++  it('still rejects unknown languages with the unsupported-dialect ConfigError', () => {
++    expect(() => format(bracketQuery, { language: 'sqlserver' as any })).toThrow(ConfigError);
++    expect(() => format(bracketQuery, { language: 'sqlserver' as any })).toThrow(
++      'Unsupported SQL dialect: sqlserver'
++    );
++  });
++});

@@ -1,0 +1,66 @@
+diff --git a/packages/zod/src/v4/classic/schemas.ts b/packages/zod/src/v4/classic/schemas.ts
+index eb57e017..e1a1076f 100644
+--- a/packages/zod/src/v4/classic/schemas.ts
++++ b/packages/zod/src/v4/classic/schemas.ts
+@@ -1010,6 +1010,10 @@ export function hex(_params?: string | core.$ZodStringFormatParams): ZodCustomSt
+   return core._stringFormat(ZodCustomStringFormat, "hex", core.regexes.hex, _params) as any;
+ }
+ 
++export function semver(_params?: string | core.$ZodStringFormatParams): ZodCustomStringFormat<"semver"> {
++  return core._stringFormat(ZodCustomStringFormat, "semver", core.regexes.semver, _params) as any;
++}
++
+ export function hash<Alg extends util.HashAlgorithm, Enc extends util.HashEncoding = "hex">(
+   alg: Alg,
+   params?: {
+diff --git a/packages/zod/src/v4/classic/tests/coord-semver-format.test.ts b/packages/zod/src/v4/classic/tests/coord-semver-format.test.ts
+new file mode 100644
+index 00000000..43bb331f
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-semver-format.test.ts
+@@ -0,0 +1,30 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("valid SemVer 2.0.0 versions parse successfully", () => {
++  expect(z.semver().parse("1.0.0")).toBe("1.0.0");
++  expect(z.semver().parse("1.2.3-alpha.1")).toBe("1.2.3-alpha.1");
++  expect(z.semver().parse("1.0.0+build.5")).toBe("1.0.0+build.5");
++  expect(z.semver().parse("1.0.0-rc.1+build.1")).toBe("1.0.0-rc.1+build.1");
++});
++
++test("invalid versions fail validation", () => {
++  expect(z.semver().safeParse("1.0").success).toBe(false); // missing patch
++  expect(z.semver().safeParse("v1.0.0").success).toBe(false); // leading v
++  expect(z.semver().safeParse("01.0.0").success).toBe(false); // leading zero
++  expect(z.semver().safeParse("1.0.0-").success).toBe(false); // empty prerelease
++  expect(z.semver().safeParse("").success).toBe(false);
++});
++
++test("a custom error message passed as params surfaces on failure", () => {
++  const result = z.semver("not a version").safeParse("nope");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("not a version");
++});
++
++test("z.semver() is chainable", () => {
++  const schema = z.semver().min(6);
++  expect(schema.parse("1.20.30")).toBe("1.20.30");
++  expect(schema.safeParse("1.0.0").success).toBe(false); // too short
++});
+diff --git a/packages/zod/src/v4/core/regexes.ts b/packages/zod/src/v4/core/regexes.ts
+index 79684706..741db514 100644
+--- a/packages/zod/src/v4/core/regexes.ts
++++ b/packages/zod/src/v4/core/regexes.ts
+@@ -12,6 +12,10 @@ export const xid: RegExp = /^[0-9a-vA-V]{20}$/;
+ export const ksuid: RegExp = /^[A-Za-z0-9]{27}$/;
+ export const nanoid: RegExp = /^[a-zA-Z0-9_-]{21}$/;
+ 
++/** SemVer 2.0.0 version string. See https://semver.org. */
++export const semver: RegExp =
++  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
++
+ /** ISO 8601-1 duration regex. Does not support the 8601-2 extensions like negative durations or fractional/negative components. */
+ export const duration: RegExp =
+   /^P(?:(\d+W)|(?!.*W)(?=\d|T\d)(\d+Y)?(\d+M)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+([.,]\d+)?S)?)?)$/;

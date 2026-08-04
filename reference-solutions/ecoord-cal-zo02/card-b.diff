@@ -1,0 +1,63 @@
+diff --git a/packages/zod/src/v4/classic/checks.ts b/packages/zod/src/v4/classic/checks.ts
+index cd78c0e4..8c170216 100644
+--- a/packages/zod/src/v4/classic/checks.ts
++++ b/packages/zod/src/v4/classic/checks.ts
+@@ -28,5 +28,6 @@ export {
+   _toLowerCase as toLowerCase,
+   _toUpperCase as toUpperCase,
+   _slugify as slugify,
++  _endsWithIgnoreCase as endsWithIgnoreCase,
+   type $RefinementCtx as RefinementCtx,
+ } from "../core/index.js";
+diff --git a/packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts b/packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts
+new file mode 100644
+index 00000000..7165e1bd
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts
+@@ -0,0 +1,30 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("accepts the suffix in any case", () => {
++  const schema = z.string().check(z.endsWithIgnoreCase(".pdf"));
++  expect(schema.parse("a.PDF")).toBe("a.PDF");
++  expect(schema.parse("a.pdf")).toBe("a.pdf");
++  expect(schema.parse("a.Pdf")).toBe("a.Pdf");
++});
++
++test("rejects strings that do not end with the suffix", () => {
++  const schema = z.string().check(z.endsWithIgnoreCase(".pdf"));
++  expect(schema.safeParse("a.pdfx").success).toBe(false);
++  expect(schema.safeParse("apdf").success).toBe(false);
++});
++
++test("treats regex metacharacters in the suffix literally", () => {
++  const schema = z.string().check(z.endsWithIgnoreCase(".pdf"));
++  expect(schema.safeParse("axpdf").success).toBe(false);
++});
++
++test("a custom error message passed as params surfaces on failure", () => {
++  const result = z
++    .string()
++    .check(z.endsWithIgnoreCase(".pdf", "must be a pdf filename"))
++    .safeParse("nope");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("must be a pdf filename");
++});
+diff --git a/packages/zod/src/v4/core/api.ts b/packages/zod/src/v4/core/api.ts
+index c1d2d7ef..8e345c5e 100644
+--- a/packages/zod/src/v4/core/api.ts
++++ b/packages/zod/src/v4/core/api.ts
+@@ -1095,6 +1095,11 @@ export function _endsWith(suffix: string, params?: string | $ZodCheckEndsWithPar
+   });
+ }
+ 
++// @__NO_SIDE_EFFECTS__
++export function _endsWithIgnoreCase(suffix: string, params?: string | $ZodCheckRegexParams): checks.$ZodCheckRegex {
++  return _regex(new RegExp(`${util.escapeRegex(suffix)}$`, "i"), params);
++}
++
+ export type $ZodCheckPropertyParams = CheckParams<checks.$ZodCheckProperty, "property" | "schema" | "when">;
+ // @__NO_SIDE_EFFECTS__
+ export function _property<K extends string, T extends schemas.$ZodType>(

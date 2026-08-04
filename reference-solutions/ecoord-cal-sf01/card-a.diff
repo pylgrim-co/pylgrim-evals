@@ -1,0 +1,48 @@
+diff --git a/src/validateConfig.ts b/src/validateConfig.ts
+index 8789fe63..d8b4ac8b 100644
+--- a/src/validateConfig.ts
++++ b/src/validateConfig.ts
+@@ -19,6 +19,13 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+     }
+   }
+ 
++  const validIndentStyles = ['standard', 'tabularLeft', 'tabularRight'];
++  if (!validIndentStyles.includes(cfg.indentStyle)) {
++    throw new ConfigError(
++      `indentStyle config must be one of ${validIndentStyles.join(', ')}. Received ${cfg.indentStyle} instead.`
++    );
++  }
++
+   if (cfg.expressionWidth <= 0) {
+     throw new ConfigError(
+       `expressionWidth config must be positive number. Received ${cfg.expressionWidth} instead.`
+diff --git a/test/coord-indent-style-validation.test.ts b/test/coord-indent-style-validation.test.ts
+new file mode 100644
+index 00000000..52885756
+--- /dev/null
++++ b/test/coord-indent-style-validation.test.ts
+@@ -0,0 +1,24 @@
++import { format, ConfigError } from '../src/index.js';
++
++describe('indentStyle option validation', () => {
++  it('throws ConfigError naming indentStyle, the received value, and the allowed values', () => {
++    expect(() => format('SELECT *', { indentStyle: 'tabular' as any })).toThrow(ConfigError);
++    expect(() => format('SELECT *', { indentStyle: 'tabular' as any })).toThrow(
++      'indentStyle config must be one of standard, tabularLeft, tabularRight. Received tabular instead.'
++    );
++  });
++
++  it('throws ConfigError for an empty-string indentStyle', () => {
++    expect(() => format('SELECT *', { indentStyle: '' as any })).toThrow(ConfigError);
++  });
++
++  it('accepts all three valid indentStyle values', () => {
++    for (const indentStyle of ['standard', 'tabularLeft', 'tabularRight'] as const) {
++      expect(() => format('SELECT a, b FROM t', { indentStyle })).not.toThrow();
++    }
++  });
++
++  it('leaves unrelated valid options unaffected', () => {
++    expect(() => format('SELECT a FROM t', { tabWidth: 4 })).not.toThrow();
++  });
++});

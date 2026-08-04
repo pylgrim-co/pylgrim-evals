@@ -1,0 +1,99 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 47cb9c1..0ac7c4e 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -6,6 +6,7 @@ export {
+ } from './middleware/devtools.ts'
+ export { subscribeWithSelector } from './middleware/subscribeWithSelector.ts'
+ export { combine } from './middleware/combine.ts'
++export { logger } from './middleware/logger.ts'
+ export {
+   persist,
+   createJSONStorage,
+diff --git a/src/middleware/logger.ts b/src/middleware/logger.ts
+new file mode 100644
+index 0000000..8577fe7
+--- /dev/null
++++ b/src/middleware/logger.ts
+@@ -0,0 +1,18 @@
++import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
++
++export function logger<
++  T extends object,
++  Mps extends [StoreMutatorIdentifier, unknown][] = [],
++  Mcs extends [StoreMutatorIdentifier, unknown][] = [],
++>(
++  initializer: StateCreator<T, Mps, Mcs>,
++  name = 'zustand',
++): StateCreator<T, Mps, Mcs> {
++  return (set, get, api) => {
++    ;(api as any).subscribe((state: T, prevState: T) => {
++      // eslint-disable-next-line no-console
++      console.log(`${name}: state changed`, prevState, state)
++    })
++    return initializer(set, get, api)
++  }
++}
+diff --git a/tests/coord/logger-middleware.test.ts b/tests/coord/logger-middleware.test.ts
+new file mode 100644
+index 0000000..b1f7a21
+--- /dev/null
++++ b/tests/coord/logger-middleware.test.ts
+@@ -0,0 +1,57 @@
++import { afterEach, expect, it, vi } from 'vitest'
++import { logger } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++import type { StateCreator } from 'zustand/vanilla'
++
++type CounterState = { count: number; inc: () => void }
++
++const counterInitializer: StateCreator<CounterState> = (set, get) => ({
++  count: 0,
++  inc: () => set({ count: get().count + 1 }),
++})
++
++afterEach(() => {
++  vi.restoreAllMocks()
++})
++
++it('logs exactly once per api.setState with the name string, previous and new state', () => {
++  const log = vi.spyOn(console, 'log').mockImplementation(() => {})
++  const store = createStore(logger(counterInitializer, 'counter'))
++  store.setState({ count: 1 })
++  expect(log).toHaveBeenCalledTimes(1)
++  const [label, prev, next] = log.mock.calls[0]
++  expect(label).toBe('counter: state changed')
++  expect((prev as CounterState).count).toBe(0)
++  expect((next as CounterState).count).toBe(1)
++})
++
++it('logs changes made through the initializer-provided set', () => {
++  const log = vi.spyOn(console, 'log').mockImplementation(() => {})
++  const store = createStore(logger(counterInitializer, 'counter'))
++  store.getState().inc()
++  expect(log).toHaveBeenCalledTimes(1)
++  expect(store.getState().count).toBe(1)
++})
++
++it('defaults the name to zustand', () => {
++  const log = vi.spyOn(console, 'log').mockImplementation(() => {})
++  const store = createStore(logger(counterInitializer))
++  store.setState({ count: 5 })
++  expect(log.mock.calls[0][0]).toBe('zustand: state changed')
++})
++
++it('does not log at store creation', () => {
++  const log = vi.spyOn(console, 'log').mockImplementation(() => {})
++  createStore(logger(counterInitializer, 'counter'))
++  expect(log).not.toHaveBeenCalled()
++})
++
++it('leaves updates and subscriber notification intact', () => {
++  vi.spyOn(console, 'log').mockImplementation(() => {})
++  const store = createStore(logger(counterInitializer, 'counter'))
++  const subscriber = vi.fn()
++  store.subscribe(subscriber)
++  store.setState({ count: 2 })
++  expect(store.getState().count).toBe(2)
++  expect(subscriber).toHaveBeenCalledTimes(1)
++})

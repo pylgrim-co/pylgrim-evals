@@ -1,0 +1,51 @@
+diff --git a/src/validateConfig.ts b/src/validateConfig.ts
+index 8789fe63..b187a8e3 100644
+--- a/src/validateConfig.ts
++++ b/src/validateConfig.ts
+@@ -36,6 +36,12 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+     );
+   }
+ 
++  if (cfg.logicalOperatorNewline !== 'before' && cfg.logicalOperatorNewline !== 'after') {
++    throw new ConfigError(
++      `logicalOperatorNewline config must be one of before, after. Received ${cfg.logicalOperatorNewline} instead.`
++    );
++  }
++
+   return cfg;
+ }
+ 
+diff --git a/test/coord-logical-operator-newline-validation.test.ts b/test/coord-logical-operator-newline-validation.test.ts
+new file mode 100644
+index 00000000..155cae74
+--- /dev/null
++++ b/test/coord-logical-operator-newline-validation.test.ts
+@@ -0,0 +1,28 @@
++import { format, ConfigError } from '../src/index.js';
++
++describe('logicalOperatorNewline option validation', () => {
++  it('throws ConfigError naming the option, the received value, and the allowed values', () => {
++    expect(() => format('SELECT *', { logicalOperatorNewline: 'above' as any })).toThrow(
++      ConfigError
++    );
++    expect(() => format('SELECT *', { logicalOperatorNewline: 'above' as any })).toThrow(
++      'logicalOperatorNewline config must be one of before, after. Received above instead.'
++    );
++  });
++
++  it('throws ConfigError for an empty-string logicalOperatorNewline', () => {
++    expect(() => format('SELECT *', { logicalOperatorNewline: '' as any })).toThrow(ConfigError);
++  });
++
++  it('accepts both valid logicalOperatorNewline values', () => {
++    for (const logicalOperatorNewline of ['before', 'after'] as const) {
++      expect(() =>
++        format('SELECT a FROM t WHERE x = 1 AND y = 2', { logicalOperatorNewline })
++      ).not.toThrow();
++    }
++  });
++
++  it('leaves unrelated valid options unaffected', () => {
++    expect(() => format('SELECT a FROM t', { tabWidth: 4 })).not.toThrow();
++  });
++});

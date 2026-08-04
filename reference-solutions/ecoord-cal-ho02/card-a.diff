@@ -1,0 +1,89 @@
+diff --git a/src/coord-exception-headers.test.ts b/src/coord-exception-headers.test.ts
+new file mode 100644
+index 00000000..1207eeb2
+--- /dev/null
++++ b/src/coord-exception-headers.test.ts
+@@ -0,0 +1,47 @@
++import { HTTPException } from './http-exception'
++
++describe('HTTPException headers option', () => {
++  it('sets provided headers on the generated response', async () => {
++    const exception = new HTTPException(401, {
++      message: 'Unauthorized',
++      headers: { 'WWW-Authenticate': 'Basic realm="secure"' },
++    })
++    const res = exception.getResponse()
++    expect(res.status).toBe(401)
++    expect(res.headers.get('WWW-Authenticate')).toBe('Basic realm="secure"')
++    expect(await res.text()).toBe('Unauthorized')
++  })
++
++  it('exposes the headers option as a readonly property', () => {
++    const headers = { 'Retry-After': '30' }
++    const exception = new HTTPException(429, { headers })
++    expect(exception.headers).toEqual(headers)
++  })
++
++  it('adds no header when the option is omitted', () => {
++    const res = new HTTPException(401, { message: 'nope' }).getResponse()
++    expect(res.headers.get('WWW-Authenticate')).toBeNull()
++  })
++
++  it('lets a provided res win and ignores the headers option', async () => {
++    const exception = new HTTPException(400, {
++      res: new Response('custom', { status: 200 }),
++      headers: { 'X-Custom': 'yes' },
++    })
++    const res = exception.getResponse()
++    expect(res.status).toBe(400)
++    expect(res.headers.get('X-Custom')).toBeNull()
++    expect(await res.text()).toBe('custom')
++  })
++
++  it('keeps message and cause working alongside headers', () => {
++    const cause = new Error('root')
++    const exception = new HTTPException(500, {
++      message: 'boom',
++      cause,
++      headers: { 'X-Req': '1' },
++    })
++    expect(exception.message).toBe('boom')
++    expect(exception.cause).toBe(cause)
++  })
++})
+diff --git a/src/http-exception.ts b/src/http-exception.ts
+index 8fe9c2bb..925d46a5 100644
+--- a/src/http-exception.ts
++++ b/src/http-exception.ts
+@@ -15,6 +15,7 @@ type HTTPExceptionOptions = {
+   res?: Response
+   message?: string
+   cause?: unknown
++  headers?: HeadersInit
+ }
+ 
+ /**
+@@ -46,6 +47,7 @@ type HTTPExceptionOptions = {
+ export class HTTPException extends Error {
+   readonly res?: Response
+   readonly status: ContentfulStatusCode
++  readonly headers?: HeadersInit
+ 
+   /**
+    * Creates an instance of `HTTPException`.
+@@ -56,6 +58,7 @@ export class HTTPException extends Error {
+     super(options?.message, { cause: options?.cause })
+     this.res = options?.res
+     this.status = status
++    this.headers = options?.headers
+   }
+ 
+   /**
+@@ -73,6 +76,7 @@ export class HTTPException extends Error {
+     }
+     return new Response(this.message, {
+       status: this.status,
++      headers: this.headers,
+     })
+   }
+ }

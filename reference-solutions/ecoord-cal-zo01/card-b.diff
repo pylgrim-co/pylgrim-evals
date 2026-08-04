@@ -1,0 +1,63 @@
+diff --git a/packages/zod/src/v4/classic/schemas.ts b/packages/zod/src/v4/classic/schemas.ts
+index eb57e017..4dc8a542 100644
+--- a/packages/zod/src/v4/classic/schemas.ts
++++ b/packages/zod/src/v4/classic/schemas.ts
+@@ -1023,6 +1023,10 @@ export function hash<Alg extends util.HashAlgorithm, Enc extends util.HashEncodi
+   return core._stringFormat(ZodCustomStringFormat, format, regex, params) as any;
+ }
+ 
++export function slug(_params?: string | core.$ZodStringFormatParams): ZodCustomStringFormat<"slug"> {
++  return core._stringFormat(ZodCustomStringFormat, "slug", core.regexes.slug, _params) as any;
++}
++
+ // ZodNumber
+ export interface _ZodNumber<Internals extends core.$ZodNumberInternals = core.$ZodNumberInternals>
+   extends _ZodType<Internals> {
+diff --git a/packages/zod/src/v4/classic/tests/coord-slug-format.test.ts b/packages/zod/src/v4/classic/tests/coord-slug-format.test.ts
+new file mode 100644
+index 00000000..947dd3fb
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-slug-format.test.ts
+@@ -0,0 +1,31 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("valid slugs parse successfully", () => {
++  expect(z.slug().parse("hello")).toBe("hello");
++  expect(z.slug().parse("hello-world")).toBe("hello-world");
++  expect(z.slug().parse("a-1-b-2")).toBe("a-1-b-2");
++  expect(z.slug().parse("2024-review")).toBe("2024-review");
++});
++
++test("invalid slugs fail validation", () => {
++  expect(z.slug().safeParse("Hello-World").success).toBe(false); // uppercase
++  expect(z.slug().safeParse("hello world").success).toBe(false); // space
++  expect(z.slug().safeParse("-hello").success).toBe(false); // leading hyphen
++  expect(z.slug().safeParse("hello-").success).toBe(false); // trailing hyphen
++  expect(z.slug().safeParse("hello--world").success).toBe(false); // doubled hyphen
++  expect(z.slug().safeParse("").success).toBe(false);
++});
++
++test("a custom error message passed as params surfaces on failure", () => {
++  const result = z.slug("not a slug").safeParse("NOPE");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("not a slug");
++});
++
++test("z.slug() is chainable", () => {
++  const schema = z.slug().min(3);
++  expect(schema.parse("hello-world")).toBe("hello-world");
++  expect(schema.safeParse("ab").success).toBe(false); // too short
++});
+diff --git a/packages/zod/src/v4/core/regexes.ts b/packages/zod/src/v4/core/regexes.ts
+index 79684706..efcda0a6 100644
+--- a/packages/zod/src/v4/core/regexes.ts
++++ b/packages/zod/src/v4/core/regexes.ts
+@@ -188,3 +188,6 @@ export const sha384_base64url: RegExp = /*@__PURE__*/ fixedBase64url(64);
+ export const sha512_hex: RegExp = /^[0-9a-fA-F]{128}$/;
+ export const sha512_base64: RegExp = /*@__PURE__*/ fixedBase64(86, "==");
+ export const sha512_base64url: RegExp = /*@__PURE__*/ fixedBase64url(86);
++
++/** URL slug: lowercase alphanumeric segments separated by single hyphens. */
++export const slug: RegExp = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

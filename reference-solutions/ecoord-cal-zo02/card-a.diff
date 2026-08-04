@@ -1,0 +1,65 @@
+diff --git a/packages/zod/src/v4/classic/checks.ts b/packages/zod/src/v4/classic/checks.ts
+index cd78c0e4..5dfc95dd 100644
+--- a/packages/zod/src/v4/classic/checks.ts
++++ b/packages/zod/src/v4/classic/checks.ts
+@@ -19,6 +19,7 @@ export {
+   _uppercase as uppercase,
+   _includes as includes,
+   _startsWith as startsWith,
++  _startsWithIgnoreCase as startsWithIgnoreCase,
+   _endsWith as endsWith,
+   _property as property,
+   _mime as mime,
+diff --git a/packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts b/packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts
+new file mode 100644
+index 00000000..acb34d8f
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts
+@@ -0,0 +1,31 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("accepts the prefix in any case", () => {
++  const schema = z.string().check(z.startsWithIgnoreCase("sku-"));
++  expect(schema.parse("SKU-1")).toBe("SKU-1");
++  expect(schema.parse("sku-1")).toBe("sku-1");
++  expect(schema.parse("Sku-1")).toBe("Sku-1");
++});
++
++test("rejects strings that do not start with the prefix", () => {
++  const schema = z.string().check(z.startsWithIgnoreCase("sku-"));
++  expect(schema.safeParse("ask-1").success).toBe(false);
++  expect(schema.safeParse("xsku-1").success).toBe(false);
++});
++
++test("treats regex metacharacters in the prefix literally", () => {
++  const schema = z.string().check(z.startsWithIgnoreCase("a.b"));
++  expect(schema.parse("a.b-ok")).toBe("a.b-ok");
++  expect(schema.safeParse("axb-ok").success).toBe(false);
++});
++
++test("a custom error message passed as params surfaces on failure", () => {
++  const result = z
++    .string()
++    .check(z.startsWithIgnoreCase("sku-", "must look like a sku"))
++    .safeParse("nope");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("must look like a sku");
++});
+diff --git a/packages/zod/src/v4/core/api.ts b/packages/zod/src/v4/core/api.ts
+index c1d2d7ef..24ce8215 100644
+--- a/packages/zod/src/v4/core/api.ts
++++ b/packages/zod/src/v4/core/api.ts
+@@ -1083,6 +1083,11 @@ export function _startsWith(prefix: string, params?: string | $ZodCheckStartsWit
+   });
+ }
+ 
++// @__NO_SIDE_EFFECTS__
++export function _startsWithIgnoreCase(prefix: string, params?: string | $ZodCheckRegexParams): checks.$ZodCheckRegex {
++  return _regex(new RegExp(`^${util.escapeRegex(prefix)}`, "i"), params);
++}
++
+ export type $ZodCheckEndsWithParams = CheckParams<checks.$ZodCheckEndsWith, "suffix" | "format" | "pattern" | "when">;
+ 
+ // @__NO_SIDE_EFFECTS__

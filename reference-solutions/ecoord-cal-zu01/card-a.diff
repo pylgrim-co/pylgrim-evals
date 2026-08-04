@@ -1,0 +1,96 @@
+diff --git a/src/middleware/subscribeWithSelector.ts b/src/middleware/subscribeWithSelector.ts
+index 608c470..ac2386a 100644
+--- a/src/middleware/subscribeWithSelector.ts
++++ b/src/middleware/subscribeWithSelector.ts
+@@ -32,6 +32,7 @@ type StoreSubscribeWithSelector<T> = {
+       selector: (state: T) => U,
+       listener: (selectedState: U, previousSelectedState: U) => void,
+       options?: {
++        signal?: AbortSignal
+         equalityFn?: (a: U, b: U) => boolean
+         fireImmediately?: boolean
+       },
+@@ -64,7 +65,15 @@ const subscribeWithSelectorImpl: SubscribeWithSelectorImpl =
+           optListener(currentSlice, currentSlice)
+         }
+       }
+-      return origSubscribe(listener)
++      const signal: AbortSignal | undefined = options?.signal
++      if (signal?.aborted) {
++        return () => {}
++      }
++      const unsubscribe = origSubscribe(listener)
++      if (signal) {
++        signal.addEventListener('abort', unsubscribe)
++      }
++      return unsubscribe
+     }) as any
+     const initialState = fn(set, get, api)
+     return initialState
+diff --git a/tests/coord/select-subscribe-signal.test.ts b/tests/coord/select-subscribe-signal.test.ts
+new file mode 100644
+index 0000000..7ebec20
+--- /dev/null
++++ b/tests/coord/select-subscribe-signal.test.ts
+@@ -0,0 +1,61 @@
++import { expect, it, vi } from 'vitest'
++import { subscribeWithSelector } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number; other: number }
++
++const initializer = () => ({ count: 0, other: 0 })
++
++it('never fires and returns a callable no-op when the signal is already aborted', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const controller = new AbortController()
++  controller.abort()
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe((s) => s.count, listener, {
++    signal: controller.signal,
++  })
++  store.setState({ count: 1 })
++  expect(listener).not.toHaveBeenCalled()
++  expect(() => unsubscribe()).not.toThrow()
++})
++
++it('stops firing once the signal aborts after subscription', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const controller = new AbortController()
++  const listener = vi.fn()
++  store.subscribe((s) => s.count, listener, { signal: controller.signal })
++  store.setState({ count: 1 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  controller.abort()
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})
++
++it('is safe to call the returned unsubscribe after an abort', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const controller = new AbortController()
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe((s) => s.count, listener, {
++    signal: controller.signal,
++  })
++  controller.abort()
++  expect(() => unsubscribe()).not.toThrow()
++})
++
++it('selector subscriptions without a signal behave as before', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  store.subscribe((s) => s.count, listener)
++  store.setState({ other: 5 })
++  expect(listener).not.toHaveBeenCalled()
++  store.setState({ count: 3 })
++  expect(listener).toHaveBeenCalledWith(3, 0)
++})
++
++it('keeps the single-argument listener form working', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  store.subscribe(listener)
++  store.setState({ count: 7 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})

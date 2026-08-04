@@ -1,0 +1,57 @@
+diff --git a/src/utils/coord-mime-media-types.test.ts b/src/utils/coord-mime-media-types.test.ts
+new file mode 100644
+index 00000000..897cdd7d
+--- /dev/null
++++ b/src/utils/coord-mime-media-types.test.ts
+@@ -0,0 +1,30 @@
++import { getExtension, getMimeType } from './mime'
++
++describe('modern media MIME types', () => {
++  it('resolves the new media extensions', () => {
++    expect(getMimeType('track.flac')).toBe('audio/flac')
++    expect(getMimeType('song.m4a')).toBe('audio/mp4')
++    expect(getMimeType('movie.mkv')).toBe('video/x-matroska')
++  })
++
++  it('resolves uppercase filenames identically', () => {
++    expect(getMimeType('TRACK.FLAC')).toBe('audio/flac')
++    expect(getMimeType('SONG.M4A')).toBe('audio/mp4')
++    expect(getMimeType('MOVIE.MKV')).toBe('video/x-matroska')
++  })
++
++  it('maps the new MIME values back to their extensions', () => {
++    expect(getExtension('audio/flac')).toBe('flac')
++    expect(getExtension('video/x-matroska')).toBe('mkv')
++  })
++
++  it('leaves existing mappings unchanged', () => {
++    expect(getMimeType('video.mp4')).toBe('video/mp4')
++    expect(getMimeType('a.weba')).toBe('audio/webm')
++    expect(getMimeType('song.mp3')).toBe('audio/mpeg')
++  })
++
++  it('still returns undefined for unknown extensions', () => {
++    expect(getMimeType('file.unknownext')).toBeUndefined()
++  })
++})
+diff --git a/src/utils/mime.ts b/src/utils/mime.ts
+index cd974e63..ff8ea23e 100644
+--- a/src/utils/mime.ts
++++ b/src/utils/mime.ts
+@@ -43,6 +43,7 @@ const _baseMimes = {
+   csv: 'text/csv; charset=utf-8',
+   eot: 'application/vnd.ms-fontobject',
+   epub: 'application/epub+zip',
++  flac: 'audio/flac',
+   gif: 'image/gif',
+   gz: 'application/gzip',
+   htm: 'text/html; charset=utf-8',
+@@ -60,6 +61,8 @@ const _baseMimes = {
+   mjs: 'text/javascript; charset=utf-8',
+   mp3: 'audio/mpeg',
+   mp4: 'video/mp4',
++  m4a: 'audio/mp4',
++  mkv: 'video/x-matroska',
+   mpeg: 'video/mpeg',
+   oga: 'audio/ogg',
+   ogv: 'video/ogg',

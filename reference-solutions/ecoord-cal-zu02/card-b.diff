@@ -1,0 +1,93 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 47cb9c1..f64ffeb 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -15,3 +15,4 @@ export {
+   type PersistOptions,
+ } from './middleware/persist.ts'
+ export { ssrSafe as unstable_ssrSafe } from './middleware/ssrSafe.ts'
++export { onStateChange } from './middleware/onStateChange.ts'
+diff --git a/src/middleware/onStateChange.ts b/src/middleware/onStateChange.ts
+new file mode 100644
+index 0000000..e3aaa2e
+--- /dev/null
++++ b/src/middleware/onStateChange.ts
+@@ -0,0 +1,17 @@
++import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
++
++export function onStateChange<
++  T extends object,
++  Mps extends [StoreMutatorIdentifier, unknown][] = [],
++  Mcs extends [StoreMutatorIdentifier, unknown][] = [],
++>(
++  initializer: StateCreator<T, Mps, Mcs>,
++  callback: (state: T, prevState: T) => void,
++): StateCreator<T, Mps, Mcs> {
++  return (set, get, api) => {
++    ;(api as any).subscribe((state: T, prevState: T) => {
++      callback(state, prevState)
++    })
++    return initializer(set, get, api)
++  }
++}
+diff --git a/tests/coord/on-state-change-middleware.test.ts b/tests/coord/on-state-change-middleware.test.ts
+new file mode 100644
+index 0000000..3c3c056
+--- /dev/null
++++ b/tests/coord/on-state-change-middleware.test.ts
+@@ -0,0 +1,55 @@
++import { expect, it, vi } from 'vitest'
++import { onStateChange } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++import type { StateCreator } from 'zustand/vanilla'
++
++type CounterState = { count: number; inc: () => void }
++
++const counterInitializer: StateCreator<CounterState> = (set, get) => ({
++  count: 0,
++  inc: () => set({ count: get().count + 1 }),
++})
++
++it('invokes the callback exactly once per api.setState with (newState, previousState)', () => {
++  const callback = vi.fn()
++  const store = createStore(onStateChange(counterInitializer, callback))
++  store.setState({ count: 1 })
++  expect(callback).toHaveBeenCalledTimes(1)
++  const [next, prev] = callback.mock.calls[0]
++  expect(next.count).toBe(1)
++  expect(prev.count).toBe(0)
++})
++
++it('invokes the callback for changes through the initializer-provided set', () => {
++  const callback = vi.fn()
++  const store = createStore(onStateChange(counterInitializer, callback))
++  store.getState().inc()
++  expect(callback).toHaveBeenCalledTimes(1)
++  expect(store.getState().count).toBe(1)
++})
++
++it('does not invoke the callback at store creation', () => {
++  const callback = vi.fn()
++  createStore(onStateChange(counterInitializer, callback))
++  expect(callback).not.toHaveBeenCalled()
++})
++
++it('propagates a throwing callback to the setState caller and keeps the update', () => {
++  const store = createStore(
++    onStateChange(counterInitializer, () => {
++      throw new Error('observer failed')
++    }),
++  )
++  expect(() => store.setState({ count: 9 })).toThrow('observer failed')
++  expect(store.getState().count).toBe(9)
++})
++
++it('leaves updates and subscriber notification intact', () => {
++  const callback = vi.fn()
++  const store = createStore(onStateChange(counterInitializer, callback))
++  const subscriber = vi.fn()
++  store.subscribe(subscriber)
++  store.setState({ count: 2 })
++  expect(store.getState().count).toBe(2)
++  expect(subscriber).toHaveBeenCalledTimes(1)
++})

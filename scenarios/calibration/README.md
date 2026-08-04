@@ -70,16 +70,27 @@ against and are recorded here for the freeze:
 
 ## Why the default path collides (one line per scenario)
 
-| Scenario | Stratum | Why the default path collides |
-|---|---|---|
-| ecoord-cal-ho01 | very-high | Both cards add entries to the one alphabetized `_baseMimes` object in src/utils/mime.ts, and strict alphabetical placement interleaves their keys in the same 'm' block (m4a/mkv beside md) while the lazy path appends both at the object tail. |
-| ecoord-cal-ho02 | extreme | Both cards rework the same three tiny regions of the 78-line src/http-exception.ts (options type, constructor, getResponse's no-res branch) with criteria that overlap on the very Response getResponse() builds. |
-| ecoord-cal-sf01 | very-high | Both cards add an identically-shaped enum guard whose natural home is the same insertion point inside the single validateConfig() body, inviting one shared allowed-values loop or back-to-back if-blocks on the same lines. |
-| ecoord-cal-sf02 | extreme | Both cards add a dialect alias whose registry route co-writes the one dialectNameMap Record type-annotation line (the key union) plus neighboring alphabetical map slots, with near-verbatim overlapping acceptance criteria. |
-| ecoord-cal-zo01 | very-high | Both cards follow the identical two-file format recipe whose default insertion point is the same tail of the classic/schemas.ts format-factory block and the same tail of core/regexes.ts (adjacent-line appends in two shared regions). |
-| ecoord-cal-zo02 | extreme | Both cards register a case-insensitive twin beside its sibling in the 32-line classic/checks.ts registry, where `startsWith` and `endsWith` sit on directly adjacent lines, and add mirror factories twelve lines apart in core/api.ts. |
-| ecoord-cal-zu01 | very-high | Both cards extend the selector form inside the SAME ~20-line wrapped-subscribe closure of subscribeWithSelectorImpl and must widen the SAME four-line options type literal. |
-| ecoord-cal-zu02 | extreme | Both cards add a near-twin state-change observer middleware and must both write the 17-line src/middleware.ts registry, whose lazy insertion point (append at end) is identical for both. |
+Churn = added + deleted lines per reference diff (`git apply --numstat`
+sums against the pin). All 8 pairs sit within the §3 3x bound; the
+measured ratio range across the set is **1.00 - 1.10**.
 
-Churn symmetry figures are recorded here after the reference pairs land
-(second commit), from `git apply --numstat` sums per diff.
+| Scenario | Stratum | Churn a/b (ratio) | Why the default path collides |
+|---|---|---|---|
+| ecoord-cal-ho01 | very-high | 33/30 (1.10) | Both cards add entries to the one alphabetized `_baseMimes` object in src/utils/mime.ts, and strict alphabetical placement interleaves their keys in the same 'm' block (m4a/mkv beside md) while the lazy path appends both at the object tail. |
+| ecoord-cal-ho02 | extreme | 51/53 (1.04) | Both cards rework the same three tiny regions of the 78-line src/http-exception.ts (options type, constructor, getResponse's no-res branch) with criteria that overlap on the very Response getResponse() builds. |
+| ecoord-cal-sf01 | very-high | 31/34 (1.10) | Both cards add an identically-shaped enum guard whose natural home is the same insertion point inside the single validateConfig() body, inviting one shared allowed-values loop or back-to-back if-blocks on the same lines. |
+| ecoord-cal-sf02 | extreme | 37/39 (1.05) | Both cards add a dialect alias whose registry route co-writes the one dialectNameMap Record type-annotation line (the key union) plus neighboring alphabetical map slots, with near-verbatim overlapping acceptance criteria. |
+| ecoord-cal-zo01 | very-high | 38/38 (1.00) | Both cards follow the identical two-file format recipe whose default insertion point is the same tail of the classic/schemas.ts format-factory block and the same tail of core/regexes.ts (adjacent-line appends in two shared regions). |
+| ecoord-cal-zo02 | extreme | 37/36 (1.03) | Both cards register a case-insensitive twin beside its sibling in the 32-line classic/checks.ts registry, where `startsWith` and `endsWith` sit on directly adjacent lines, and add mirror factories twelve lines apart in core/api.ts. |
+| ecoord-cal-zu01 | very-high | 72/74 (1.03) | Both cards extend the selector form inside the SAME ~20-line wrapped-subscribe closure of subscribeWithSelectorImpl and must widen the SAME four-line options type literal. |
+| ecoord-cal-zu02 | extreme | 76/73 (1.04) | Both cards add a near-twin state-change observer middleware and must both write the 17-line src/middleware.ts registry, whose lazy insertion point (append at end) is identical for both. |
+
+All 8 pairs were verified with git-only checks from the committed diffs:
+both diffs `git apply --index` cleanly at the pin,
+`git merge-tree --write-tree` of the two branches is conflict-free, both
+cards' features are present in the merged tree, every path touched by
+either diff exists in the merged tree, and every diff touches only its
+card's `scope_paths`. The full §3 re-check (outcome commands with k=3
+determinism, wall-time floor, measured overlap-pressure score) is
+`scripts/scenario-check.sh` on the pinned VM host
+(`SCENARIO_DIR=scenarios/calibration`).

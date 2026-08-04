@@ -1,0 +1,61 @@
+diff --git a/src/sqlFormatter.ts b/src/sqlFormatter.ts
+index d65159b6..ee006b9b 100644
+--- a/src/sqlFormatter.ts
++++ b/src/sqlFormatter.ts
+@@ -5,7 +5,10 @@ import { createDialect, DialectOptions } from './dialect.js';
+ import Formatter from './formatter/Formatter.js';
+ import { ConfigError, validateConfig } from './validateConfig.js';
+ 
+-const dialectNameMap: Record<keyof typeof allDialects | 'tsql', keyof typeof allDialects> = {
++const dialectNameMap: Record<
++  keyof typeof allDialects | 'tsql' | 'postgres',
++  keyof typeof allDialects
++> = {
+   bigquery: 'bigquery',
+   clickhouse: 'clickhouse',
+   db2: 'db2',
+@@ -17,6 +20,7 @@ const dialectNameMap: Record<keyof typeof allDialects | 'tsql', keyof typeof all
+   n1ql: 'n1ql',
+   plsql: 'plsql',
+   postgresql: 'postgresql',
++  postgres: 'postgresql', // alias for postgresql
+   redshift: 'redshift',
+   spark: 'spark',
+   sqlite: 'sqlite',
+diff --git a/test/coord-postgres-alias.test.ts b/test/coord-postgres-alias.test.ts
+new file mode 100644
+index 00000000..66d1fbcf
+--- /dev/null
++++ b/test/coord-postgres-alias.test.ts
+@@ -0,0 +1,31 @@
++import { format, supportedDialects, ConfigError } from '../src/index.js';
++
++describe('postgres language alias', () => {
++  const castQuery = 'SELECT price::int, name FROM products WHERE id = 1';
++  const multiClauseQuery =
++    'SELECT a, b FROM t1 JOIN t2 ON t1.id = t2.id WHERE t2.x > 10 GROUP BY a ORDER BY b';
++
++  it('formats a PostgreSQL-flavored query identically under postgres and postgresql', () => {
++    expect(format(castQuery, { language: 'postgres' })).toBe(
++      format(castQuery, { language: 'postgresql' })
++    );
++  });
++
++  it('formats a multi-clause query identically under both names', () => {
++    expect(format(multiClauseQuery, { language: 'postgres' })).toBe(
++      format(multiClauseQuery, { language: 'postgresql' })
++    );
++  });
++
++  it('lists postgres among supportedDialects alongside postgresql', () => {
++    expect(supportedDialects).toContain('postgres');
++    expect(supportedDialects).toContain('postgresql');
++  });
++
++  it('still rejects unknown languages with the unsupported-dialect ConfigError', () => {
++    expect(() => format(castQuery, { language: 'postgresql9' as any })).toThrow(ConfigError);
++    expect(() => format(castQuery, { language: 'postgresql9' as any })).toThrow(
++      'Unsupported SQL dialect: postgresql9'
++    );
++  });
++});

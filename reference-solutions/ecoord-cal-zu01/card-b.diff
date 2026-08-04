@@ -1,0 +1,106 @@
+diff --git a/src/middleware/subscribeWithSelector.ts b/src/middleware/subscribeWithSelector.ts
+index 608c470..6d0b00e 100644
+--- a/src/middleware/subscribeWithSelector.ts
++++ b/src/middleware/subscribeWithSelector.ts
+@@ -34,6 +34,7 @@ type StoreSubscribeWithSelector<T> = {
+       options?: {
+         equalityFn?: (a: U, b: U) => boolean
+         fireImmediately?: boolean
++        once?: boolean
+       },
+     ): () => void
+   }
+@@ -52,16 +53,24 @@ const subscribeWithSelectorImpl: SubscribeWithSelectorImpl =
+       let listener: Listener = selector // if no selector
+       if (optListener) {
+         const equalityFn = options?.equalityFn || Object.is
++        let delivered = false
++        const deliver = (slice: unknown, previousSlice: unknown) => {
++          if (options?.once) {
++            if (delivered) return
++            delivered = true
++          }
++          optListener(slice, previousSlice)
++        }
+         let currentSlice = selector(api.getState())
+         listener = (state) => {
+           const nextSlice = selector(state)
+           if (!equalityFn(currentSlice, nextSlice)) {
+             const previousSlice = currentSlice
+-            optListener((currentSlice = nextSlice), previousSlice)
++            deliver((currentSlice = nextSlice), previousSlice)
+           }
+         }
+         if (options?.fireImmediately) {
+-          optListener(currentSlice, currentSlice)
++          deliver(currentSlice, currentSlice)
+         }
+       }
+       return origSubscribe(listener)
+diff --git a/tests/coord/select-subscribe-once.test.ts b/tests/coord/select-subscribe-once.test.ts
+new file mode 100644
+index 0000000..3764518
+--- /dev/null
++++ b/tests/coord/select-subscribe-once.test.ts
+@@ -0,0 +1,61 @@
++import { expect, it, vi } from 'vitest'
++import { subscribeWithSelector } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number; other: number }
++
++const initializer = () => ({ count: 0, other: 0 })
++
++it('delivers only the first selected-slice change when once is true', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  store.subscribe((s) => s.count, listener, { once: true })
++  store.setState({ count: 1 })
++  store.setState({ count: 2 })
++  store.setState({ count: 3 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith(1, 0)
++})
++
++it('counts the fireImmediately delivery as the single delivery', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  store.subscribe((s) => s.count, listener, {
++    once: true,
++    fireImmediately: true,
++  })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith(0, 0)
++  store.setState({ count: 1 })
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})
++
++it('keeps firing on every change without once', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  store.subscribe((s) => s.count, listener)
++  store.setState({ count: 1 })
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(2)
++})
++
++it('keeps the returned unsubscribe safe after the single delivery', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe((s) => s.count, listener, {
++    once: true,
++  })
++  store.setState({ count: 1 })
++  expect(() => unsubscribe()).not.toThrow()
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})
++
++it('keeps the single-argument listener form working', () => {
++  const store = createStore(subscribeWithSelector<State>(initializer))
++  const listener = vi.fn()
++  store.subscribe(listener)
++  store.setState({ count: 7 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})
