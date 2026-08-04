@@ -255,6 +255,7 @@ pinning list cites). Keep it in this file, dated:
 | cargo | 1.97.1 |
 | go / hugo | 1.22.2 / 0.164.0 extended (snap) |
 | python / uv | 3.12 / 0.12.1 |
+| bun | 1.3.14 (hono's pinned packageManager; installed 2026-08-04 with apt unzip) |
 | sqlite3 | 3.45.1 |
 | build caches | CARGO_TARGET_DIR=~/.cache/pylgrim-build/cargo-target |
 
