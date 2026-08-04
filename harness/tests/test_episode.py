@@ -731,7 +731,7 @@ def test_load_scenario_validates_shape(tmp_path, repo):
     assert errors == [] and scenario is not None
     assert scenario.cards["a"].id == "demo-s01-a"
 
-    bad = dict(good, pressure="extreme")
+    bad = dict(good, pressure="ultra")
     bad["work_items"] = {"a": good["work_items"]["a"]}  # missing b
     path2 = tmp_path / "demo-s02.yaml"
     path2.write_text(yaml_mod.safe_dump(bad), encoding="utf-8")
@@ -786,7 +786,7 @@ def test_committed_pilot_scenarios_load_cleanly():
     assert errors == []
     assert len(scenarios) >= 6
     for s in scenarios:
-        assert s.status == "pilot"
+        assert s.status in ("pilot", "confirmatory", "calibration")
         assert s.pressure in episode.PRESSURE_STRATA
         assert s.cards["a"].test_command and s.cards["b"].test_command
 
