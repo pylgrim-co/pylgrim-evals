@@ -1,0 +1,180 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-ho01
+study: e-coord
+status: calibration
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add entries to the SAME exported config object — the
+    alphabetized _baseMimes literal in src/utils/mime.ts that getMimeType,
+    getExtension, and the BaseMime union are all derived from. The default
+    path collides inside one contiguous region: strict alphabetical
+    placement interleaves the two cards' keys in the same 'm' block (m4a
+    and mkv from card A land one to three lines from card B's md), and the
+    lazy alternative — appending at the object's tail — stacks both cards'
+    entries adjacently. A region-disjoint pair still exists because the
+    map's ordering is conventional, not semantic (the pinned file already
+    breaks strict order at its tail): one card can cluster its media
+    entries after the mp4 line while the other places md beside map and
+    its yaml/yml entries near the tail, keeping every insertion at least
+    several lines from the other card's. Collision is therefore evitable
+    per §3 rule 1 but the default gravity is a single shared object
+    region. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-cal-ho01-a
+    kind: coord
+    title: baseMimes learns modern media types (flac, m4a, mkv)
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The MIME table in src/utils/mime.ts backs getMimeType, getExtension,
+      and serveStatic's content-type resolution, but it predates several
+      media containers that are now routine: FLAC audio, .m4a AAC audio,
+      and Matroska video all resolve to undefined today, so static file
+      responses for them ship without a Content-Type.
+
+      Extend the _baseMimes object in src/utils/mime.ts with exactly three
+      entries: flac mapped to 'audio/flac', m4a mapped to 'audio/mp4', and
+      mkv mapped to 'video/x-matroska'. Keep the object's `as const` shape
+      so the derived BaseMime union picks the new values up automatically.
+      Existing entries must not change: mp4 stays 'video/mp4', weba stays
+      'audio/webm', and every mapping that resolved before must resolve to
+      the same value. Extension matching is case-insensitive today via
+      getMimeType's lowercasing; do not change that logic — only the table.
+
+      Add tests in a new file src/utils/coord-mime-media-types.test.ts
+      covering: getMimeType returns the new values for 'track.flac',
+      'song.m4a', and 'movie.mkv'; uppercase filenames like 'TRACK.FLAC'
+      resolve identically; getExtension('audio/flac') returns 'flac' and
+      getExtension('video/x-matroska') returns 'mkv'; existing lookups
+      such as getMimeType('video.mp4') === 'video/mp4' and
+      getMimeType('a.weba') === 'audio/webm' are unchanged; an unknown
+      extension still returns undefined. Stay inside src/utils/mime.ts
+      plus your new test file. Do not touch getMimeType or getExtension
+      logic, other utils, middleware, or helpers. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/utils/mime.ts, limited to adding the three entries to _baseMimes
+        - flac, m4a, and mkv map to 'audio/flac', 'audio/mp4', and 'video/x-matroska'
+        - No existing entry changes value; the `as const` object shape is preserved
+        - getMimeType and getExtension logic untouched
+        - New tests only, in src/utils/coord-mime-media-types.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - getMimeType resolves track.flac, song.m4a, and movie.mkv to the three new MIME values
+          - Uppercase filenames resolve identically (existing case-insensitivity preserved)
+          - getExtension('audio/flac') returns 'flac' and getExtension('video/x-matroska') returns 'mkv'
+          - Existing mappings (mp4, weba, and the rest) are unchanged and unknown extensions still return undefined
+          - New tests in src/utils/coord-mime-media-types.test.ts cover the new-mappings, case-insensitive, getExtension, unchanged-existing, and unknown-extension cases
+        scope_paths:
+          - "src/utils/mime.ts"
+          - "src/utils/coord-mime-media-types.test.ts"
+        out_of_scope:
+          - "src/utils/mime.test.ts"
+          - "src/middleware/**"
+          - "src/helper/**"
+          - "src/adapter/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/utils/coord-mime-media-types.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-ho01-b
+    kind: coord
+    title: baseMimes learns authoring formats (md, yaml, yml)
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The MIME table in src/utils/mime.ts backs getMimeType, getExtension,
+      and serveStatic's content-type resolution, but common authoring and
+      configuration formats are missing: Markdown and YAML files served
+      statically get no Content-Type at all.
+
+      Extend the _baseMimes object in src/utils/mime.ts with exactly three
+      entries: md mapped to 'text/markdown; charset=utf-8', yaml mapped to
+      'application/yaml', and yml mapped to 'application/yaml'. The yaml
+      entry must appear before the yml entry so that
+      getExtension('application/yaml'), which returns the first matching
+      key, yields 'yaml'. Keep the object's `as const` shape so the
+      derived BaseMime union picks the new values up automatically.
+      Existing entries must not change: txt stays
+      'text/plain; charset=utf-8', html stays 'text/html; charset=utf-8',
+      and every mapping that resolved before must resolve to the same
+      value. Do not change getMimeType or getExtension logic — only the
+      table; getExtension's existing base-type matching already lets
+      'text/markdown' (without parameters) find the md entry.
+
+      Add tests in a new file src/utils/coord-mime-text-types.test.ts
+      covering: getMimeType returns the new values for 'README.md',
+      'config.yaml', and 'compose.yml'; getExtension('application/yaml')
+      returns 'yaml'; getExtension('text/markdown') returns 'md' via the
+      parameter-stripping base-type match; existing lookups such as
+      getMimeType('note.txt') === 'text/plain; charset=utf-8' and
+      getMimeType('page.html') === 'text/html; charset=utf-8' are
+      unchanged; an unknown extension still returns undefined. Stay inside
+      src/utils/mime.ts plus your new test file. Do not touch getMimeType
+      or getExtension logic, other utils, middleware, or helpers. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/utils/mime.ts, limited to adding the three entries to _baseMimes
+        - md maps to 'text/markdown; charset=utf-8'; yaml and yml map to 'application/yaml' with yaml listed first
+        - No existing entry changes value; the `as const` object shape is preserved
+        - getMimeType and getExtension logic untouched
+        - New tests only, in src/utils/coord-mime-text-types.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - getMimeType resolves README.md, config.yaml, and compose.yml to the three new MIME values
+          - getExtension('application/yaml') returns 'yaml' (yaml listed before yml)
+          - getExtension('text/markdown') returns 'md' through the existing base-type match
+          - Existing mappings (txt, html, and the rest) are unchanged and unknown extensions still return undefined
+          - New tests in src/utils/coord-mime-text-types.test.ts cover the new-mappings, yaml-first, base-type-match, unchanged-existing, and unknown-extension cases
+        scope_paths:
+          - "src/utils/mime.ts"
+          - "src/utils/coord-mime-text-types.test.ts"
+        out_of_scope:
+          - "src/utils/mime.test.ts"
+          - "src/middleware/**"
+          - "src/helper/**"
+          - "src/adapter/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/utils/coord-mime-text-types.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

@@ -1,0 +1,198 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-zu02
+study: e-coord
+status: calibration
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add a state-change OBSERVER middleware — near-twin
+    features whose acceptance criteria describe the same behavior class
+    ("called exactly once after every state change through either set
+    path, never at creation") — and BOTH must register their export in the
+    same 17-line registry src/middleware.ts. The default path collides
+    twice over: both cards append their export at the end of the tiny
+    registry (adjacent inserts), and the twin semantics tempt an agent to
+    hoist one shared observer helper that the other card's file would then
+    also want. A region-disjoint pair still exists — the two
+    implementations live in separate new files and the registry accepts
+    one insertion after the redux/devtools block and one append after the
+    ssrSafe line, nine lines apart — so collision stays evitable per §3
+    rule 1 while the shared-registry pressure is maximal. Measured score
+    computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-cal-zu02-a
+    kind: coord
+    title: add a logger middleware that console.logs every state change
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Debugging zustand stores in environments without the devtools
+      extension usually degenerates into sprinkling console.log calls
+      inside actions. Add a first-class alternative: a `logger` export that
+      wraps a state creator and logs every state change.
+
+      Create src/middleware/logger.ts following the house middleware style
+      (a typed public signature over the vanilla StateCreator types, like
+      ssrSafe's non-mutator style since no new store methods are added):
+      logger(initializer, name?) returns a StateCreator, where name
+      defaults to 'zustand'. After every state change — whether performed
+      through the set function passed to the initializer or through
+      api.setState — console.log must be called exactly once per change
+      with three arguments: the string `${name}: state changed`, the
+      previous state, and the new state. No log may happen at store
+      creation, and a change that vanilla ignores (setState with the
+      identical state object) must not log. Update semantics are otherwise
+      unchanged. Register the export in the middleware registry
+      src/middleware.ts so `import { logger } from 'zustand/middleware'`
+      resolves.
+
+      Add tests in a new file tests/coord/logger-middleware.test.ts
+      covering: console.log is called exactly once per setState with the
+      `${name}: state changed` first argument and the previous and new
+      state as the second and third arguments; changes made through the
+      initializer-provided set also log; the default name 'zustand' is used
+      when no name is given; no log happens at store creation; state
+      updates and subscriber notification still work normally. Scope is
+      your new middleware file, the one-line registry export in
+      src/middleware.ts, and your new test file. Do not modify existing
+      middleware modules or the vanilla core. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - New implementation file src/middleware/logger.ts; registry edit in src/middleware.ts limited to exporting logger
+        - Exactly one console.log per committed state change, on both the initializer-set and api.setState paths
+        - "Log arguments are the `${name}: state changed` string, previous state, new state; name defaults to 'zustand'"
+        - No log at store creation; update semantics otherwise unchanged
+        - New tests only, in tests/coord/logger-middleware.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "`import { logger } from 'zustand/middleware'` resolves"
+          - console.log fires exactly once per state change with the name string, previous state, and new state
+          - Changes through both the initializer-provided set and api.setState are logged
+          - The name argument defaults to 'zustand'
+          - No console.log at store creation; updates and subscriber notification behave as without the middleware
+          - New tests in tests/coord/logger-middleware.test.ts cover the log-arguments, both-set-paths, default-name, no-log-at-creation, and updates-still-work cases
+        scope_paths:
+          - "src/middleware/logger.ts"
+          - "src/middleware.ts"
+          - "tests/coord/logger-middleware.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/logger-middleware.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-zu02-b
+    kind: coord
+    title: add an onStateChange middleware that invokes a callback after every update
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Integrations (analytics, persistence bridges, cross-tab sync) keep
+      re-implementing "call my function whenever the store changes" by
+      subscribing manually after store creation, which misses a middleware
+      composition point. Add it as a first-class middleware: an
+      `onStateChange` export that wraps a state creator and invokes a
+      caller-supplied callback after every state change.
+
+      Create src/middleware/onStateChange.ts following the house middleware
+      style (a typed public signature over the vanilla StateCreator types,
+      like ssrSafe's non-mutator style since no new store methods are
+      added): onStateChange(initializer, callback) returns a StateCreator,
+      where callback receives (newState, previousState). After every state
+      change — whether performed through the set function passed to the
+      initializer or through api.setState — the callback must be invoked
+      exactly once per change with the post-update state and the previous
+      state. The callback must not be invoked at store creation, and a
+      change that vanilla ignores (setState with the identical state
+      object) must not invoke it. If the callback throws, the error
+      propagates to the setState caller while the store keeps the
+      already-updated state. Register the export in the middleware registry
+      src/middleware.ts so `import { onStateChange } from
+      'zustand/middleware'` resolves.
+
+      Add tests in a new file
+      tests/coord/on-state-change-middleware.test.ts covering: the
+      callback is invoked exactly once per setState with (newState,
+      previousState); changes made through the initializer-provided set
+      also invoke it; no invocation happens at store creation; a throwing
+      callback propagates its error to the setState caller while
+      getState() keeps the updated state; state updates and subscriber
+      notification still work normally. Scope is your new middleware file,
+      the one-line registry export in src/middleware.ts, and your new test
+      file. Do not modify existing middleware modules or the vanilla core.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - New implementation file src/middleware/onStateChange.ts; registry edit in src/middleware.ts limited to exporting onStateChange
+        - Exactly one callback invocation per committed state change, on both the initializer-set and api.setState paths
+        - Callback receives (newState, previousState); no invocation at store creation
+        - A throwing callback propagates to the setState caller; the committed update is not rolled back
+        - New tests only, in tests/coord/on-state-change-middleware.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "`import { onStateChange } from 'zustand/middleware'` resolves"
+          - The callback fires exactly once per state change with the new state and previous state
+          - Changes through both the initializer-provided set and api.setState invoke the callback
+          - No callback invocation at store creation
+          - A throwing callback propagates its error to the setState caller while getState() keeps the updated state
+          - New tests in tests/coord/on-state-change-middleware.test.ts cover the callback-arguments, both-set-paths, no-call-at-creation, throwing, and updates-still-work cases
+        scope_paths:
+          - "src/middleware/onStateChange.ts"
+          - "src/middleware.ts"
+          - "tests/coord/on-state-change-middleware.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/on-state-change-middleware.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

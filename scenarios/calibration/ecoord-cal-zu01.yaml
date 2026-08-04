@@ -1,0 +1,193 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-zu01
+study: e-coord
+status: calibration
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items extend the selector form of the SAME wrapped subscribe
+    function inside subscribeWithSelectorImpl
+    (src/middleware/subscribeWithSelector.ts) — a single ~20-line closure —
+    and both must widen the SAME four-line options object type in
+    StoreSubscribeWithSelector. The default path for each card is to rework
+    the one `if (optListener)` block and the options type literal, which is
+    exactly where the other card lands too: same function, same contiguous
+    region. A region-disjoint pair still exists — the once behavior can be
+    implemented entirely inside the listener closure while the signal
+    behavior can be implemented around the trailing
+    `return origSubscribe(listener)` boundary, with the two options-type
+    insertions at opposite ends of the type literal — so collision is
+    evitable per §3 rule 1, but only through deliberate line placement
+    inside one small function. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-cal-zu01-a
+    kind: coord
+    title: subscribeWithSelector selector form supports an AbortSignal option
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The subscribeWithSelector middleware
+      (src/middleware/subscribeWithSelector.ts) wraps api.subscribe so it
+      can be called in a selector form, subscribe(selector, listener,
+      options?). Modern DOM-style APIs let callers tie a registration's
+      lifetime to an AbortSignal instead of holding on to a disposer
+      function; zustand's selector subscriptions have no such hook, so
+      component teardown code has to thread unsubscribe functions around
+      manually.
+
+      Extend the selector form in src/middleware/subscribeWithSelector.ts
+      with an options.signal?: AbortSignal entry. When a signal is provided
+      and is already aborted at subscribe time, nothing may be registered
+      and the returned function must be a safe no-op. When the signal
+      aborts after subscription, the subscription must be removed exactly
+      as if the returned unsubscribe function had been called, and later
+      state changes must not invoke the listener. Calling the returned
+      unsubscribe after an abort must be safe. Subscriptions without a
+      signal, and the single-argument subscribe(listener) form, must behave
+      exactly as today. Also add the signal entry to the options object
+      type in StoreSubscribeWithSelector so typed callers can pass it.
+
+      Add tests in a new file tests/coord/select-subscribe-signal.test.ts
+      covering: a selector subscription with an already-aborted signal
+      never fires and its returned unsubscribe is callable; aborting after
+      subscribing stops the listener firing on later setState calls;
+      calling the returned unsubscribe after abort does not throw; a
+      selector subscription without a signal still fires on selected-slice
+      changes; the single-argument listener form still works. Stay inside
+      src/middleware/subscribeWithSelector.ts plus your new test file. Do
+      not touch other middleware modules, the middleware registry, or the
+      vanilla core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/subscribeWithSelector.ts
+        - An already-aborted signal registers nothing and yields a no-op unsubscribe
+        - A later abort removes the subscription exactly like the returned unsubscribe
+        - Behavior without a signal, and the single-argument form, are unchanged
+        - New tests only, in tests/coord/select-subscribe-signal.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A selector subscription created with an already-aborted signal never invokes its listener and returns a callable no-op
+          - After signal.abort(), later setState calls no longer invoke the listener
+          - Calling the returned unsubscribe after an abort is safe
+          - Selector subscriptions without a signal, and the single-argument form, behave exactly as before
+          - The options type in StoreSubscribeWithSelector includes signal
+          - New tests in tests/coord/select-subscribe-signal.test.ts cover the pre-aborted, abort-later, unsubscribe-after-abort, no-signal, and single-argument cases
+        scope_paths:
+          - "src/middleware/subscribeWithSelector.ts"
+          - "tests/coord/select-subscribe-signal.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/select-subscribe-signal.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-zu01-b
+    kind: coord
+    title: subscribeWithSelector selector form supports a once option
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The subscribeWithSelector middleware
+      (src/middleware/subscribeWithSelector.ts) wraps api.subscribe so it
+      can be called in a selector form, subscribe(selector, listener,
+      options?). A common pattern is waiting for a slice to change exactly
+      once (e.g. "run this when hydration finishes"); today callers must
+      hand-roll the unsubscribe-inside-listener dance.
+
+      Extend the selector form in src/middleware/subscribeWithSelector.ts
+      with an options.once?: boolean entry. When once is true, the listener
+      must be delivered at most one notification: after the first delivery,
+      later selected-slice changes must not invoke it again. When once is
+      combined with fireImmediately, the immediate delivery counts as that
+      single delivery, so no change-driven call may follow it. The returned
+      unsubscribe function must remain callable and safe whether or not the
+      single delivery has already happened. Subscriptions without once, and
+      the single-argument subscribe(listener) form, must behave exactly as
+      today. Also add the once entry to the options object type in
+      StoreSubscribeWithSelector so typed callers can pass it.
+
+      Add tests in a new file tests/coord/select-subscribe-once.test.ts
+      covering: with once true, the listener fires on the first
+      selected-slice change and stays silent on later changes; with once
+      and fireImmediately both true, only the immediate call happens even
+      after later changes; without once, a selector subscription keeps
+      firing on every selected-slice change; the returned unsubscribe can
+      be called after the single delivery without throwing; the
+      single-argument listener form still works. Stay inside
+      src/middleware/subscribeWithSelector.ts plus your new test file. Do
+      not touch other middleware modules, the middleware registry, or the
+      vanilla core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/subscribeWithSelector.ts
+        - With once, at most one delivery ever reaches the listener
+        - fireImmediately combined with once consumes the single delivery
+        - Behavior without once, and the single-argument form, are unchanged
+        - New tests only, in tests/coord/select-subscribe-once.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With once true, the listener is invoked for the first selected-slice change and never again afterwards
+          - With once and fireImmediately true, the immediate delivery is the only invocation
+          - Without once, selector subscriptions fire on every selected-slice change exactly as before
+          - The returned unsubscribe stays safe to call after the single delivery
+          - The options type in StoreSubscribeWithSelector includes once
+          - New tests in tests/coord/select-subscribe-once.test.ts cover the fires-once, fireImmediately-combination, without-once, unsubscribe-after-delivery, and single-argument cases
+        scope_paths:
+          - "src/middleware/subscribeWithSelector.ts"
+          - "tests/coord/select-subscribe-once.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/middleware/immer.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/select-subscribe-once.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

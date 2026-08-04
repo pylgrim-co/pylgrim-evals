@@ -1,0 +1,189 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-sf02
+study: e-coord
+status: calibration
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add a dialect-name alias to the SAME registry
+    structure: the dialectNameMap object at the top of the ~100-line
+    src/sqlFormatter.ts, whose single existing alias (tsql -> transactsql)
+    is the model both prompts point at, and whose key union is pinned on
+    ONE Record type annotation line. The default path collides on that
+    exact line: adding a map entry requires widening the same
+    `keyof typeof allDialects | 'tsql'` union, so two map-route
+    implementations conflict there no matter where their entries sit, and
+    their entries themselves gravitate to neighboring alphabetical slots
+    (postgres beside postgresql, mssql beside mysql or tsql). The
+    acceptance criteria overlap almost entirely — both cards assert on
+    supportedDialects membership and on format() equivalence through the
+    same alias resolution path. A region-disjoint pair still exists
+    because one card can be satisfied without touching the map at all:
+    normalizing the alias at the format() boundary and appending it to
+    the supportedDialects export, a dozen-plus lines from the other
+    card's map entry and union widening. Collision is therefore evitable
+    per §3 rule 1, but only by abandoning the registry route one prompt's
+    precedent makes default. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-cal-sf02-a
+    kind: coord
+    title: format() accepts 'postgres' as an alias for the postgresql dialect
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      Everyone abbreviates PostgreSQL as "postgres" — connection strings,
+      docker images, ORM configs — but format() in src/sqlFormatter.ts
+      throws 'Unsupported SQL dialect: postgres'. The library already
+      knows how to spell an alias: the dialectNameMap registry at the top
+      of src/sqlFormatter.ts maps tsql to transactsql so both names hit
+      the same dialect.
+
+      Make 'postgres' an accepted language value in src/sqlFormatter.ts,
+      resolving to the postgresql dialect: format(query, { language:
+      'postgres' }) must produce byte-identical output to format(query,
+      { language: 'postgresql' }) for any query, the exported
+      supportedDialects array must include 'postgres', and truly unknown
+      names must still throw the existing
+      'Unsupported SQL dialect: <name>' ConfigError. How you wire the
+      alias inside src/sqlFormatter.ts is up to you, but the alias must
+      behave exactly like the tsql precedent from the caller's point of
+      view. Do not touch the dialect definitions, validateConfig, or any
+      other file.
+
+      Add tests in a new file test/coord-postgres-alias.test.ts, importing
+      from the package entry the way existing tests do (for example
+      `import { format, supportedDialects, ConfigError } from '../src/index.js';`).
+      Cover: a SELECT with a PostgreSQL-flavored feature (e.g. a :: cast)
+      formats identically under 'postgres' and 'postgresql'; a second,
+      multi-clause query also matches; supportedDialects includes
+      'postgres' (and still includes 'postgresql'); an unknown language
+      such as 'postgresql9' still throws ConfigError with the
+      unsupported-dialect message. Stay inside src/sqlFormatter.ts plus
+      your new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/sqlFormatter.ts
+        - format() with language 'postgres' is byte-identical to 'postgresql' output
+        - supportedDialects includes 'postgres'; unknown names still throw the existing ConfigError
+        - Dialect definitions, validateConfig, and all other files untouched
+        - New tests only, in test/coord-postgres-alias.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "format(query, { language: 'postgres' }) equals format(query, { language: 'postgresql' }) for the tested queries"
+          - supportedDialects includes both 'postgres' and 'postgresql'
+          - An unknown language still throws ConfigError with the 'Unsupported SQL dialect' message
+          - New tests in test/coord-postgres-alias.test.ts cover the identical-output (two queries), supportedDialects, and unknown-language cases
+        scope_paths:
+          - "src/sqlFormatter.ts"
+          - "test/coord-postgres-alias.test.ts"
+        out_of_scope:
+          - "src/validateConfig.ts"
+          - "src/dialect.ts"
+          - "src/allDialects.ts"
+          - "src/index.ts"
+          - "src/FormatOptions.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-postgres-alias.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-sf02-b
+    kind: coord
+    title: format() accepts 'mssql' as an alias for the transactsql dialect
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      Microsoft SQL Server is called "mssql" across the ecosystem — the
+      node driver is literally named mssql — yet format() in
+      src/sqlFormatter.ts throws 'Unsupported SQL dialect: mssql'. The
+      library already knows how to spell an alias: the dialectNameMap
+      registry at the top of src/sqlFormatter.ts maps tsql to transactsql
+      so both names hit the same dialect.
+
+      Make 'mssql' an accepted language value in src/sqlFormatter.ts,
+      resolving to the transactsql dialect: format(query, { language:
+      'mssql' }) must produce byte-identical output to format(query,
+      { language: 'transactsql' }) — and therefore to the existing 'tsql'
+      alias — for any query, the exported supportedDialects array must
+      include 'mssql', and truly unknown names must still throw the
+      existing 'Unsupported SQL dialect: <name>' ConfigError. How you wire
+      the alias inside src/sqlFormatter.ts is up to you, but the alias
+      must behave exactly like the tsql precedent from the caller's point
+      of view. Do not touch the dialect definitions, validateConfig, or
+      any other file.
+
+      Add tests in a new file test/coord-mssql-alias.test.ts, importing
+      from the package entry the way existing tests do (for example
+      `import { format, supportedDialects, ConfigError } from '../src/index.js';`).
+      Cover: a SELECT with a T-SQL-flavored feature (e.g. bracketed
+      identifiers) formats identically under 'mssql', 'transactsql', and
+      'tsql'; a second, multi-clause query also matches; supportedDialects
+      includes 'mssql' (and still includes 'transactsql' and 'tsql'); an
+      unknown language such as 'sqlserver' still throws ConfigError with
+      the unsupported-dialect message. Stay inside src/sqlFormatter.ts
+      plus your new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/sqlFormatter.ts
+        - format() with language 'mssql' is byte-identical to 'transactsql' and 'tsql' output
+        - supportedDialects includes 'mssql'; unknown names still throw the existing ConfigError
+        - Dialect definitions, validateConfig, and all other files untouched
+        - New tests only, in test/coord-mssql-alias.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - "format(query, { language: 'mssql' }) equals the 'transactsql' and 'tsql' output for the tested queries"
+          - supportedDialects includes 'mssql' alongside 'transactsql' and 'tsql'
+          - An unknown language still throws ConfigError with the 'Unsupported SQL dialect' message
+          - New tests in test/coord-mssql-alias.test.ts cover the identical-output (two queries), supportedDialects, and unknown-language cases
+        scope_paths:
+          - "src/sqlFormatter.ts"
+          - "test/coord-mssql-alias.test.ts"
+        out_of_scope:
+          - "src/validateConfig.ts"
+          - "src/dialect.ts"
+          - "src/allDialects.ts"
+          - "src/index.ts"
+          - "src/FormatOptions.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-mssql-alias.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

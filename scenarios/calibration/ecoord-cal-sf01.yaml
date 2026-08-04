@@ -1,0 +1,176 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-sf01
+study: e-coord
+status: calibration
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add an enum guard for a FormatOptions value and the
+    natural implementation for BOTH is the same handful of lines: the body
+    of the single validateConfig() function in the 52-line
+    src/validateConfig.ts, where every existing option check already
+    lives. The two options (indentStyle, logicalOperatorNewline) are
+    guards of the identical shape — "throw ConfigError naming the option,
+    the received value, and the allowed values" — so the tempting default
+    is one shared allowed-values loop or two back-to-back if-blocks at the
+    same insertion point, exactly where the other card is writing. A
+    region-disjoint pair still exists: one guard fits directly after the
+    removedOptions loop at the top of the function while the other fits
+    just before the return at the bottom, with the expressionWidth,
+    params, and paramTypes blocks (~17 lines) between them, so collision
+    is evitable per §3 rule 1 but only by refusing the obvious
+    shared-region shape. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-cal-sf01-a
+    kind: coord
+    title: validateConfig rejects invalid indentStyle values with a clear ConfigError
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      validateConfig() in src/validateConfig.ts checks removed options,
+      expressionWidth, params, and paramTypes — but not indentStyle. A
+      typo like indentStyle: 'tabular' silently falls through to the
+      formatter, which treats any unrecognized value as 'standard' and
+      quietly produces layout the user did not ask for.
+
+      Add validation in src/validateConfig.ts: when cfg.indentStyle is not
+      one of 'standard', 'tabularLeft', or 'tabularRight', throw
+      ConfigError (defined in this same file) with a message that names
+      the indentStyle option, the received value, and the three allowed
+      values. Valid values must pass through unchanged, and the other
+      existing checks must keep their current order and behavior. Keep the
+      change inside src/validateConfig.ts; do not modify
+      src/sqlFormatter.ts, the formatter, or any other file.
+
+      Add tests in a new file test/coord-indent-style-validation.test.ts,
+      importing from the package entry the way existing tests do (for
+      example `import { format, ConfigError } from '../src/index.js';`).
+      Cover: format() with indentStyle 'tabular' (cast as needed) throws a
+      ConfigError whose message names indentStyle, the received value, and
+      the allowed values; another bogus value such as an empty string also
+      throws ConfigError; each of the three valid values still formats a
+      simple SELECT without throwing; an unrelated valid option like
+      tabWidth is unaffected. Stay inside src/validateConfig.ts plus your
+      new test file. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/validateConfig.ts
+        - Invalid indentStyle values throw ConfigError naming the option, the received value, and the allowed values
+        - The three valid indentStyle values and all other existing checks behave exactly as before
+        - New tests only, in test/coord-indent-style-validation.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - format() with an invalid indentStyle throws ConfigError naming indentStyle, the received value, and the allowed values
+          - All three valid indentStyle values still format successfully
+          - Existing validateConfig checks (removed options, expressionWidth, params, paramTypes) are unchanged
+          - New tests in test/coord-indent-style-validation.test.ts cover the invalid-value, second-invalid-value, three-valid-values, and unrelated-option cases
+        scope_paths:
+          - "src/validateConfig.ts"
+          - "test/coord-indent-style-validation.test.ts"
+        out_of_scope:
+          - "src/sqlFormatter.ts"
+          - "src/FormatOptions.ts"
+          - "src/dialect.ts"
+          - "src/index.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-indent-style-validation.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-sf01-b
+    kind: coord
+    title: validateConfig rejects invalid logicalOperatorNewline values with a clear ConfigError
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      validateConfig() in src/validateConfig.ts checks removed options,
+      expressionWidth, params, and paramTypes — but not
+      logicalOperatorNewline. A typo like logicalOperatorNewline: 'above'
+      silently falls through to the formatter, which only ever compares
+      the value against 'before', so the user gets 'after' behavior they
+      never asked for with no hint anything is wrong.
+
+      Add validation in src/validateConfig.ts: when
+      cfg.logicalOperatorNewline is not one of 'before' or 'after', throw
+      ConfigError (defined in this same file) with a message that names
+      the logicalOperatorNewline option, the received value, and the two
+      allowed values. Valid values must pass through unchanged, and the
+      other existing checks must keep their current order and behavior.
+      Keep the change inside src/validateConfig.ts; do not modify
+      src/sqlFormatter.ts, the formatter, or any other file.
+
+      Add tests in a new file
+      test/coord-logical-operator-newline-validation.test.ts, importing
+      from the package entry the way existing tests do (for example
+      `import { format, ConfigError } from '../src/index.js';`). Cover:
+      format() with logicalOperatorNewline 'above' (cast as needed) throws
+      a ConfigError whose message names logicalOperatorNewline, the
+      received value, and the allowed values; another bogus value such as
+      an empty string also throws ConfigError; both valid values still
+      format a WHERE clause with an AND without throwing; an unrelated
+      valid option like tabWidth is unaffected. Stay inside
+      src/validateConfig.ts plus your new test file. No new dependencies,
+      no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/validateConfig.ts
+        - Invalid logicalOperatorNewline values throw ConfigError naming the option, the received value, and the allowed values
+        - The two valid logicalOperatorNewline values and all other existing checks behave exactly as before
+        - New tests only, in test/coord-logical-operator-newline-validation.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - format() with an invalid logicalOperatorNewline throws ConfigError naming the option, the received value, and the allowed values
+          - Both valid logicalOperatorNewline values still format successfully
+          - Existing validateConfig checks (removed options, expressionWidth, params, paramTypes) are unchanged
+          - New tests in test/coord-logical-operator-newline-validation.test.ts cover the invalid-value, second-invalid-value, both-valid-values, and unrelated-option cases
+        scope_paths:
+          - "src/validateConfig.ts"
+          - "test/coord-logical-operator-newline-validation.test.ts"
+        out_of_scope:
+          - "src/sqlFormatter.ts"
+          - "src/FormatOptions.ts"
+          - "src/dialect.ts"
+          - "src/index.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/languages/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-logical-operator-newline-validation.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

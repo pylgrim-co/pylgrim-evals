@@ -1,0 +1,187 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-zo01
+study: e-coord
+status: calibration
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add a regex-backed custom string format through the
+    identical two-file recipe: a regex export in core/regexes.ts and a
+    one-line factory in the hostname/hex/hash format block of
+    classic/schemas.ts. The default insertion point is the SAME for both
+    cards in BOTH files — the tail of the format-factory block (right
+    after hash()) and the tail of regexes.ts — so the natural
+    implementations are adjacent-line appends to two shared regions, the
+    canonical merge-conflict shape. A region-disjoint pair still exists:
+    the block's internal order is not semantic, so one card can insert
+    its factory after hex() while the other appends after the ~20-line
+    hash() body, and one regex can live beside the identifier regexes
+    near the top of regexes.ts while the other sits at the file tail.
+    Collision is evitable per §3 rule 1 but the default gravity is
+    end-of-block appends in the same two files. Measured score computed
+    by scripts/scenario-check.sh; the authored label is re-checked
+    against that measurement before freeze.
+cards:
+  - id: ecoord-cal-zo01-a
+    kind: coord
+    title: add a z.semver() string format validating SemVer 2.0.0 versions
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Package registries, lockfiles, and release tooling all validate
+      semantic versions, and users keep hand-rolling z.string().regex(...)
+      for it. Zod v4 already has a house pattern for regex-backed string
+      formats — hostname() and hex() in
+      packages/zod/src/v4/classic/schemas.ts are one-line factories over
+      core._stringFormat with their regexes in
+      packages/zod/src/v4/core/regexes.ts.
+
+      Add a `semver` format the same way: export a semver RegExp from
+      packages/zod/src/v4/core/regexes.ts implementing the official
+      SemVer 2.0.0 grammar (MAJOR.MINOR.PATCH numeric cores without
+      leading zeros, optional -prerelease dot-separated identifiers,
+      optional +build metadata), and export a semver() factory from
+      packages/zod/src/v4/classic/schemas.ts following the hostname()/
+      hex() shape with format name "semver", so z.semver() works. Accept
+      '1.0.0', '1.2.3-alpha.1', '1.0.0+build.5', and
+      '1.0.0-rc.1+build.1'; reject '1.0', 'v1.0.0', '01.0.0',
+      '1.0.0-', and the empty string. A custom error message passed as
+      params must surface on failure, and the schema must be chainable
+      with string checks like .min().
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-semver-format.test.ts in
+      the style of the neighboring tests (import * as z from "zod/v4"),
+      covering: the accepted examples parse and return their input; the
+      rejected examples fail safeParse; a custom message params string
+      surfaces in the issue; z.semver().min(6) chains. Stay inside the
+      two implementation files plus your new test file. Do not touch
+      core/api.ts, core/checks.ts, classic/checks.ts, or the JSON-schema
+      layers. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation changes only in packages/zod/src/v4/core/regexes.ts and packages/zod/src/v4/classic/schemas.ts
+        - The factory follows the existing core._stringFormat pattern with format name "semver"
+        - Accepts the listed valid SemVer strings and rejects the listed invalid ones
+        - Custom message params surface on failure; the schema chains with string checks
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-semver-format.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - z.semver() parses '1.0.0', '1.2.3-alpha.1', '1.0.0+build.5', and '1.0.0-rc.1+build.1'
+          - z.semver() rejects '1.0', 'v1.0.0', '01.0.0', '1.0.0-', and ''
+          - A custom message passed as params appears as the failure issue message
+          - z.semver() chains with .min() like other string formats
+          - New tests in packages/zod/src/v4/classic/tests/coord-semver-format.test.ts cover the accept, reject, custom-message, and chaining cases
+        scope_paths:
+          - "packages/zod/src/v4/core/regexes.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/tests/coord-semver-format.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/schemas.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/core/json-schema*.ts"
+          - "packages/zod/src/v4/core/to-json-schema.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-semver-format.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-zo01-b
+    kind: coord
+    title: add a z.slug() string format validating URL slugs
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      CMSes, blogs, and routing layers validate URL slugs constantly, and
+      the checks are fussy enough (no uppercase, no leading/trailing or
+      doubled hyphens) that hand-rolled regexes routinely get them wrong.
+      Zod v4 already has a house pattern for regex-backed string formats —
+      hostname() and hex() in packages/zod/src/v4/classic/schemas.ts are
+      one-line factories over core._stringFormat with their regexes in
+      packages/zod/src/v4/core/regexes.ts.
+
+      Add a `slug` format the same way: export a slug RegExp from
+      packages/zod/src/v4/core/regexes.ts matching lowercase alphanumeric
+      segments separated by single hyphens
+      (^[a-z0-9]+(?:-[a-z0-9]+)*$), and export a slug() factory from
+      packages/zod/src/v4/classic/schemas.ts following the hostname()/
+      hex() shape with format name "slug", so z.slug() works. Accept
+      'hello', 'hello-world', 'a-1-b-2', and '2024-review'; reject
+      'Hello-World', 'hello world', '-hello', 'hello-', 'hello--world',
+      and the empty string. A custom error message passed as params must
+      surface on failure, and the schema must be chainable with string
+      checks like .min().
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-slug-format.test.ts in the
+      style of the neighboring tests (import * as z from "zod/v4"),
+      covering: the accepted examples parse and return their input; the
+      rejected examples fail safeParse; a custom message params string
+      surfaces in the issue; z.slug().min(3) chains. Stay inside the two
+      implementation files plus your new test file. Do not touch
+      core/api.ts, core/checks.ts, classic/checks.ts, or the JSON-schema
+      layers. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation changes only in packages/zod/src/v4/core/regexes.ts and packages/zod/src/v4/classic/schemas.ts
+        - The factory follows the existing core._stringFormat pattern with format name "slug"
+        - Accepts the listed valid slugs and rejects the listed invalid ones
+        - Custom message params surface on failure; the schema chains with string checks
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-slug-format.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - z.slug() parses 'hello', 'hello-world', 'a-1-b-2', and '2024-review'
+          - z.slug() rejects 'Hello-World', 'hello world', '-hello', 'hello-', 'hello--world', and ''
+          - A custom message passed as params appears as the failure issue message
+          - z.slug() chains with .min() like other string formats
+          - New tests in packages/zod/src/v4/classic/tests/coord-slug-format.test.ts cover the accept, reject, custom-message, and chaining cases
+        scope_paths:
+          - "packages/zod/src/v4/core/regexes.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/tests/coord-slug-format.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/schemas.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/core/json-schema*.ts"
+          - "packages/zod/src/v4/core/to-json-schema.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-slug-format.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

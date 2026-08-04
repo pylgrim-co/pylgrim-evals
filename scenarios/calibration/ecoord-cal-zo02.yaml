@@ -1,0 +1,191 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-zo02
+study: e-coord
+status: calibration
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add the case-insensitive twin of an existing affix
+    check — startsWith and endsWith — and both must co-write the SAME
+    32-line registry, packages/zod/src/v4/classic/checks.ts, whose
+    existing `_startsWith as startsWith` and `_endsWith as endsWith`
+    lines are DIRECTLY ADJACENT. The default path collides in both
+    files: registry convention says each alias goes beside its sibling
+    (two insertions around the same adjacent line pair), and in
+    core/api.ts each factory's natural home is immediately after its
+    sibling factory, twelve lines apart, with the mirror-twin semantics
+    tempting one shared case-folding helper serving both. The acceptance
+    criteria overlap almost verbatim — case-insensitive affix matching,
+    regex-metacharacter safety, params passthrough. A region-disjoint
+    pair still exists: registry order is not semantic, so one alias can
+    sit beside its sibling while the other appends at the list's end
+    nine lines away, and the two api.ts factories keep a dozen unchanged
+    lines between them. Collision is evitable per §3 rule 1, but the
+    default gravity is the same adjacent registry lines. Measured score
+    computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-cal-zo02-a
+    kind: coord
+    title: add a startsWithIgnoreCase string check
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      z.startsWith('sku-') is case-sensitive, so validating user-typed
+      identifiers like 'SKU-1234' means falling back to hand-written
+      regexes that people forget to anchor or escape. Zod's check
+      factories live in packages/zod/src/v4/core/api.ts (see _startsWith)
+      and are surfaced through the alias registry
+      packages/zod/src/v4/classic/checks.ts.
+
+      Add a `startsWithIgnoreCase` check: export a
+      _startsWithIgnoreCase(prefix, params?) factory from
+      packages/zod/src/v4/core/api.ts that accepts any string whose start
+      matches the given prefix case-insensitively, and register it as
+      `startsWithIgnoreCase` in packages/zod/src/v4/classic/checks.ts so
+      z.string().check(z.startsWithIgnoreCase('sku-')) works. You may
+      build it on the existing check machinery in api.ts (for example the
+      regex check with an escaped, anchored, case-insensitive pattern);
+      regex metacharacters in the prefix must be treated literally
+      (core/util.ts already exports escapeRegex). 'SKU-1', 'sku-1', and
+      'Sku-1' must all pass for prefix 'sku-'; 'ask-1' and 'xsku-1' must
+      fail; for prefix 'a.b', 'a.b-ok' passes but 'axb-ok' fails. A
+      custom error message passed as params must surface on failure.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts
+      in the style of the neighboring tests (import * as z from "zod/v4"),
+      covering: mixed-case accepts; wrong-prefix and mid-string rejects;
+      the metacharacter case for 'a.b'; a custom message params string
+      surfacing in the issue. Stay inside the two implementation files
+      plus your new test file. Do not touch core/checks.ts,
+      classic/schemas.ts, core/regexes.ts, or the JSON-schema layers. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation changes only in packages/zod/src/v4/core/api.ts and packages/zod/src/v4/classic/checks.ts
+        - Matching is case-insensitive, anchored at the start, and treats regex metacharacters in the prefix literally
+        - The check composes through z.string().check(...) like the existing affix checks
+        - Custom message params surface on failure
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - z.string().check(z.startsWithIgnoreCase('sku-')) accepts 'SKU-1', 'sku-1', and 'Sku-1'
+          - The same check rejects 'ask-1' and 'xsku-1'
+          - For prefix 'a.b', 'a.b-ok' passes and 'axb-ok' fails (metacharacters literal)
+          - A custom message passed as params appears as the failure issue message
+          - New tests in packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts cover the mixed-case, reject, metacharacter, and custom-message cases
+        scope_paths:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/regexes.ts"
+          - "packages/zod/src/v4/core/schemas.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/core/json-schema*.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-starts-with-ignore-case.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-zo02-b
+    kind: coord
+    title: add an endsWithIgnoreCase string check
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      z.endsWith('.pdf') is case-sensitive, so validating filenames like
+      'REPORT.PDF' means falling back to hand-written regexes that people
+      forget to anchor or escape. Zod's check factories live in
+      packages/zod/src/v4/core/api.ts (see _endsWith) and are surfaced
+      through the alias registry
+      packages/zod/src/v4/classic/checks.ts.
+
+      Add an `endsWithIgnoreCase` check: export an
+      _endsWithIgnoreCase(suffix, params?) factory from
+      packages/zod/src/v4/core/api.ts that accepts any string whose end
+      matches the given suffix case-insensitively, and register it as
+      `endsWithIgnoreCase` in packages/zod/src/v4/classic/checks.ts so
+      z.string().check(z.endsWithIgnoreCase('.pdf')) works. You may build
+      it on the existing check machinery in api.ts (for example the regex
+      check with an escaped, anchored, case-insensitive pattern); regex
+      metacharacters in the suffix must be treated literally
+      (core/util.ts already exports escapeRegex). 'a.PDF', 'a.pdf', and
+      'a.Pdf' must all pass for suffix '.pdf'; 'a.pdfx' and 'apdf' must
+      fail (the dot is literal, so 'axpdf' also fails). A custom error
+      message passed as params must surface on failure.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts
+      in the style of the neighboring tests (import * as z from "zod/v4"),
+      covering: mixed-case accepts; wrong-suffix and non-terminal rejects;
+      the literal-dot case ('axpdf' fails); a custom message params
+      string surfacing in the issue. Stay inside the two implementation
+      files plus your new test file. Do not touch core/checks.ts,
+      classic/schemas.ts, core/regexes.ts, or the JSON-schema layers. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation changes only in packages/zod/src/v4/core/api.ts and packages/zod/src/v4/classic/checks.ts
+        - Matching is case-insensitive, anchored at the end, and treats regex metacharacters in the suffix literally
+        - The check composes through z.string().check(...) like the existing affix checks
+        - Custom message params surface on failure
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - z.string().check(z.endsWithIgnoreCase('.pdf')) accepts 'a.PDF', 'a.pdf', and 'a.Pdf'
+          - The same check rejects 'a.pdfx' and 'apdf'
+          - For suffix '.pdf', 'axpdf' fails (metacharacters literal)
+          - A custom message passed as params appears as the failure issue message
+          - New tests in packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts cover the mixed-case, reject, literal-dot, and custom-message cases
+        scope_paths:
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/regexes.ts"
+          - "packages/zod/src/v4/core/schemas.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/core/json-schema*.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-ends-with-ignore-case.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

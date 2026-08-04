@@ -1,0 +1,183 @@
+# E-coord GATE-CALIBRATION scenario (overlap-pressure stratum above the
+# confirmatory set; measures the control-arm collision base rate). The §3
+# authoring rules of design-e-coord-draft-3.md remain binding (existence
+# proof, symmetry, wall-time floor); cards committed before any reference
+# solution. Permanently excluded from confirmatory analysis.
+scenario_id: ecoord-cal-ho02
+study: e-coord
+status: calibration
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items must edit src/http-exception.ts — a 78-line file whose
+    executable core is one options type, one constructor, and one
+    getResponse() method — and their acceptance criteria overlap on the
+    same observable: the Response that getResponse() builds for an
+    HTTPException constructed with options. The default path for BOTH
+    cards is to rework the HTTPExceptionOptions type, the constructor
+    body, and the no-res branch of getResponse() — three tiny regions a
+    couple of lines each — so naive implementations co-write the same
+    lines almost unavoidably. A region-disjoint pair still exists: the
+    headers option threads through a new type line, a new readonly
+    property, one constructor append, and one line inside getResponse()'s
+    Response init, while the default-message card can be satisfied
+    entirely at construction time (a module-level status-text map plus a
+    fallback on the super() line), leaving getResponse() untouched. That
+    placement keeps every changed region at least two unchanged lines
+    apart, so collision is evitable per §3 rule 1 — but only through that
+    exact care. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-cal-ho02-a
+    kind: coord
+    title: HTTPException supports a headers option on its generated response
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      HTTPException (src/http-exception.ts) can carry a status, a message,
+      a cause, or a whole replacement Response — but not headers. The
+      practical fallout: throwing a 401 that needs a WWW-Authenticate
+      header, or a 429 that needs Retry-After, forces callers to build a
+      full Response object themselves and lose the simple message-based
+      form.
+
+      Extend src/http-exception.ts so HTTPExceptionOptions accepts an
+      optional headers?: HeadersInit entry, exposed on the instance as a
+      readonly headers property. When getResponse() constructs its own
+      Response (no res option was given), the provided headers must be set
+      on that Response. When a res option was given, it wins exactly as
+      today and the headers option is ignored. Status and message
+      behavior, and behavior when no headers are given, must not change.
+
+      Add tests in a new file src/coord-exception-headers.test.ts
+      covering: a 401 built with a WWW-Authenticate header exposes it on
+      getResponse() along with the 401 status and the message body; the
+      readonly headers property holds what was passed; without a headers
+      option the generated response carries no WWW-Authenticate header;
+      when both res and headers are passed, the res branch wins and the
+      option is ignored; message and cause options still behave as before
+      alongside headers. Stay inside src/http-exception.ts plus your new
+      test file. Do not touch context, the router, or middleware. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/http-exception.ts
+        - "HTTPExceptionOptions gains headers?: HeadersInit, exposed as a readonly instance property"
+        - getResponse() sets the headers only on the Response it constructs itself; a provided res still wins unchanged
+        - Behavior without a headers option is unchanged
+        - New tests only, in src/coord-exception-headers.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - new HTTPException(401, { message, headers }) yields a getResponse() with status 401, the message body, and the given headers
+          - The instance exposes the passed headers on a readonly headers property
+          - Without a headers option the generated response has no such header
+          - When res is provided, getResponse() returns it (re-statused) and ignores the headers option
+          - New tests in src/coord-exception-headers.test.ts cover the headers-set, property, no-headers, res-wins, and message-plus-cause cases
+        scope_paths:
+          - "src/http-exception.ts"
+          - "src/coord-exception-headers.test.ts"
+        out_of_scope:
+          - "src/http-exception.test.ts"
+          - "src/context.ts"
+          - "src/hono-base.ts"
+          - "src/compose.ts"
+          - "src/middleware/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/coord-exception-headers.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-cal-ho02-b
+    kind: coord
+    title: HTTPException defaults its message to the standard status text
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      An HTTPException (src/http-exception.ts) thrown without a message
+      option currently has an empty message and an empty response body:
+      `throw new HTTPException(404)` produces a blank 404. Every other
+      mainstream framework fills in the standard reason phrase, and an
+      empty body makes curl-level debugging needlessly cryptic.
+
+      Extend src/http-exception.ts so that when no message option is
+      given, the exception's message — and therefore the body of the
+      Response that getResponse() constructs — defaults to the standard
+      HTTP status text for the exception's status code. Cover at least
+      these codes with their RFC 9110 reason phrases: 400 Bad Request,
+      401 Unauthorized, 403 Forbidden, 404 Not Found, 405 Method Not
+      Allowed, 408 Request Timeout, 409 Conflict, 413 Content Too Large,
+      429 Too Many Requests, 500 Internal Server Error, 501 Not
+      Implemented, 502 Bad Gateway, 503 Service Unavailable, and 504
+      Gateway Timeout. A status without a known phrase keeps today's
+      empty-message behavior. An explicit message option always wins
+      exactly as before, as does a provided res option. The default must
+      be observable on the message property itself, not just inside
+      getResponse().
+
+      Add tests in a new file src/coord-exception-default-message.test.ts
+      covering: new HTTPException(404) has message 'Not Found' and its
+      getResponse() body reads 'Not Found' with status 404; a sample of
+      other mapped codes (401, 429, 503) default correctly; an explicit
+      message still wins over the default; a code outside the map (such
+      as 418) keeps an empty message; a provided res option still
+      determines the body exactly as today. Stay inside
+      src/http-exception.ts plus your new test file. Do not touch
+      context, the router, or middleware. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/http-exception.ts
+        - With no message option, message and generated response body default to the standard status text for at least the fourteen listed codes
+        - Unmapped statuses keep the current empty-message behavior
+        - An explicit message option and a provided res option behave exactly as before
+        - New tests only, in src/coord-exception-default-message.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - new HTTPException(404) has message 'Not Found' and getResponse() returns a 404 whose body is 'Not Found'
+          - The listed status codes each default to their RFC 9110 reason phrase (sampled in tests via 401, 429, 503)
+          - An explicit message option overrides the default
+          - A status outside the map (e.g. 418) keeps an empty message
+          - A provided res option still controls the response body unchanged
+          - New tests in src/coord-exception-default-message.test.ts cover the 404-default, sampled-codes, explicit-wins, unmapped-status, and res-wins cases
+        scope_paths:
+          - "src/http-exception.ts"
+          - "src/coord-exception-default-message.test.ts"
+        out_of_scope:
+          - "src/http-exception.test.ts"
+          - "src/context.ts"
+          - "src/hono-base.ts"
+          - "src/compose.ts"
+          - "src/middleware/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/coord-exception-default-message.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
