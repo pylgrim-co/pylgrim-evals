@@ -1,15 +1,17 @@
 diff --git a/src/validateConfig.ts b/src/validateConfig.ts
-index 8789fe63..d8b4ac8b 100644
+index 8789fe63..40761fe4 100644
 --- a/src/validateConfig.ts
 +++ b/src/validateConfig.ts
-@@ -19,6 +19,13 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+@@ -19,6 +19,15 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
      }
    }
  
 +  const validIndentStyles = ['standard', 'tabularLeft', 'tabularRight'];
 +  if (!validIndentStyles.includes(cfg.indentStyle)) {
 +    throw new ConfigError(
-+      `indentStyle config must be one of ${validIndentStyles.join(', ')}. Received ${cfg.indentStyle} instead.`
++      `indentStyle config must be one of ${validIndentStyles.join(', ')}. Received ${
++        cfg.indentStyle
++      } instead.`
 +    );
 +  }
 +
