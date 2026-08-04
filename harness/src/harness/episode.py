@@ -140,7 +140,7 @@ DEFAULT_SCHEDULE_SEED = 42  # §5 master seed
 TURN_TIMEOUT_S = headless.RUN_TIMEOUT_S  # timeout class: episode-turn
 OUTCOME_TIMEOUT_S = 240  # single outcome constant (docstring choice 4)
 CLI_RETRIES = 1  # bounded retry per M4(ii)
-PRESSURE_STRATA = ("low", "medium", "high")
+PRESSURE_STRATA = ("low", "medium", "high", "very-high", "extreme")  # upper two: gate-calibration strata (2026-08-04)
 DEFAULT_PRESERVE = ("node_modules", ".venv", "target")
 
 # Belt-and-braces O8: harness paths excluded from every C1 clause and overlap
