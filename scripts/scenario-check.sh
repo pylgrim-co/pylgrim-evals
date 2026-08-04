@@ -38,7 +38,7 @@
 set -u
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCENARIO_DIR="$REPO_ROOT/scenarios/pilot"
+SCENARIO_DIR="${SCENARIO_DIR:-$REPO_ROOT/scenarios/pilot}"
 SOLUTION_DIR="$REPO_ROOT/reference-solutions"
 WALL_LIMIT=120
 K_RUNS=3
@@ -214,7 +214,7 @@ if [ $# -ge 1 ]; then
     SCENARIOS="$SCENARIOS $SCENARIO_DIR/$id.yaml"
   done
 else
-  SCENARIOS=$(ls "$SCENARIO_DIR"/ecoord-pilot-*.yaml)
+  SCENARIOS=$(ls "$SCENARIO_DIR"/ecoord-*.yaml)
 fi
 
 SCRATCH=$(mktemp -d)
