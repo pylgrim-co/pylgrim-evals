@@ -35,7 +35,7 @@ index cc47a529..a8e8d8a1 100644
    'GROUPING',
 diff --git a/test/coord-snowflake-array-functions.test.ts b/test/coord-snowflake-array-functions.test.ts
 new file mode 100644
-index 00000000..96c9b188
+index 00000000..045eab3b
 --- /dev/null
 +++ b/test/coord-snowflake-array-functions.test.ts
 @@ -0,0 +1,61 @@
@@ -93,7 +93,7 @@ index 00000000..96c9b188
 +    });
 +    expect(result).toBe(dedent`
 +      SELECT
-+        my_custom_fn(x),
++        my_custom_fn (x),
 +        ARRAY_MIN(v)
 +      FROM
 +        tbl

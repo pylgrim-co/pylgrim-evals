@@ -50,7 +50,7 @@ index a3c3d3e3..0db8526b 100644
    'SOUNDEX',
 diff --git a/test/coord-trino-vector-functions.test.ts b/test/coord-trino-vector-functions.test.ts
 new file mode 100644
-index 00000000..1a125efe
+index 00000000..1b426da6
 --- /dev/null
 +++ b/test/coord-trino-vector-functions.test.ts
 @@ -0,0 +1,61 @@
@@ -108,7 +108,7 @@ index 00000000..1a125efe
 +    });
 +    expect(result).toBe(dedent`
 +      SELECT
-+        my_custom_fn(x),
++        my_custom_fn (x),
 +        SINH(y)
 +      FROM
 +        tbl

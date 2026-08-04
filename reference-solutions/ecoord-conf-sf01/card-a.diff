@@ -45,7 +45,7 @@ index 7878802d..76e49756 100644
    'row_number',
 diff --git a/test/coord-sqlite-modern-functions.test.ts b/test/coord-sqlite-modern-functions.test.ts
 new file mode 100644
-index 00000000..bd57e2e6
+index 00000000..13a98922
 --- /dev/null
 +++ b/test/coord-sqlite-modern-functions.test.ts
 @@ -0,0 +1,61 @@
@@ -103,7 +103,7 @@ index 00000000..bd57e2e6
 +    });
 +    expect(result).toBe(dedent`
 +      SELECT
-+        my_custom_fn(x),
++        my_custom_fn (x),
 +        UNHEX(h)
 +      FROM
 +        tbl

@@ -39,7 +39,7 @@ index 6c142e10..ba02c777 100644
    'BIT_AND',
 diff --git a/test/coord-postgresql-pg16-functions.test.ts b/test/coord-postgresql-pg16-functions.test.ts
 new file mode 100644
-index 00000000..0379d581
+index 00000000..520596fb
 --- /dev/null
 +++ b/test/coord-postgresql-pg16-functions.test.ts
 @@ -0,0 +1,61 @@
@@ -97,7 +97,7 @@ index 00000000..0379d581
 +    });
 +    expect(result).toBe(dedent`
 +      SELECT
-+        my_custom_fn(x),
++        my_custom_fn (x),
 +        ERF(y)
 +      FROM
 +        tbl
