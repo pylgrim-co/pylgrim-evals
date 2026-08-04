@@ -56,7 +56,7 @@ install_cmd() {
   case "$1" in
     zustand) echo "pnpm install --silent" ;;
     click) echo "uv sync" ;;
-    hono) echo "pnpm install --silent" ;;
+    hono) echo "bun install --silent" ;;
     sql-formatter) echo "pnpm install --silent" ;;
     zod) echo "pnpm install --silent" ;;
     *) echo "" ;;
