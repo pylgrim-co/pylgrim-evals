@@ -1,0 +1,79 @@
+diff --git a/src/click/decorators.py b/src/click/decorators.py
+index db6a45e..c544d12 100644
+--- a/src/click/decorators.py
++++ b/src/click/decorators.py
+@@ -377,17 +377,26 @@ def option(
+     return decorator
+ 
+ 
+-def confirmation_option(*param_decls: str, **kwargs: t.Any) -> t.Callable[[FC], FC]:
++def confirmation_option(
++    *param_decls: str, abort_message: str | None = None, **kwargs: t.Any
++) -> t.Callable[[FC], FC]:
+     """Add a ``--yes`` option which shows a prompt before continuing if
+     not passed. If the prompt is declined, the program will exit.
+ 
+     :param param_decls: One or more option names. Defaults to the single
+         value ``"--yes"``.
++    :param abort_message: When set and the confirmation is declined, this
++        message is echoed to stderr before the abort, so the user sees an
++        explanation followed by the normal ``Aborted`` output. With the
++        default ``None`` nothing extra is printed.
+     :param kwargs: Extra arguments are passed to :func:`option`.
+     """
+ 
+     def callback(ctx: Context, param: Parameter, value: bool) -> None:
+         if not value:
++            if abort_message is not None:
++                echo(abort_message, err=True)
++
+             ctx.abort()
+ 
+     if not param_decls:
+diff --git a/tests/test_coord_confirm_abort_message.py b/tests/test_coord_confirm_abort_message.py
+new file mode 100644
+index 0000000..57dea62
+--- /dev/null
++++ b/tests/test_coord_confirm_abort_message.py
+@@ -0,0 +1,41 @@
++import click
++
++
++def _make_cli(**confirm_kwargs):
++    @click.command()
++    @click.confirmation_option(**confirm_kwargs)
++    def cli():
++        click.echo("ran body")
++
++    return cli
++
++
++def test_decline_shows_abort_message_before_aborted(runner):
++    cli = _make_cli(abort_message="Nothing was deleted.")
++
++    result = runner.invoke(cli, input="n\n")
++    assert result.exit_code == 1
++    assert "Nothing was deleted." in result.output
++    assert "Aborted" in result.output
++    assert result.output.index("Nothing was deleted.") < result.output.index("Aborted")
++    assert "ran body" not in result.output
++
++
++def test_confirm_runs_body_without_abort_message(runner):
++    cli = _make_cli(abort_message="Nothing was deleted.")
++
++    result = runner.invoke(cli, input="y\n")
++    assert result.exit_code == 0
++    assert "ran body" in result.output
++    assert "Nothing was deleted." not in result.output
++
++
++def test_default_decline_output_is_unchanged(runner):
++    cli = _make_cli()
++
++    result = runner.invoke(cli, input="n\n")
++    assert result.exit_code == 1
++    lines = result.output.splitlines()
++    assert lines[-1] == "Aborted!"
++    # Only the prompt line and the abort line: no extra message appears.
++    assert len(lines) == 2

@@ -1,0 +1,89 @@
+diff --git a/src/middleware/persist.ts b/src/middleware/persist.ts
+index e7c0682..c566f39 100644
+--- a/src/middleware/persist.ts
++++ b/src/middleware/persist.ts
+@@ -45,7 +45,15 @@ export function createJSONStorage<S, R = unknown>(
+         if (str === null) {
+           return null
+         }
+-        return JSON.parse(str, options?.reviver) as StorageValue<S>
++        try {
++          return JSON.parse(str, options?.reviver) as StorageValue<S>
++        } catch (e) {
++          console.error(
++            `[zustand persist middleware] Unable to parse the stored value under '${name}', returning null`,
++            e,
++          )
++          return null
++        }
+       }
+       const str = storage.getItem(name) ?? null
+       if (str instanceof Promise) {
+diff --git a/tests/coord/json-storage-corrupt.test.ts b/tests/coord/json-storage-corrupt.test.ts
+new file mode 100644
+index 0000000..54bc5b6
+--- /dev/null
++++ b/tests/coord/json-storage-corrupt.test.ts
+@@ -0,0 +1,62 @@
++import { afterAll, afterEach, expect, it, vi } from 'vitest'
++import { createJSONStorage } from 'zustand/middleware'
++import type { StateStorage } from 'zustand/middleware'
++
++const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
++
++afterEach(() => {
++  errorSpy.mockClear()
++})
++
++afterAll(() => {
++  errorSpy.mockRestore()
++})
++
++const makeStorage = (
++  getItem: StateStorage['getItem'],
++  setItem: StateStorage['setItem'] = () => {},
++): StateStorage => ({
++  getItem,
++  setItem,
++  removeItem: () => {},
++})
++
++it('a corrupted synchronous value yields null and logs an error naming the key', () => {
++  const storage = makeStorage(() => '{"state":{"count":')
++  const jsonStorage = createJSONStorage(() => storage)!
++  expect(jsonStorage.getItem('my-key')).toBeNull()
++  expect(errorSpy).toHaveBeenCalledTimes(1)
++  expect(String(errorSpy.mock.calls[0]![0])).toContain('my-key')
++})
++
++it('a corrupted Promise-delivered value resolves to null', async () => {
++  const storage = makeStorage(() => Promise.resolve('definitely not json'))
++  const jsonStorage = createJSONStorage(() => storage)!
++  await expect(jsonStorage.getItem('async-key')).resolves.toBeNull()
++  expect(errorSpy).toHaveBeenCalledTimes(1)
++  expect(String(errorSpy.mock.calls[0]![0])).toContain('async-key')
++})
++
++it('valid stored JSON still parses to its StorageValue and the reviver applies', () => {
++  const stored = JSON.stringify({ state: { count: 7 }, version: 0 })
++  const storage = makeStorage(() => stored)
++  const plain = createJSONStorage(() => storage)!
++  expect(plain.getItem('k')).toEqual({ state: { count: 7 }, version: 0 })
++  const revived = createJSONStorage(() => storage, {
++    reviver: (key, value) => (key === 'count' ? (value as number) * 2 : value),
++  })!
++  expect(revived.getItem('k')).toEqual({ state: { count: 14 }, version: 0 })
++  expect(errorSpy).not.toHaveBeenCalled()
++})
++
++it('setItem behavior is unchanged', () => {
++  const setItem = vi.fn()
++  const storage = makeStorage(() => null, setItem)
++  const jsonStorage = createJSONStorage(() => storage)!
++  jsonStorage.setItem('k', { state: { count: 1 }, version: 0 })
++  expect(setItem).toHaveBeenCalledTimes(1)
++  expect(setItem).toHaveBeenCalledWith(
++    'k',
++    JSON.stringify({ state: { count: 1 }, version: 0 }),
++  )
++})

@@ -1,0 +1,68 @@
+diff --git a/src/sqlFormatter.ts b/src/sqlFormatter.ts
+index d65159b6..03e583fa 100644
+--- a/src/sqlFormatter.ts
++++ b/src/sqlFormatter.ts
+@@ -91,6 +91,24 @@ export const formatDialect = (
+     throw new Error('Invalid query argument. Expected string, instead got ' + typeof query);
+   }
+ 
++  const dialectValue: unknown = dialect;
++  if (typeof dialectValue === 'string') {
++    throw new ConfigError(
++      `Invalid dialect option: received the string "${dialectValue}". ` +
++        'To select a dialect by name, call format() with the language option instead.'
++    );
++  }
++  if (typeof dialectValue !== 'object' || dialectValue === null) {
++    throw new ConfigError(
++      `Invalid dialect option: expected a DialectOptions object, instead got ${typeof dialectValue}.`
++    );
++  }
++  for (const prop of ['name', 'tokenizerOptions', 'formatOptions'] as const) {
++    if ((dialectValue as Partial<DialectOptions>)[prop] === undefined) {
++      throw new ConfigError(`Invalid dialect option: missing "${prop}" property.`);
++    }
++  }
++
+   const options = validateConfig({
+     ...defaultOptions,
+     ...cfg,
+diff --git a/test/coord-format-dialect-validation.test.ts b/test/coord-format-dialect-validation.test.ts
+new file mode 100644
+index 00000000..a88c35b2
+--- /dev/null
++++ b/test/coord-format-dialect-validation.test.ts
+@@ -0,0 +1,33 @@
++import { formatDialect, sqlite, ConfigError, DialectOptions } from '../src/index.js';
++
++describe('formatDialect dialect argument validation', () => {
++  it('throws ConfigError suggesting format() with the language option for a string dialect', () => {
++    const callWithString = () => {
++      formatDialect('SELECT 1', { dialect: 'sqlite' as unknown as DialectOptions });
++    };
++    expect(callWithString).toThrow(ConfigError);
++    expect(callWithString).toThrow(/format\(\).*language/);
++  });
++
++  it('throws ConfigError naming what was received when dialect is undefined', () => {
++    const callWithUndefined = () => {
++      formatDialect('SELECT 1', { dialect: undefined as unknown as DialectOptions });
++    };
++    expect(callWithUndefined).toThrow(ConfigError);
++    expect(callWithUndefined).toThrow('undefined');
++  });
++
++  it('throws ConfigError naming the missing property for an empty object dialect', () => {
++    const callWithEmptyObject = () => {
++      formatDialect('SELECT 1', { dialect: {} as DialectOptions });
++    };
++    expect(callWithEmptyObject).toThrow(ConfigError);
++    expect(callWithEmptyObject).toThrow('name');
++  });
++
++  it('still formats a simple SELECT with the real sqlite DialectOptions object', () => {
++    expect(formatDialect('SELECT * FROM tbl', { dialect: sqlite })).toBe(
++      'SELECT\n  *\nFROM\n  tbl'
++    );
++  });
++});

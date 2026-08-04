@@ -1,0 +1,58 @@
+diff --git a/packages/zod/src/v4/classic/schemas.ts b/packages/zod/src/v4/classic/schemas.ts
+index eb57e017..e82caca9 100644
+--- a/packages/zod/src/v4/classic/schemas.ts
++++ b/packages/zod/src/v4/classic/schemas.ts
+@@ -389,6 +389,7 @@ export interface _ZodString<T extends core.$ZodStringInternals<unknown> = core.$
+   toLowerCase(): this;
+   toUpperCase(): this;
+   slugify(): this;
++  squish(): this;
+ }
+ 
+ /** @internal */
+@@ -449,6 +450,9 @@ export const _ZodString: core.$constructor<_ZodString> = /*@__PURE__*/ core.$con
+     slugify() {
+       return this.check(checks.slugify());
+     },
++    squish() {
++      return this.check(core._overwrite((val: string) => val.trim().replace(/\s+/g, " ")));
++    },
+   });
+ });
+ 
+diff --git a/packages/zod/src/v4/classic/tests/coord-string-squish.test.ts b/packages/zod/src/v4/classic/tests/coord-string-squish.test.ts
+new file mode 100644
+index 00000000..5a375a7b
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-string-squish.test.ts
+@@ -0,0 +1,30 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("squish trims the ends and collapses inner runs of spaces", () => {
++  expect(z.string().squish().parse("  hello   world  ")).toBe("hello world");
++});
++
++test("tabs and newlines inside the string collapse to single spaces", () => {
++  expect(z.string().squish().parse("hello\t\tworld")).toBe("hello world");
++  expect(z.string().squish().parse("hello\n\nworld")).toBe("hello world");
++  expect(z.string().squish().parse("\t hello \n\t world \n")).toBe("hello world");
++});
++
++test("an already-clean string is returned unchanged", () => {
++  expect(z.string().squish().parse("hello world")).toBe("hello world");
++  expect(z.string().squish().parse("hello")).toBe("hello");
++});
++
++test("an all-whitespace string squishes to the empty string", () => {
++  expect(z.string().squish().parse("   ")).toBe("");
++  expect(z.string().squish().parse("\t\n ")).toBe("");
++  expect(z.string().squish().parse("")).toBe("");
++});
++
++test("squish chains with other string methods", () => {
++  const schema = z.string().squish().min(1);
++  expect(schema.safeParse("   ").success).toBe(false);
++  expect(schema.parse(" a ")).toBe("a");
++});

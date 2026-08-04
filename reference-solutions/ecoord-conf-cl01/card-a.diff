@@ -1,0 +1,76 @@
+diff --git a/src/click/globals.py b/src/click/globals.py
+index a2f9172..7dea077 100644
+--- a/src/click/globals.py
++++ b/src/click/globals.py
+@@ -47,8 +47,18 @@ def push_context(ctx: Context) -> None:
+ 
+ 
+ def pop_context() -> None:
+-    """Removes the top level from the stack."""
+-    _local.stack.pop()
++    """Removes the top level from the stack.
++
++    :raises RuntimeError: if there is no active click context to pop,
++        instead of the :exc:`AttributeError` or :exc:`IndexError` that
++        used to leak from the internal stack.
++    """
++    stack = getattr(_local, "stack", None)
++
++    if not stack:
++        raise RuntimeError("There is no active click context to pop.")
++
++    stack.pop()
+ 
+ 
+ def resolve_color_default(color: bool | None = None) -> bool | None:
+diff --git a/tests/test_coord_context_stack.py b/tests/test_coord_context_stack.py
+new file mode 100644
+index 0000000..e5eab9a
+--- /dev/null
++++ b/tests/test_coord_context_stack.py
+@@ -0,0 +1,45 @@
++import pytest
++
++import click
++from click.globals import get_current_context
++from click.globals import pop_context
++from click.globals import push_context
++
++
++def test_pop_context_without_any_push_raises_runtime_error():
++    # Runs first in this file: no context has ever been pushed in this
++    # thread, so the thread-local stack attribute does not exist yet.
++    with pytest.raises(RuntimeError, match="no active click context") as exc_info:
++        pop_context()
++
++    assert not isinstance(exc_info.value, AttributeError)
++
++
++def test_balanced_push_pop_leaves_no_context():
++    ctx = click.Context(click.Command("x"))
++    push_context(ctx)
++    assert get_current_context() is ctx
++    pop_context()
++    assert get_current_context(silent=True) is None
++
++
++def test_push_pop_preserves_lifo_order():
++    first = click.Context(click.Command("x"))
++    second = click.Context(click.Command("x"))
++    push_context(first)
++    push_context(second)
++
++    assert get_current_context() is second
++    pop_context()
++    assert get_current_context() is first
++    pop_context()
++    assert get_current_context(silent=True) is None
++
++
++def test_extra_pop_after_balanced_pops_raises_runtime_error():
++    ctx = click.Context(click.Command("x"))
++    push_context(ctx)
++    pop_context()
++
++    with pytest.raises(RuntimeError, match="no active click context"):
++        pop_context()

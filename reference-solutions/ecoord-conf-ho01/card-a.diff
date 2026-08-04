@@ -1,0 +1,62 @@
+diff --git a/src/middleware/timeout/coord-duration-guard.test.ts b/src/middleware/timeout/coord-duration-guard.test.ts
+new file mode 100644
+index 00000000..d9cf7ba2
+--- /dev/null
++++ b/src/middleware/timeout/coord-duration-guard.test.ts
+@@ -0,0 +1,38 @@
++import { Hono } from '../../hono'
++import { timeout } from '.'
++
++describe('Timeout Middleware Duration Guard', () => {
++  it('Should throw a TypeError for NaN', () => {
++    expect(() => timeout(NaN)).toThrow(TypeError)
++  })
++
++  it('Should throw a TypeError for a negative duration', () => {
++    expect(() => timeout(-100)).toThrow(TypeError)
++  })
++
++  it('Should throw a TypeError for Infinity', () => {
++    expect(() => timeout(Infinity)).toThrow(TypeError)
++  })
++
++  it('Should throw a TypeError for a non-number duration', () => {
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => timeout('5000' as any)).toThrow(TypeError)
++  })
++
++  it('Should name the middleware and the requirement in the message', () => {
++    expect(() => timeout(NaN)).toThrow(
++      /timeout middleware.*positive finite number of milliseconds/
++    )
++  })
++
++  it('Should not throw per request and still respond 200 for a valid duration', async () => {
++    const app = new Hono()
++    app.use('/fast-endpoint', timeout(1000))
++    app.get('/fast-endpoint', (c) => c.text('Completed within time limit'))
++
++    const res = await app.request('http://localhost/fast-endpoint')
++    expect(res).not.toBeNull()
++    expect(res.status).toBe(200)
++    expect(await res.text()).toBe('Completed within time limit')
++  })
++})
+diff --git a/src/middleware/timeout/index.ts b/src/middleware/timeout/index.ts
+index 36a147fe..09f3dcb9 100644
+--- a/src/middleware/timeout/index.ts
++++ b/src/middleware/timeout/index.ts
+@@ -39,6 +39,13 @@ export const timeout = (
+   duration: number,
+   exception: HTTPExceptionFunction | HTTPException = defaultTimeoutException
+ ): MiddlewareHandler => {
++  if (typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) {
++    throw new TypeError(
++      `timeout middleware: duration must be a positive finite number of milliseconds, but got ${String(
++        duration
++      )}`
++    )
++  }
+   return async function timeout(context, next) {
+     let timer: number | undefined
+     const timeoutPromise = new Promise<void>((_, reject) => {

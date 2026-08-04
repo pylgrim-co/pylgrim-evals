@@ -1,0 +1,55 @@
+diff --git a/packages/zod/src/v4/classic/tests/coord-joinvalues-max.test.ts b/packages/zod/src/v4/classic/tests/coord-joinvalues-max.test.ts
+new file mode 100644
+index 00000000..e82b31ac
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-joinvalues-max.test.ts
+@@ -0,0 +1,29 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("default two-argument behavior is unchanged for strings", () => {
++  expect(z.util.joinValues(["a", "b"], "|")).toBe(`"a"|"b"`);
++  expect(z.util.joinValues(["a", "b", "c", "d"], "|")).toBe(`"a"|"b"|"c"|"d"`);
++});
++
++test("default two-argument behavior is unchanged for numbers", () => {
++  expect(z.util.joinValues([1, 2, 3], "|")).toBe("1|2|3");
++  expect(z.util.joinValues([1, 2], ", ")).toBe("1, 2");
++});
++
++test("maxItems smaller than the array length truncates and appends +N more", () => {
++  expect(z.util.joinValues(["a", "b", "c", "d"], "|", 2)).toBe(`"a"|"b"|+2 more`);
++  expect(z.util.joinValues([1, 2, 3, 4, 5], "|", 3)).toBe("1|2|3|+2 more");
++  expect(z.util.joinValues(["a", "b", "c"], ", ", 1)).toBe(`"a", +2 more`);
++});
++
++test("maxItems equal to or greater than the array length matches the two-argument call", () => {
++  expect(z.util.joinValues(["a", "b", "c"], "|", 3)).toBe(z.util.joinValues(["a", "b", "c"], "|"));
++  expect(z.util.joinValues(["a", "b", "c"], "|", 10)).toBe(z.util.joinValues(["a", "b", "c"], "|"));
++});
++
++test("non-positive maxItems is ignored", () => {
++  expect(z.util.joinValues(["a", "b", "c"], "|", 0)).toBe(z.util.joinValues(["a", "b", "c"], "|"));
++  expect(z.util.joinValues(["a", "b", "c"], "|", -1)).toBe(z.util.joinValues(["a", "b", "c"], "|"));
++});
+diff --git a/packages/zod/src/v4/core/util.ts b/packages/zod/src/v4/core/util.ts
+index 8738df4e..f3564469 100644
+--- a/packages/zod/src/v4/core/util.ts
++++ b/packages/zod/src/v4/core/util.ts
+@@ -212,7 +212,14 @@ export function getEnumValues(entries: EnumLike): EnumValue[] {
+   return values;
+ }
+ 
+-export function joinValues<T extends Primitive[]>(array: T, separator = "|"): string {
++export function joinValues<T extends Primitive[]>(array: T, separator = "|", maxItems?: number): string {
++  if (typeof maxItems === "number" && Number.isInteger(maxItems) && maxItems > 0 && array.length > maxItems) {
++    const shown = array
++      .slice(0, maxItems)
++      .map((val) => stringifyPrimitive(val))
++      .join(separator);
++    return `${shown}${separator}+${array.length - maxItems} more`;
++  }
+   return array.map((val) => stringifyPrimitive(val)).join(separator);
+ }
+ 

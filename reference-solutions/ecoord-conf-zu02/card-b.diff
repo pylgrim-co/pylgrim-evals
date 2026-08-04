@@ -1,0 +1,94 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 47cb9c1..25c5a1d 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -15,3 +15,4 @@ export {
+   type PersistOptions,
+ } from './middleware/persist.ts'
+ export { ssrSafe as unstable_ssrSafe } from './middleware/ssrSafe.ts'
++export { freeze } from './middleware/freeze.ts'
+diff --git a/src/middleware/freeze.ts b/src/middleware/freeze.ts
+new file mode 100644
+index 0000000..2698282
+--- /dev/null
++++ b/src/middleware/freeze.ts
+@@ -0,0 +1,22 @@
++import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
++
++export function freeze<
++  T extends object,
++  Mps extends [StoreMutatorIdentifier, unknown][] = [],
++  Mcs extends [StoreMutatorIdentifier, unknown][] = [],
++>(initializer: StateCreator<T, Mps, Mcs>): StateCreator<T, Mps, Mcs> {
++  return (set, get, api) => {
++    const origSetState = (api as any).setState
++    ;(api as any).setState = (...args: unknown[]) => {
++      const result = origSetState(...args)
++      Object.freeze((api as any).getState())
++      return result
++    }
++    const freezingSet = ((...args: unknown[]) => {
++      const result = (set as any)(...args)
++      Object.freeze((api as any).getState())
++      return result
++    }) as typeof set
++    return Object.freeze(initializer(freezingSet, get, api))
++  }
++}
+diff --git a/tests/coord/freeze-middleware.test.ts b/tests/coord/freeze-middleware.test.ts
+new file mode 100644
+index 0000000..e7aca3c
+--- /dev/null
++++ b/tests/coord/freeze-middleware.test.ts
+@@ -0,0 +1,51 @@
++import { expect, it, vi } from 'vitest'
++import { freeze } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++import type { StateCreator } from 'zustand/vanilla'
++
++type State = { count: number; nested: { value: number } }
++
++const initializer: StateCreator<State> = () => ({
++  count: 0,
++  nested: { value: 1 },
++})
++
++it('the state object is frozen right after creation', () => {
++  const store = createStore(freeze(initializer))
++  expect(Object.isFrozen(store.getState())).toBe(true)
++})
++
++it('the state object is frozen again after a setState', () => {
++  const store = createStore(freeze(initializer))
++  store.setState({ count: 1 })
++  expect(store.getState().count).toBe(1)
++  expect(Object.isFrozen(store.getState())).toBe(true)
++})
++
++it('direct property assignment on the state throws TypeError in strict mode', () => {
++  const store = createStore(freeze(initializer))
++  expect(() => {
++    ;(store.getState() as { count: number }).count = 99
++  }).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++})
++
++it('setState still merges partials and notifies subscribers normally', () => {
++  const store = createStore(freeze(initializer))
++  const listener = vi.fn()
++  store.subscribe(listener)
++  store.setState({ count: 2 })
++  expect(store.getState()).toEqual({ count: 2, nested: { value: 1 } })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith(
++    expect.objectContaining({ count: 2 }),
++    expect.objectContaining({ count: 0 }),
++  )
++})
++
++it('the freeze is shallow: nested objects stay mutable', () => {
++  const store = createStore(freeze(initializer))
++  expect(Object.isFrozen(store.getState().nested)).toBe(false)
++  store.getState().nested.value = 42
++  expect(store.getState().nested.value).toBe(42)
++})

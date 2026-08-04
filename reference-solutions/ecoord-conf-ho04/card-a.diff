@@ -1,0 +1,86 @@
+diff --git a/src/middleware/basic-auth/coord-charset-option.test.ts b/src/middleware/basic-auth/coord-charset-option.test.ts
+new file mode 100644
+index 00000000..43ecfeda
+--- /dev/null
++++ b/src/middleware/basic-auth/coord-charset-option.test.ts
+@@ -0,0 +1,45 @@
++import { Hono } from '../../hono'
++import { basicAuth } from '.'
++
++describe('Basic Auth charset option', () => {
++  const username = 'hono-user'
++  const password = 'hono-password'
++
++  it('Should include charset="UTF-8" in the challenge when configured', async () => {
++    const app = new Hono()
++    app.use('/auth/*', basicAuth({ username, password, charset: 'UTF-8' }))
++    app.get('/auth/page', (c) => c.text('secret'))
++
++    const res = await app.request('/auth/page')
++    expect(res.status).toBe(401)
++    const header = res.headers.get('WWW-Authenticate')
++    expect(header).not.toBeNull()
++    expect(header).toContain('realm="Secure Area"')
++    expect(header).toContain('charset="UTF-8"')
++  })
++
++  it('Should not include a charset auth-param when the option is absent', async () => {
++    const app = new Hono()
++    app.use('/auth/*', basicAuth({ username, password }))
++    app.get('/auth/page', (c) => c.text('secret'))
++
++    const res = await app.request('/auth/page')
++    expect(res.status).toBe(401)
++    const header = res.headers.get('WWW-Authenticate')
++    expect(header).toBe('Basic realm="Secure Area"')
++    expect(header).not.toContain('charset')
++  })
++
++  it('Should still authenticate valid credentials when charset is configured', async () => {
++    const app = new Hono()
++    app.use('/auth/*', basicAuth({ username, password, charset: 'UTF-8' }))
++    app.get('/auth/page', (c) => c.text('secret'))
++
++    const credential = Buffer.from(`${username}:${password}`).toString('base64')
++    const res = await app.request('/auth/page', {
++      headers: { Authorization: `Basic ${credential}` },
++    })
++    expect(res.status).toBe(200)
++    expect(await res.text()).toBe('secret')
++  })
++})
+diff --git a/src/middleware/basic-auth/index.ts b/src/middleware/basic-auth/index.ts
+index 5b2011ea..e01c30d8 100644
+--- a/src/middleware/basic-auth/index.ts
++++ b/src/middleware/basic-auth/index.ts
+@@ -16,6 +16,7 @@ type BasicAuthOptions =
+       username: string
+       password: string
+       realm?: string
++      charset?: string
+       hashFunction?: Function
+       invalidUserMessage?: string | object | MessageFunction
+       onAuthSuccess?: (c: Context, username: string) => void | Promise<void>
+@@ -23,6 +24,7 @@ type BasicAuthOptions =
+   | {
+       verifyUser: (username: string, password: string, c: Context) => boolean | Promise<boolean>
+       realm?: string
++      charset?: string
+       hashFunction?: Function
+       invalidUserMessage?: string | object | MessageFunction
+       onAuthSuccess?: (c: Context, username: string) => void | Promise<void>
+@@ -131,8 +133,13 @@ export const basicAuth = (
+     }
+     // Invalid user.
+     const status = 401
++    let wwwAuthenticateValue = 'Basic realm="' + options.realm?.replace(/"/g, '\\"') + '"'
++    if (options.charset) {
++      // RFC 7617 Section 2.1: advertise the credentials encoding to the client
++      wwwAuthenticateValue += ', charset="' + options.charset.replace(/"/g, '\\"') + '"'
++    }
+     const headers = {
+-      'WWW-Authenticate': 'Basic realm="' + options.realm?.replace(/"/g, '\\"') + '"',
++      'WWW-Authenticate': wwwAuthenticateValue,
+     }
+     const responseMessage =
+       typeof options.invalidUserMessage === 'function'

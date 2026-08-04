@@ -1,0 +1,57 @@
+diff --git a/src/click/utils.py b/src/click/utils.py
+index 8a5506c..442720b 100644
+--- a/src/click/utils.py
++++ b/src/click/utils.py
+@@ -59,6 +59,9 @@ def make_str(value: t.Any) -> str:
+ def make_default_short_help(help: str, max_length: int = 45) -> str:
+     """Returns a condensed version of help string.
+ 
++    Words ending in ``.``, ``!``, or ``?`` count as sentence ends: the
++    short help stops after the first sentence, without a ``...`` suffix.
++
+     :meta private:
+     """
+     # Consider only the first paragraph.
+@@ -86,7 +89,7 @@ def make_default_short_help(help: str, max_length: int = 45) -> str:
+         if total_length > max_length:  # too long, truncate
+             break
+ 
+-        if word[-1] == ".":  # sentence end, truncate without "..."
++        if word[-1] in (".", "!", "?"):  # sentence end, truncate without "..."
+             return " ".join(words[: i + 1])
+ 
+         if total_length == max_length and i != last_index:
+diff --git a/tests/test_coord_short_help_sentences.py b/tests/test_coord_short_help_sentences.py
+new file mode 100644
+index 0000000..2fdc6e5
+--- /dev/null
++++ b/tests/test_coord_short_help_sentences.py
+@@ -0,0 +1,28 @@
++import click
++from click.utils import make_default_short_help
++
++
++def test_exclamation_ends_first_sentence():
++    assert make_default_short_help("Run it! Second sentence here.") == "Run it!"
++
++
++def test_question_mark_ends_first_sentence():
++    assert make_default_short_help("Ready to go? Second sentence here.") == (
++        "Ready to go?"
++    )
++
++
++def test_period_behavior_is_unchanged():
++    assert make_default_short_help("First. Second.") == "First."
++
++
++def test_command_short_help_stops_at_exclamation():
++    cmd = click.Command(
++        "deploy", help="Deploy everything! Also does other things."
++    )
++    assert cmd.get_short_help_str() == "Deploy everything!"
++
++
++def test_long_sentence_without_terminator_still_gets_ellipsis():
++    result = make_default_short_help("word " * 20, max_length=45)
++    assert result == " ".join(["word"] * 8) + "..."

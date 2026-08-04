@@ -1,0 +1,61 @@
+diff --git a/src/sqlFormatter.ts b/src/sqlFormatter.ts
+index d65159b6..b1b4fce1 100644
+--- a/src/sqlFormatter.ts
++++ b/src/sqlFormatter.ts
+@@ -64,7 +64,10 @@ const defaultOptions: FormatOptions = {
+  */
+ export const format = (query: string, cfg: FormatOptionsWithLanguage = {}): string => {
+   if (typeof cfg.language === 'string' && !supportedDialects.includes(cfg.language)) {
+-    throw new ConfigError(`Unsupported SQL dialect: ${cfg.language}`);
++    const dialectList = [...supportedDialects].sort().join(', ');
++    throw new ConfigError(
++      `Unsupported SQL dialect: ${cfg.language}. Supported dialects are: ${dialectList}.`
++    );
+   }
+ 
+   const canonicalDialectName = dialectNameMap[cfg.language || 'sql'];
+diff --git a/test/coord-unsupported-dialect-error.test.ts b/test/coord-unsupported-dialect-error.test.ts
+new file mode 100644
+index 00000000..3cc04147
+--- /dev/null
++++ b/test/coord-unsupported-dialect-error.test.ts
+@@ -0,0 +1,39 @@
++import { format, ConfigError, SqlLanguage } from '../src/index.js';
++
++describe('unsupported dialect error message', () => {
++  const getUnsupportedDialectError = (): Error => {
++    try {
++      format('SELECT *', { language: 'blah' as SqlLanguage });
++    } catch (e) {
++      return e as Error;
++    }
++    throw new Error('Expected format() to throw');
++  };
++
++  it('throws ConfigError starting with the original prefix naming the bogus dialect', () => {
++    expect(() => {
++      format('SELECT *', { language: 'blah' as SqlLanguage });
++    }).toThrow(ConfigError);
++    expect(getUnsupportedDialectError().message).toMatch(/^Unsupported SQL dialect: blah/);
++  });
++
++  it('names several real dialects in the message', () => {
++    const { message } = getUnsupportedDialectError();
++    expect(message).toContain('sqlite');
++    expect(message).toContain('postgresql');
++    expect(message).toContain('transactsql');
++  });
++
++  it('lists the supported dialect names in alphabetical order', () => {
++    const { message } = getUnsupportedDialectError();
++    const listPart = message.split('Supported dialects are: ')[1];
++    expect(listPart).toBeDefined();
++    const names = listPart.replace(/\.\s*$/, '').split(', ');
++    expect(names.length).toBeGreaterThan(10);
++    expect(names).toEqual([...names].sort());
++  });
++
++  it('still formats a valid language such as sqlite', () => {
++    expect(format('SELECT 1', { language: 'sqlite' })).toBe('SELECT\n  1');
++  });
++});

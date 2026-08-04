@@ -1,0 +1,61 @@
+diff --git a/src/languages/mysql/mysql.formatter.ts b/src/languages/mysql/mysql.formatter.ts
+index c5e2ff84..3b55916e 100644
+--- a/src/languages/mysql/mysql.formatter.ts
++++ b/src/languages/mysql/mysql.formatter.ts
+@@ -213,7 +213,11 @@ const tabularOnelineClauses = expandPhrases([
+   'WHILE',
+ ]);
+ 
+-const reservedSetOperations = expandPhrases(['UNION [ALL | DISTINCT]']);
++const reservedSetOperations = expandPhrases([
++  'UNION [ALL | DISTINCT]',
++  'EXCEPT [ALL | DISTINCT]',
++  'INTERSECT [ALL | DISTINCT]',
++]);
+ 
+ const reservedJoins = expandPhrases([
+   'JOIN',
+diff --git a/test/coord-mysql-set-operations.test.ts b/test/coord-mysql-set-operations.test.ts
+new file mode 100644
+index 00000000..d3730a9b
+--- /dev/null
++++ b/test/coord-mysql-set-operations.test.ts
+@@ -0,0 +1,38 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('mysql EXCEPT and INTERSECT set operations', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'mysql' });
++
++  ['EXCEPT', 'EXCEPT ALL', 'INTERSECT', 'INTERSECT DISTINCT'].forEach(op => {
++    it(`formats ${op} on its own line between the two SELECT blocks`, () => {
++      expect(format(`SELECT a FROM t1 ${op} SELECT a FROM t2;`)).toBe(dedent`
++        SELECT
++          a
++        FROM
++          t1
++        ${op}
++        SELECT
++          a
++        FROM
++          t2;
++      `);
++    });
++  });
++
++  it('still formats UNION ALL exactly as before', () => {
++    expect(format('SELECT a FROM t1 UNION ALL SELECT a FROM t2;')).toBe(dedent`
++      SELECT
++        a
++      FROM
++        t1
++      UNION ALL
++      SELECT
++        a
++      FROM
++        t2;
++    `);
++  });
++});

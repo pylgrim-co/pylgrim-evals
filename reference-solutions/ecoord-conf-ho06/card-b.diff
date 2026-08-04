@@ -1,0 +1,76 @@
+diff --git a/src/coord-handler-arg-guard.test.ts b/src/coord-handler-arg-guard.test.ts
+new file mode 100644
+index 00000000..51433347
+--- /dev/null
++++ b/src/coord-handler-arg-guard.test.ts
+@@ -0,0 +1,46 @@
++import { Hono } from './hono'
++
++describe('app.onError() / app.notFound() argument guard', () => {
++  it('Should still run a custom onError handler when a route throws', async () => {
++    const app = new Hono()
++    app.get('/throws', () => {
++      throw new Error('boom')
++    })
++    app.onError((_err, c) => c.text('custom error', 500))
++
++    const res = await app.request('/throws')
++    expect(res.status).toBe(500)
++    expect(await res.text()).toBe('custom error')
++  })
++
++  it('Should still run a custom notFound handler for unmatched paths', async () => {
++    const app = new Hono()
++    app.notFound((c) => c.text('custom 404', 404))
++
++    const res = await app.request('/no-such-path')
++    expect(res.status).toBe(404)
++    expect(await res.text()).toBe('custom 404')
++  })
++
++  it('Should throw a TypeError naming onError for a string argument', () => {
++    const app = new Hono()
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.onError('boom' as any)).toThrow(TypeError)
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.onError('boom' as any)).toThrow(/onError/)
++  })
++
++  it('Should throw a TypeError naming notFound for a null argument', () => {
++    const app = new Hono()
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.notFound(null as any)).toThrow(TypeError)
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.notFound(null as any)).toThrow(/notFound/)
++  })
++
++  it('Should still return the app instance for valid handlers', () => {
++    const app = new Hono()
++    expect(app.onError((_err, c) => c.text('e', 500))).toBe(app)
++    expect(app.notFound((c) => c.text('nf', 404))).toBe(app)
++  })
++})
+diff --git a/src/hono-base.ts b/src/hono-base.ts
+index 96fb772f..366ee93f 100644
+--- a/src/hono-base.ts
++++ b/src/hono-base.ts
+@@ -269,6 +269,9 @@ class Hono<
+    * ```
+    */
+   onError = (handler: ErrorHandler<E>): Hono<E, S, BasePath, CurrentPath> => {
++    if (typeof handler !== 'function') {
++      throw new TypeError('onError() expects a function handler')
++    }
+     this.errorHandler = handler
+     return this
+   }
+@@ -289,6 +292,9 @@ class Hono<
+    * ```
+    */
+   notFound = (handler: NotFoundHandler<E>): Hono<E, S, BasePath, CurrentPath> => {
++    if (typeof handler !== 'function') {
++      throw new TypeError('notFound() expects a function handler')
++    }
+     this.#notFoundHandler = handler
+     return this
+   }

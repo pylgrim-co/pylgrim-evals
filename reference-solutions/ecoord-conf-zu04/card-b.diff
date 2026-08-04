@@ -1,0 +1,69 @@
+diff --git a/src/vanilla.ts b/src/vanilla.ts
+index a20f0f8..de82c4c 100644
+--- a/src/vanilla.ts
++++ b/src/vanilla.ts
+@@ -70,6 +70,15 @@ const createStoreImpl: CreateStoreImpl = (createState) => {
+       typeof partial === 'function'
+         ? (partial as (state: TState) => TState)(state)
+         : partial
++    if (
++      process.env.NODE_ENV !== 'production' &&
++      typeof partial === 'function' &&
++      nextState === undefined
++    ) {
++      console.warn(
++        '[zustand] the setState updater returned undefined; the store state is being replaced with undefined',
++      )
++    }
+     if (!Object.is(nextState, state)) {
+       const previousState = state
+       state =
+diff --git a/tests/coord/set-state-undefined-warn.test.ts b/tests/coord/set-state-undefined-warn.test.ts
+new file mode 100644
+index 0000000..27510a5
+--- /dev/null
++++ b/tests/coord/set-state-undefined-warn.test.ts
+@@ -0,0 +1,43 @@
++import { afterAll, afterEach, expect, it, vi } from 'vitest'
++import { createStore } from 'zustand/vanilla'
++
++const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
++
++afterEach(() => {
++  warnSpy.mockClear()
++  vi.unstubAllEnvs()
++})
++
++afterAll(() => {
++  warnSpy.mockRestore()
++})
++
++it('a functional updater returning undefined warns once and the state still becomes undefined', () => {
++  const store = createStore(() => ({ count: 0 }))
++  store.setState((() => undefined) as never)
++  expect(warnSpy).toHaveBeenCalledTimes(1)
++  expect(String(warnSpy.mock.calls[0]![0])).toContain('undefined')
++  expect(store.getState()).toBeUndefined()
++})
++
++it('a functional updater returning an object does not warn and updates normally', () => {
++  const store = createStore(() => ({ count: 0 }))
++  store.setState((state) => ({ count: state.count + 1 }))
++  expect(warnSpy).not.toHaveBeenCalled()
++  expect(store.getState().count).toBe(1)
++})
++
++it('a plain object argument does not warn', () => {
++  const store = createStore(() => ({ count: 0 }))
++  store.setState({ count: 5 })
++  expect(warnSpy).not.toHaveBeenCalled()
++  expect(store.getState().count).toBe(5)
++})
++
++it('does not warn in production mode for an undefined-returning updater', () => {
++  vi.stubEnv('NODE_ENV', 'production')
++  const store = createStore(() => ({ count: 0 }))
++  store.setState((() => undefined) as never)
++  expect(warnSpy).not.toHaveBeenCalled()
++  expect(store.getState()).toBeUndefined()
++})

@@ -1,0 +1,82 @@
+diff --git a/src/middleware/body-limit/coord-max-size-guard.test.ts b/src/middleware/body-limit/coord-max-size-guard.test.ts
+new file mode 100644
+index 00000000..08fac101
+--- /dev/null
++++ b/src/middleware/body-limit/coord-max-size-guard.test.ts
+@@ -0,0 +1,54 @@
++import { Hono } from '../../hono'
++import { bodyLimit } from '.'
++
++describe('Body Limit Middleware maxSize Guard', () => {
++  it('Should throw a TypeError when maxSize is missing', () => {
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => bodyLimit({} as any)).toThrow(TypeError)
++  })
++
++  it('Should throw a TypeError when maxSize is NaN', () => {
++    expect(() => bodyLimit({ maxSize: NaN })).toThrow(TypeError)
++  })
++
++  it('Should throw a TypeError when maxSize is a string', () => {
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => bodyLimit({ maxSize: '1024' } as any)).toThrow(TypeError)
++  })
++
++  it('Should throw a TypeError when maxSize is negative', () => {
++    expect(() => bodyLimit({ maxSize: -1 })).toThrow(TypeError)
++  })
++
++  it('Should name the middleware and the requirement in the message', () => {
++    expect(() => bodyLimit({ maxSize: NaN })).toThrow(
++      /bodyLimit middleware.*non-negative finite number of bytes/
++    )
++  })
++
++  describe('with a valid maxSize', () => {
++    const exampleText = 'hono is so hot' // 14byte
++    const exampleText2 = 'hono is so hot and cute' // 23byte
++
++    let app: Hono
++
++    beforeEach(() => {
++      app = new Hono()
++      app.use('*', bodyLimit({ maxSize: 14 }))
++      app.post('/echo', async (c) => c.text(await c.req.raw.text()))
++    })
++
++    it('Should reject an over-limit body with status 413', async () => {
++      const res = await app.request('/echo', { method: 'POST', body: exampleText2 })
++      expect(res).not.toBeNull()
++      expect(res.status).toBe(413)
++    })
++
++    it('Should pass an under-limit body through to the handler', async () => {
++      const res = await app.request('/echo', { method: 'POST', body: exampleText })
++      expect(res).not.toBeNull()
++      expect(res.status).toBe(200)
++      expect(await res.text()).toBe(exampleText)
++    })
++  })
++})
+diff --git a/src/middleware/body-limit/index.ts b/src/middleware/body-limit/index.ts
+index 39fff710..50dcae7e 100644
+--- a/src/middleware/body-limit/index.ts
++++ b/src/middleware/body-limit/index.ts
+@@ -48,6 +48,17 @@ type BodyLimitOptions = {
+  * ```
+  */
+ export const bodyLimit = (options: BodyLimitOptions): MiddlewareHandler => {
++  if (
++    typeof options.maxSize !== 'number' ||
++    !Number.isFinite(options.maxSize) ||
++    options.maxSize < 0
++  ) {
++    throw new TypeError(
++      `bodyLimit middleware: maxSize must be a non-negative finite number of bytes, but got ${String(
++        options.maxSize
++      )}`
++    )
++  }
+   const onError: OnError =
+     options.onError ||
+     (() => {

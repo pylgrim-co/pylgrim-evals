@@ -1,0 +1,54 @@
+diff --git a/src/context.ts b/src/context.ts
+index 079473aa..a7363cc9 100644
+--- a/src/context.ts
++++ b/src/context.ts
+@@ -527,6 +527,11 @@ export class Context<
+   }
+ 
+   status = (status: StatusCode): void => {
++    if (!Number.isInteger(status) || status < 100 || status > 599) {
++      throw new RangeError(
++        `status() expects an integer between 100 and 599, but got ${String(status)}`
++      )
++    }
+     this.#status = status
+   }
+ 
+diff --git a/src/coord-status-code-guard.test.ts b/src/coord-status-code-guard.test.ts
+new file mode 100644
+index 00000000..4636d586
+--- /dev/null
++++ b/src/coord-status-code-guard.test.ts
+@@ -0,0 +1,32 @@
++import { Context } from './context'
++
++describe('c.status() code guard', () => {
++  const buildContext = () => new Context(new Request('http://localhost/'))
++
++  it('Should store a valid status code and apply it to the response', () => {
++    const c = buildContext()
++    c.status(201)
++    const res = c.body('created')
++    expect(res.status).toBe(201)
++  })
++
++  it('Should throw a RangeError for an out-of-range status code', () => {
++    const c = buildContext()
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => c.status(9999 as any)).toThrow(RangeError)
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => c.status(9999 as any)).toThrow(/100 and 599/)
++  })
++
++  it('Should throw a RangeError for a non-integer status code', () => {
++    const c = buildContext()
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => c.status(204.5 as any)).toThrow(RangeError)
++  })
++
++  it('Should throw a RangeError for a non-number status code', () => {
++    const c = buildContext()
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => c.status('404' as any)).toThrow(RangeError)
++  })
++})

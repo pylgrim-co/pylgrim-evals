@@ -1,0 +1,65 @@
+diff --git a/packages/zod/src/v4/classic/schemas.ts b/packages/zod/src/v4/classic/schemas.ts
+index eb57e017..4a449caa 100644
+--- a/packages/zod/src/v4/classic/schemas.ts
++++ b/packages/zod/src/v4/classic/schemas.ts
+@@ -1023,6 +1023,10 @@ export function hash<Alg extends util.HashAlgorithm, Enc extends util.HashEncodi
+   return core._stringFormat(ZodCustomStringFormat, format, regex, params) as any;
+ }
+ 
++export function semver(_params?: string | core.$ZodStringFormatParams): ZodCustomStringFormat<"semver"> {
++  return core._stringFormat(ZodCustomStringFormat, "semver", core.regexes.semver, _params) as any;
++}
++
+ // ZodNumber
+ export interface _ZodNumber<Internals extends core.$ZodNumberInternals = core.$ZodNumberInternals>
+   extends _ZodType<Internals> {
+diff --git a/packages/zod/src/v4/classic/tests/coord-semver.test.ts b/packages/zod/src/v4/classic/tests/coord-semver.test.ts
+new file mode 100644
+index 00000000..be430c80
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-semver.test.ts
+@@ -0,0 +1,32 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("valid SemVer 2.0.0 strings parse successfully", () => {
++  expect(z.semver().parse("0.1.0")).toBe("0.1.0");
++  expect(z.semver().parse("1.2.3")).toBe("1.2.3");
++  expect(z.semver().parse("1.0.0-alpha.1")).toBe("1.0.0-alpha.1");
++  expect(z.semver().parse("2.0.0+build.7")).toBe("2.0.0+build.7");
++  expect(z.semver().parse("1.0.0-rc.1+sha.abc")).toBe("1.0.0-rc.1+sha.abc");
++});
++
++test("invalid version strings fail validation", () => {
++  expect(z.semver().safeParse("1.2").success).toBe(false); // missing patch
++  expect(z.semver().safeParse("v1.2.3").success).toBe(false); // leading v
++  expect(z.semver().safeParse("1.02.3").success).toBe(false); // leading zero
++  expect(z.semver().safeParse("1.2.3-").success).toBe(false); // empty prerelease
++  expect(z.semver().safeParse("").success).toBe(false);
++  expect(z.semver().safeParse("1.2.3 ").success).toBe(false); // anchored at both ends
++});
++
++test("a custom error message passed as params surfaces on failure", () => {
++  const result = z.semver("not a semver").safeParse("nope");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("not a semver");
++});
++
++test("z.semver() is chainable", () => {
++  const schema = z.semver().max(64);
++  expect(schema.parse("1.2.3")).toBe("1.2.3");
++  expect(schema.parse("1.0.0-alpha.1")).toBe("1.0.0-alpha.1");
++});
+diff --git a/packages/zod/src/v4/core/regexes.ts b/packages/zod/src/v4/core/regexes.ts
+index 79684706..224d9f3a 100644
+--- a/packages/zod/src/v4/core/regexes.ts
++++ b/packages/zod/src/v4/core/regexes.ts
+@@ -188,3 +188,7 @@ export const sha384_base64url: RegExp = /*@__PURE__*/ fixedBase64url(64);
+ export const sha512_hex: RegExp = /^[0-9a-fA-F]{128}$/;
+ export const sha512_base64: RegExp = /*@__PURE__*/ fixedBase64(86, "==");
+ export const sha512_base64url: RegExp = /*@__PURE__*/ fixedBase64url(86);
++
++// Semantic Versioning 2.0.0 (https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string)
++export const semver: RegExp =
++  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;

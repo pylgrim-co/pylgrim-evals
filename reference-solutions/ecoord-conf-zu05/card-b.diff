@@ -1,0 +1,91 @@
+diff --git a/src/middleware/persist.ts b/src/middleware/persist.ts
+index e7c0682..6abf994 100644
+--- a/src/middleware/persist.ts
++++ b/src/middleware/persist.ts
+@@ -285,7 +285,7 @@ const persistImpl: PersistImpl = (config, baseOptions) => (set, get, api) => {
+               return [true, migration] as const
+             }
+             console.error(
+-              `State loaded from storage couldn't be migrated since no migrate function was provided`,
++              `State loaded from storage for '${options.name}' couldn't be migrated since no migrate function was provided: stored version ${deserializedStorageValue.version} does not match the expected version ${options.version}; the persisted state was discarded`,
+             )
+           } else {
+             return [false, deserializedStorageValue.state] as const
+diff --git a/tests/coord/persist-migrate-error.test.ts b/tests/coord/persist-migrate-error.test.ts
+new file mode 100644
+index 0000000..78633fc
+--- /dev/null
++++ b/tests/coord/persist-migrate-error.test.ts
+@@ -0,0 +1,72 @@
++import { afterAll, afterEach, expect, it, vi } from 'vitest'
++import { persist } from 'zustand/middleware'
++import type { PersistStorage, StorageValue } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number }
++
++const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
++
++afterEach(() => {
++  errorSpy.mockClear()
++})
++
++afterAll(() => {
++  errorSpy.mockRestore()
++})
++
++const makeStorage = (
++  stored: StorageValue<State> | null,
++): PersistStorage<State> => ({
++  getItem: () => stored,
++  setItem: () => {},
++  removeItem: () => {},
++})
++
++it('a version mismatch without migrate logs one error naming the store and both versions', () => {
++  const storage = makeStorage({ state: { count: 42 }, version: 5 })
++  const store = createStore(
++    persist<State>(() => ({ count: 0 }), {
++      name: 'my-store',
++      version: 1,
++      storage,
++    }),
++  )
++  expect(errorSpy).toHaveBeenCalledTimes(1)
++  const message = String(errorSpy.mock.calls[0]![0])
++  expect(message).toContain('my-store')
++  expect(message).toContain('5')
++  expect(message).toContain('1')
++  expect(message).toContain('no migrate function')
++  expect(message).toContain('discarded')
++  expect(store.getState().count).toBe(0)
++})
++
++it('matching-version hydration applies the stored state with no error', () => {
++  const storage = makeStorage({ state: { count: 42 }, version: 1 })
++  const store = createStore(
++    persist<State>(() => ({ count: 0 }), {
++      name: 'my-store',
++      version: 1,
++      storage,
++    }),
++  )
++  expect(errorSpy).not.toHaveBeenCalled()
++  expect(store.getState().count).toBe(42)
++})
++
++it('a configured migrate function still runs with no error logged', () => {
++  const storage = makeStorage({ state: { count: 42 }, version: 5 })
++  const migrate = vi.fn(() => ({ count: 99 }))
++  const store = createStore(
++    persist<State>(() => ({ count: 0 }), {
++      name: 'my-store',
++      version: 1,
++      storage,
++      migrate,
++    }),
++  )
++  expect(errorSpy).not.toHaveBeenCalled()
++  expect(migrate).toHaveBeenCalledWith({ count: 42 }, 5)
++  expect(store.getState().count).toBe(99)
++})

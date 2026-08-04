@@ -1,0 +1,48 @@
+diff --git a/src/context.ts b/src/context.ts
+index 079473aa..11ea946c 100644
+--- a/src/context.ts
++++ b/src/context.ts
+@@ -752,6 +752,9 @@ export class Context<
+     status?: T
+   ): Response & TypedResponse<undefined, T, 'redirect'> => {
+     const locationString = String(location)
++    if (locationString.includes('\r') || locationString.includes('\n')) {
++      throw new TypeError('The redirect location must not contain CR or LF characters')
++    }
+     this.header(
+       'Location',
+       // Multibyes should be encoded
+diff --git a/src/coord-redirect-location-guard.test.ts b/src/coord-redirect-location-guard.test.ts
+new file mode 100644
+index 00000000..7228927e
+--- /dev/null
++++ b/src/coord-redirect-location-guard.test.ts
+@@ -0,0 +1,28 @@
++import { Context } from './context'
++
++describe('c.redirect() location guard', () => {
++  const buildContext = () => new Context(new Request('http://localhost/'))
++
++  it('Should redirect with the default 302 status', () => {
++    const res = buildContext().redirect('/next')
++    expect(res.status).toBe(302)
++    expect(res.headers.get('Location')).toBe('/next')
++  })
++
++  it('Should redirect with a custom status code', () => {
++    const res = buildContext().redirect('/next', 301)
++    expect(res.status).toBe(301)
++    expect(res.headers.get('Location')).toBe('/next')
++  })
++
++  it('Should throw a TypeError for a location containing CRLF', () => {
++    const c = buildContext()
++    expect(() => c.redirect('/next\r\nSet-Cookie: evil=1')).toThrow(TypeError)
++    expect(() => c.redirect('/next\r\nSet-Cookie: evil=1')).toThrow(/CR or LF/)
++  })
++
++  it('Should throw a TypeError for a location containing a lone LF', () => {
++    const c = buildContext()
++    expect(() => c.redirect('/next\nX-Injected: 1')).toThrow(TypeError)
++  })
++})

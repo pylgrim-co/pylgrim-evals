@@ -1,0 +1,63 @@
+diff --git a/src/click/utils.py b/src/click/utils.py
+index 8a5506c..01adc68 100644
+--- a/src/click/utils.py
++++ b/src/click/utils.py
+@@ -171,7 +171,10 @@ class LazyFile:
+         except OSError as e:
+             from .exceptions import FileError
+ 
+-            raise FileError(self.name, hint=e.strerror) from e
++            # ``strerror`` is ``None`` for OSErrors raised with a single
++            # argument. Fall back to ``str(e)`` so the real reason is not
++            # reported as "unknown error".
++            raise FileError(self.name, hint=e.strerror or str(e)) from e
+         self._f = rv
+         return rv
+ 
+diff --git a/tests/test_coord_lazyfile_oserror.py b/tests/test_coord_lazyfile_oserror.py
+new file mode 100644
+index 0000000..ac47629
+--- /dev/null
++++ b/tests/test_coord_lazyfile_oserror.py
+@@ -0,0 +1,41 @@
++import pytest
++
++import click.utils
++from click.exceptions import FileError
++from click.utils import LazyFile
++
++
++def test_oserror_without_strerror_reports_str(monkeypatch):
++    def raise_bare_oserror(*args, **kwargs):
++        raise OSError("disk quota exceeded")
++
++    monkeypatch.setattr(click.utils, "open_stream", raise_bare_oserror)
++
++    with pytest.raises(FileError) as exc_info:
++        LazyFile("x.txt", "w").open()
++
++    message = exc_info.value.format_message()
++    assert "disk quota exceeded" in message
++    assert "unknown error" not in message
++
++
++def test_oserror_with_strerror_is_unchanged(monkeypatch):
++    def raise_full_oserror(*args, **kwargs):
++        raise OSError(13, "Permission denied")
++
++    monkeypatch.setattr(click.utils, "open_stream", raise_full_oserror)
++
++    with pytest.raises(FileError) as exc_info:
++        LazyFile("x.txt", "w").open()
++
++    assert "Permission denied" in exc_info.value.format_message()
++
++
++def test_unpatched_happy_path_still_writes(tmp_path):
++    path = tmp_path / "out.txt"
++    lazy_file = LazyFile(str(path), "w")
++    f = lazy_file.open()
++    f.write("hello")
++    lazy_file.close()
++
++    assert path.read_text() == "hello"

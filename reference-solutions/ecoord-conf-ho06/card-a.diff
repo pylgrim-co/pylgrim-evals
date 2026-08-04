@@ -1,0 +1,49 @@
+diff --git a/src/coord-route-arg-guard.test.ts b/src/coord-route-arg-guard.test.ts
+new file mode 100644
+index 00000000..3368465b
+--- /dev/null
++++ b/src/coord-route-arg-guard.test.ts
+@@ -0,0 +1,29 @@
++import { Hono } from './hono'
++
++describe('app.route() argument guard', () => {
++  it('Should still mount a sub-app and serve its routes', async () => {
++    const app = new Hono()
++    const sub = new Hono()
++    sub.get('/user', (c) => c.text('user'))
++    app.route('/api', sub)
++
++    const res = await app.request('http://localhost/api/user')
++    expect(res.status).toBe(200)
++    expect(await res.text()).toBe('user')
++  })
++
++  it('Should throw a TypeError for undefined', () => {
++    const app = new Hono()
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.route('/api', undefined as any)).toThrow(TypeError)
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.route('/api', undefined as any)).toThrow(/Hono instance/)
++  })
++
++  it('Should throw a TypeError for a handler function', () => {
++    const app = new Hono()
++    const handler = () => new Response('ok')
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    expect(() => app.route('/api', handler as any)).toThrow(TypeError)
++  })
++})
+diff --git a/src/hono-base.ts b/src/hono-base.ts
+index 96fb772f..958f4320 100644
+--- a/src/hono-base.ts
++++ b/src/hono-base.ts
+@@ -215,6 +215,9 @@ class Hono<
+     path: SubPath,
+     app: Hono<SubEnv, SubSchema, SubBasePath, SubCurrentPath>
+   ): Hono<E, MergeSchemaPath<SubSchema, MergePath<BasePath, SubPath>> | S, BasePath, CurrentPath> {
++    if (app == null || !Array.isArray(app.routes)) {
++      throw new TypeError('route() expects a Hono instance as its second argument')
++    }
+     const subApp = this.basePath(path)
+     app.routes.map((r) => {
+       let handler

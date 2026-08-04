@@ -1,0 +1,104 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 47cb9c1..9748a54 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -1,4 +1,5 @@
+ export { redux } from './middleware/redux.ts'
++export { validate } from './middleware/validate.ts'
+ export {
+   devtools,
+   type DevtoolsOptions,
+diff --git a/src/middleware/validate.ts b/src/middleware/validate.ts
+new file mode 100644
+index 0000000..db8f789
+--- /dev/null
++++ b/src/middleware/validate.ts
+@@ -0,0 +1,25 @@
++import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
++
++export function validate<
++  T extends object,
++  Mps extends [StoreMutatorIdentifier, unknown][] = [],
++  Mcs extends [StoreMutatorIdentifier, unknown][] = [],
++>(
++  initializer: StateCreator<T, Mps, Mcs>,
++  validator: (state: T) => void,
++): StateCreator<T, Mps, Mcs> {
++  return (set, get, api) => {
++    const origSetState = (api as any).setState
++    ;(api as any).setState = (...args: unknown[]) => {
++      const result = origSetState(...args)
++      validator((api as any).getState())
++      return result
++    }
++    const validatingSet = ((...args: unknown[]) => {
++      const result = (set as any)(...args)
++      validator((api as any).getState())
++      return result
++    }) as typeof set
++    return initializer(validatingSet, get, api)
++  }
++}
+diff --git a/tests/coord/validate-middleware.test.ts b/tests/coord/validate-middleware.test.ts
+new file mode 100644
+index 0000000..b65efc4
+--- /dev/null
++++ b/tests/coord/validate-middleware.test.ts
+@@ -0,0 +1,57 @@
++import { expect, it, vi } from 'vitest'
++import { validate } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++import type { StateCreator } from 'zustand/vanilla'
++
++type CounterState = { count: number; inc: () => void }
++
++const counterInitializer: StateCreator<CounterState> = (set, get) => ({
++  count: 0,
++  inc: () => set({ count: get().count + 1 }),
++})
++
++it('resolves from the middleware registry and is not called at store creation', () => {
++  const validator = vi.fn()
++  createStore(validate(counterInitializer, validator))
++  expect(typeof validate).toBe('function')
++  expect(validator).not.toHaveBeenCalled()
++})
++
++it('is called exactly once with the post-update state after each api.setState', () => {
++  const validator = vi.fn()
++  const store = createStore(validate(counterInitializer, validator))
++  store.setState({ count: 1 })
++  expect(validator).toHaveBeenCalledTimes(1)
++  expect(validator).toHaveBeenLastCalledWith(
++    expect.objectContaining({ count: 1 }),
++  )
++  store.setState({ count: 2 })
++  expect(validator).toHaveBeenCalledTimes(2)
++  expect(validator).toHaveBeenLastCalledWith(
++    expect.objectContaining({ count: 2 }),
++  )
++})
++
++it('fires for updates made through the initializer-provided set', () => {
++  const validator = vi.fn()
++  const store = createStore(validate(counterInitializer, validator))
++  store.getState().inc()
++  expect(validator).toHaveBeenCalledTimes(1)
++  expect(validator).toHaveBeenLastCalledWith(
++    expect.objectContaining({ count: 1 }),
++  )
++})
++
++it('a throwing validator propagates to the caller and the update is kept', () => {
++  const store = createStore(
++    validate(counterInitializer, (state) => {
++      if (state.count > 3) {
++        throw new Error('count must stay small')
++      }
++    }),
++  )
++  store.setState({ count: 2 })
++  expect(store.getState().count).toBe(2)
++  expect(() => store.setState({ count: 10 })).toThrow('count must stay small')
++  expect(store.getState().count).toBe(10)
++})

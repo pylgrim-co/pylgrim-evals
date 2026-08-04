@@ -1,0 +1,82 @@
+diff --git a/src/middleware/subscribeWithSelector.ts b/src/middleware/subscribeWithSelector.ts
+index 608c470..441edc2 100644
+--- a/src/middleware/subscribeWithSelector.ts
++++ b/src/middleware/subscribeWithSelector.ts
+@@ -1,4 +1,5 @@
+ import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
++import { shallow } from '../vanilla/shallow.ts'
+ 
+ type SubscribeWithSelector = <
+   T,
+@@ -34,6 +35,7 @@ type StoreSubscribeWithSelector<T> = {
+       options?: {
+         equalityFn?: (a: U, b: U) => boolean
+         fireImmediately?: boolean
++        shallow?: boolean
+       },
+     ): () => void
+   }
+@@ -51,7 +53,8 @@ const subscribeWithSelectorImpl: SubscribeWithSelectorImpl =
+     api.subscribe = ((selector: any, optListener: any, options: any) => {
+       let listener: Listener = selector // if no selector
+       if (optListener) {
+-        const equalityFn = options?.equalityFn || Object.is
++        const equalityFn =
++          options?.equalityFn || (options?.shallow ? shallow : Object.is)
+         let currentSlice = selector(api.getState())
+         listener = (state) => {
+           const nextSlice = selector(state)
+diff --git a/tests/coord/select-subscribe-shallow.test.ts b/tests/coord/select-subscribe-shallow.test.ts
+new file mode 100644
+index 0000000..03e4fb4
+--- /dev/null
++++ b/tests/coord/select-subscribe-shallow.test.ts
+@@ -0,0 +1,48 @@
++import { expect, it, vi } from 'vitest'
++import { subscribeWithSelector } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { a: number; b: number; other: string }
++
++const makeStore = () =>
++  createStore(subscribeWithSelector(() => ({ a: 1, b: 2, other: 'x' })))
++
++it('with shallow true, a fresh but content-equal slice does not fire the listener', () => {
++  const store = makeStore()
++  const listener = vi.fn()
++  store.subscribe((s: State) => [s.a, s.b], listener, { shallow: true })
++  store.setState({ other: 'y' })
++  store.setState({ other: 'z' })
++  expect(listener).not.toHaveBeenCalled()
++})
++
++it('with shallow true, a genuine content change fires with new and previous slices', () => {
++  const store = makeStore()
++  const listener = vi.fn()
++  store.subscribe((s: State) => [s.a, s.b], listener, { shallow: true })
++  store.setState({ a: 10 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith([10, 2], [1, 2])
++})
++
++it('without the flag, a fresh-array selector fires on every state change', () => {
++  const store = makeStore()
++  const listener = vi.fn()
++  store.subscribe((s: State) => [s.a, s.b], listener)
++  store.setState({ other: 'y' })
++  store.setState({ other: 'z' })
++  expect(listener).toHaveBeenCalledTimes(2)
++})
++
++it('an explicitly passed equalityFn is consulted even when shallow is set', () => {
++  const store = makeStore()
++  const listener = vi.fn()
++  const equalityFn = vi.fn(() => true)
++  store.subscribe((s: State) => [s.a, s.b], listener, {
++    shallow: true,
++    equalityFn,
++  })
++  store.setState({ a: 10 })
++  expect(equalityFn).toHaveBeenCalled()
++  expect(listener).not.toHaveBeenCalled()
++})

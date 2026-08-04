@@ -1,0 +1,106 @@
+diff --git a/src/languages/postgresql/postgresql.functions.ts b/src/languages/postgresql/postgresql.functions.ts
+index 6c142e10..ba02c777 100644
+--- a/src/languages/postgresql/postgresql.functions.ts
++++ b/src/languages/postgresql/postgresql.functions.ts
+@@ -24,6 +24,8 @@ export const functions: string[] = [
+   'COTD',
+   'DEGREES',
+   'DIV',
++  'ERF',
++  'ERFC',
+   'EXP',
+   'FACTORIAL',
+   'FLOOR',
+@@ -38,6 +40,7 @@ export const functions: string[] = [
+   'POWER',
+   'RADIANS',
+   'RANDOM',
++  'RANDOM_NORMAL',
+   'ROUND',
+   'SCALE',
+   'SETSEED',
+@@ -101,7 +104,9 @@ export const functions: string[] = [
+   'SUBSTR',
+   'SUBSTRING',
+   'TO_ASCII',
++  'TO_BIN',
+   'TO_HEX',
++  'TO_OCT',
+   'TRANSLATE',
+   'TRIM',
+   'UNISTR',
+@@ -411,6 +416,7 @@ export const functions: string[] = [
+ 
+   // https://www.postgresql.org/docs/14/functions-aggregate.html
+   // 'ANY',
++  'ANY_VALUE',
+   'ARRAY_AGG',
+   'AVG',
+   'BIT_AND',
+diff --git a/test/coord-postgresql-pg16-functions.test.ts b/test/coord-postgresql-pg16-functions.test.ts
+new file mode 100644
+index 00000000..0379d581
+--- /dev/null
++++ b/test/coord-postgresql-pg16-functions.test.ts
+@@ -0,0 +1,61 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('postgresql PostgreSQL 16 built-in functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'postgresql' });
++
++  it('uppercases any_value, to_bin, erf and random_normal with functionCase: "upper"', () => {
++    const result = format(
++      'SELECT any_value(x), to_bin(n), erf(y), random_normal(0, 1) FROM tbl',
++      { functionCase: 'upper' }
++    );
++    expect(result).toBe(dedent`
++      SELECT
++        ANY_VALUE(x),
++        TO_BIN(n),
++        ERF(y),
++        RANDOM_NORMAL(0, 1)
++      FROM
++        tbl
++    `);
++  });
++
++  it('lowercases TO_OCT and ERFC with functionCase: "lower"', () => {
++    const result = format('SELECT TO_OCT(n), ERFC(y) FROM tbl', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        to_oct(n),
++        erfc(y)
++      FROM
++        tbl
++    `);
++  });
++
++  it('preserves mixed-case spellings of the new functions by default', () => {
++    const result = format('SELECT Any_Value(x), To_Bin(n) FROM tbl');
++    expect(result).toBe(dedent`
++      SELECT
++        Any_Value(x),
++        To_Bin(n)
++      FROM
++        tbl
++    `);
++  });
++
++  it('does not uppercase unknown function names with functionCase: "upper"', () => {
++    const result = format('SELECT my_custom_fn(x), erf(y) FROM tbl', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        my_custom_fn(x),
++        ERF(y)
++      FROM
++        tbl
++    `);
++  });
++});

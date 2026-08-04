@@ -1,0 +1,81 @@
+diff --git a/src/middleware/secure-headers/coord-cache-control.test.ts b/src/middleware/secure-headers/coord-cache-control.test.ts
+new file mode 100644
+index 00000000..4eb094d3
+--- /dev/null
++++ b/src/middleware/secure-headers/coord-cache-control.test.ts
+@@ -0,0 +1,47 @@
++import { Hono } from '../../hono'
++import { secureHeaders } from '.'
++
++describe('Secure Headers cacheControl option', () => {
++  it('Should set Cache-Control to "no-store, max-age=0" when enabled', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders({ cacheControl: true }))
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('Cache-Control')).toEqual('no-store, max-age=0')
++  })
++
++  it('Should use a string option value verbatim as the header value', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders({ cacheControl: 'no-cache' }))
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('Cache-Control')).toEqual('no-cache')
++  })
++
++  it('Should not set a Cache-Control header by default', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders())
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('Cache-Control')).toBeNull()
++  })
++
++  it('Should leave existing default headers such as X-Frame-Options unchanged', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders({ cacheControl: true }))
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('X-Frame-Options')).toEqual('SAMEORIGIN')
++
++    const defaultApp = new Hono()
++    defaultApp.use('*', secureHeaders())
++    defaultApp.get('/test', (c) => c.text('ok'))
++
++    const defaultRes = await defaultApp.request('/test')
++    expect(defaultRes.headers.get('X-Frame-Options')).toEqual('SAMEORIGIN')
++  })
++})
+diff --git a/src/middleware/secure-headers/secure-headers.ts b/src/middleware/secure-headers/secure-headers.ts
+index cb81a0fd..8d1ec302 100644
+--- a/src/middleware/secure-headers/secure-headers.ts
++++ b/src/middleware/secure-headers/secure-headers.ts
+@@ -67,6 +67,7 @@ type PermissionsPolicyOptions = Partial<
+ type overridableHeader = boolean | string
+ 
+ interface SecureHeadersOptions {
++  cacheControl?: overridableHeader
+   contentSecurityPolicy?: ContentSecurityPolicyOptions
+   contentSecurityPolicyReportOnly?: ContentSecurityPolicyOptions
+   crossOriginEmbedderPolicy?: overridableHeader
+@@ -92,6 +93,7 @@ type HeadersMap = {
+ }
+ 
+ const HEADERS_MAP: HeadersMap = {
++  cacheControl: ['Cache-Control', 'no-store, max-age=0'],
+   crossOriginEmbedderPolicy: ['Cross-Origin-Embedder-Policy', 'require-corp'],
+   crossOriginResourcePolicy: ['Cross-Origin-Resource-Policy', 'same-origin'],
+   crossOriginOpenerPolicy: ['Cross-Origin-Opener-Policy', 'same-origin'],
+@@ -107,6 +109,7 @@ const HEADERS_MAP: HeadersMap = {
+ }
+ 
+ const DEFAULT_OPTIONS: SecureHeadersOptions = {
++  cacheControl: false,
+   crossOriginEmbedderPolicy: false,
+   crossOriginResourcePolicy: true,
+   crossOriginOpenerPolicy: true,

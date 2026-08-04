@@ -1,0 +1,125 @@
+diff --git a/src/middleware/bearer-auth/coord-on-auth-success.test.ts b/src/middleware/bearer-auth/coord-on-auth-success.test.ts
+new file mode 100644
+index 00000000..acc84eaa
+--- /dev/null
++++ b/src/middleware/bearer-auth/coord-on-auth-success.test.ts
+@@ -0,0 +1,90 @@
++import { Hono } from '../../hono'
++import { bearerAuth } from '.'
++
++describe('Bearer Auth onAuthSuccess option', () => {
++  const token = 'honoiscool'
++
++  it('Should invoke onAuthSuccess once with the validated token on success', async () => {
++    const calls: string[] = []
++    const app = new Hono()
++    app.use(
++      '/api/*',
++      bearerAuth({
++        token,
++        onAuthSuccess: (_c, validatedToken) => {
++          calls.push(validatedToken)
++        },
++      })
++    )
++    app.get('/api/page', (c) => c.text('authorized'))
++
++    const res = await app.request('/api/page', {
++      headers: { Authorization: `Bearer ${token}` },
++    })
++    expect(res.status).toBe(200)
++    expect(await res.text()).toBe('authorized')
++    expect(calls).toEqual([token])
++  })
++
++  it('Should not invoke onAuthSuccess for a wrong token', async () => {
++    const calls: string[] = []
++    const app = new Hono()
++    app.use(
++      '/api/*',
++      bearerAuth({
++        token,
++        onAuthSuccess: (_c, validatedToken) => {
++          calls.push(validatedToken)
++        },
++      })
++    )
++    app.get('/api/page', (c) => c.text('authorized'))
++
++    const res = await app.request('/api/page', {
++      headers: { Authorization: 'Bearer wrongtoken' },
++    })
++    expect(res.status).toBe(401)
++    expect(calls).toEqual([])
++  })
++
++  it('Should not invoke onAuthSuccess when the Authorization header is missing', async () => {
++    const calls: string[] = []
++    const app = new Hono()
++    app.use(
++      '/api/*',
++      bearerAuth({
++        token,
++        onAuthSuccess: (_c, validatedToken) => {
++          calls.push(validatedToken)
++        },
++      })
++    )
++    app.get('/api/page', (c) => c.text('authorized'))
++
++    const res = await app.request('/api/page')
++    expect(res.status).toBe(401)
++    expect(calls).toEqual([])
++  })
++
++  it('Should await an async onAuthSuccess so a downstream handler can read the value', async () => {
++    type Env = { Variables: { authToken: string } }
++    const app = new Hono<Env>()
++    app.use(
++      '/api/*',
++      bearerAuth<Env>({
++        token,
++        onAuthSuccess: async (c, validatedToken) => {
++          await new Promise((resolve) => setTimeout(resolve, 10))
++          c.set('authToken', validatedToken)
++        },
++      })
++    )
++    app.get('/api/page', (c) => c.text(c.get('authToken') || 'missing'))
++
++    const res = await app.request('/api/page', {
++      headers: { Authorization: `Bearer ${token}` },
++    })
++    expect(res.status).toBe(200)
++    expect(await res.text()).toBe(token)
++  })
++})
+diff --git a/src/middleware/bearer-auth/index.ts b/src/middleware/bearer-auth/index.ts
+index bfe3b778..985ac8d5 100644
+--- a/src/middleware/bearer-auth/index.ts
++++ b/src/middleware/bearer-auth/index.ts
+@@ -41,6 +41,7 @@ type BearerAuthOptions<E extends Env = Env> =
+        */
+       invalidTokenMessage?: string | object | MessageFunction
+       invalidToken?: CustomizedErrorResponseOptions
++      onAuthSuccess?: (c: Context, token: string) => void | Promise<void>
+     }
+   | {
+       realm?: string
+@@ -63,6 +64,7 @@ type BearerAuthOptions<E extends Env = Env> =
+        */
+       invalidTokenMessage?: string | object | MessageFunction
+       invalidToken?: CustomizedErrorResponseOptions
++      onAuthSuccess?: (c: Context, token: string) => void | Promise<void>
+     }
+ 
+ /**
+@@ -213,6 +215,8 @@ export const bearerAuth = <E extends Env = Env>(
+               `${wwwAuthenticatePrefix}error="invalid_token"`,
+             options.invalidToken?.message || options.invalidTokenMessage || 'Unauthorized'
+           )
++        } else if (options.onAuthSuccess) {
++          await options.onAuthSuccess(c, tokenValue)
+         }
+       }
+     }

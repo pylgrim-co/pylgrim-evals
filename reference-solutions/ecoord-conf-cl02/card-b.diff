@@ -1,0 +1,56 @@
+diff --git a/src/click/exceptions.py b/src/click/exceptions.py
+index 6272c38..893f56f 100644
+--- a/src/click/exceptions.py
++++ b/src/click/exceptions.py
+@@ -358,6 +358,12 @@ class FileError(ClickException):
+             filename=self.ui_filename, message=self.message
+         )
+ 
++    def __str__(self) -> str:
++        """Return :meth:`format_message` so that the string form of the
++        exception names the file instead of only echoing the raw hint.
++        """
++        return self.format_message()
++
+ 
+ class Abort(RuntimeError):
+     """An internal signalling exception that signals Click to abort."""
+diff --git a/tests/test_coord_file_error_str.py b/tests/test_coord_file_error_str.py
+new file mode 100644
+index 0000000..70e1627
+--- /dev/null
++++ b/tests/test_coord_file_error_str.py
+@@ -0,0 +1,33 @@
++import io
++
++from click.exceptions import FileError
++
++
++def test_str_with_hint_matches_format_message():
++    error = FileError("config.json", hint="permission denied")
++
++    assert str(error) == error.format_message()
++    assert "config.json" in str(error)
++    assert "permission denied" in str(error)
++
++
++def test_str_without_hint_names_file_and_default_hint():
++    error = FileError("config.json")
++
++    assert str(error) == error.format_message()
++    assert "config.json" in str(error)
++    assert "unknown error" in str(error)
++
++
++def test_message_attribute_still_holds_raw_hint():
++    error = FileError("config.json", hint="permission denied")
++
++    assert error.message == "permission denied"
++
++
++def test_show_output_is_unchanged():
++    error = FileError("config.json", hint="permission denied")
++    buffer = io.StringIO()
++    error.show(file=buffer)
++
++    assert buffer.getvalue() == f"Error: {error.format_message()}\n"

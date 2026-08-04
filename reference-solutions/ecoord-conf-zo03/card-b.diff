@@ -1,0 +1,64 @@
+diff --git a/packages/zod/src/v4/classic/errors.ts b/packages/zod/src/v4/classic/errors.ts
+index e4eb99d0..6a9e8c34 100644
+--- a/packages/zod/src/v4/classic/errors.ts
++++ b/packages/zod/src/v4/classic/errors.ts
+@@ -13,6 +13,8 @@ export interface ZodError<T = unknown> extends $ZodError<T> {
+   /** @deprecated Use the `z.treeifyError(err)` function instead. */
+   flatten(): core.$ZodFlattenedError<T>;
+   flatten<U>(mapper: (issue: core.$ZodIssue) => U): core.$ZodFlattenedError<T, U>;
++  /** Renders a human-readable summary of the error. Identical to calling `z.prettifyError(err)`. */
++  pretty(): string;
+   /** @deprecated Push directly to `.issues` instead. */
+   addIssue(issue: core.$ZodIssue): void;
+   /** @deprecated Push directly to `.issues` instead. */
+@@ -34,6 +36,10 @@ const initializer = (inst: ZodError, issues: core.$ZodIssue[]) => {
+       value: (mapper: any) => core.flattenError(inst, mapper),
+       // enumerable: false,
+     },
++    pretty: {
++      value: () => core.prettifyError(inst),
++      // enumerable: false,
++    },
+     addIssue: {
+       value: (issue: any) => {
+         inst.issues.push(issue);
+diff --git a/packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts b/packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts
+new file mode 100644
+index 00000000..56df7e4d
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-error-pretty-method.test.ts
+@@ -0,0 +1,34 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("a failing safeParse result exposes error.pretty as a function", () => {
++  const result = z.string().safeParse(123);
++  expect(result.success).toBe(false);
++  expect(typeof result.error!.pretty).toBe("function");
++});
++
++test("error.pretty() returns exactly what z.prettifyError returns", () => {
++  const result = z.object({ name: z.string(), age: z.number() }).safeParse({ name: 1, age: "x" });
++  expect(result.success).toBe(false);
++  const error = result.error!;
++  expect(error.pretty()).toBe(z.prettifyError(error));
++});
++
++test("pretty() renders the path line for a nested field failure", () => {
++  const result = z.object({ user: z.object({ name: z.string() }) }).safeParse({ user: { name: 42 } });
++  expect(result.success).toBe(false);
++  const output = result.error!.pretty();
++  expect(output).toContain("→ at user.name");
++});
++
++test("format() and flatten() still work on the same instance", () => {
++  const result = z.object({ name: z.string() }).safeParse({ name: 1 });
++  expect(result.success).toBe(false);
++  const error = result.error!;
++  expect(error.pretty()).toBe(z.prettifyError(error));
++  const formatted = error.format() as any;
++  expect(formatted.name._errors.length).toBe(1);
++  const flattened = error.flatten();
++  expect(flattened.fieldErrors.name!.length).toBe(1);
++});

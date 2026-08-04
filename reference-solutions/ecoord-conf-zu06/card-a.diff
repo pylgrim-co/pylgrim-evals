@@ -1,0 +1,70 @@
+diff --git a/src/middleware/devtools.ts b/src/middleware/devtools.ts
+index cbbe683..301012c 100644
+--- a/src/middleware/devtools.ts
++++ b/src/middleware/devtools.ts
+@@ -207,6 +207,11 @@ const devtoolsImpl: DevtoolsImpl =
+     }
+ 
+     if (!extensionConnector) {
++      if (import.meta.env?.MODE !== 'production' && enabled === true) {
++        console.warn(
++          '[zustand devtools middleware] the devtools middleware is enabled, but the Redux DevTools extension is not available',
++        )
++      }
+       return fn(set, get, api)
+     }
+ 
+diff --git a/tests/coord/devtools-missing-warn.test.ts b/tests/coord/devtools-missing-warn.test.ts
+new file mode 100644
+index 0000000..7851c99
+--- /dev/null
++++ b/tests/coord/devtools-missing-warn.test.ts
+@@ -0,0 +1,48 @@
++import { afterAll, afterEach, expect, it, vi } from 'vitest'
++import { devtools } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++// window.__REDUX_DEVTOOLS_EXTENSION__ is left undefined, the natural jsdom state.
++
++const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
++
++afterEach(() => {
++  warnSpy.mockClear()
++})
++
++afterAll(() => {
++  warnSpy.mockRestore()
++})
++
++it('warns exactly once at creation when enabled is true and no extension is present', () => {
++  const store = createStore(devtools(() => ({ count: 0 }), { enabled: true }))
++  expect(warnSpy).toHaveBeenCalledTimes(1)
++  expect(String(warnSpy.mock.calls[0]![0])).toContain('extension')
++  store.setState({ count: 1 })
++  expect(store.getState().count).toBe(1)
++  expect(warnSpy).toHaveBeenCalledTimes(1)
++})
++
++it('does not warn when enabled is false', () => {
++  const store = createStore(devtools(() => ({ count: 0 }), { enabled: false }))
++  expect(warnSpy).not.toHaveBeenCalled()
++  store.setState({ count: 2 })
++  expect(store.getState().count).toBe(2)
++})
++
++it('does not warn when no devtoolsOptions are passed', () => {
++  const store = createStore(devtools(() => ({ count: 0 })))
++  expect(warnSpy).not.toHaveBeenCalled()
++  store.setState({ count: 3 })
++  expect(store.getState().count).toBe(3)
++})
++
++it('the store remains fully functional in every case', () => {
++  const store = createStore(devtools(() => ({ count: 0 }), { enabled: true }))
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe(listener)
++  store.setState({ count: 7 })
++  expect(store.getState().count).toBe(7)
++  expect(listener).toHaveBeenCalledTimes(1)
++  unsubscribe()
++})

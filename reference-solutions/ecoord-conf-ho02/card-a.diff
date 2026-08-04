@@ -1,0 +1,47 @@
+diff --git a/src/utils/cookie.ts b/src/utils/cookie.ts
+index 20ba90c5..6516c930 100644
+--- a/src/utils/cookie.ts
++++ b/src/utils/cookie.ts
+@@ -234,6 +234,10 @@ const _serialize = (name: string, value: string, opt: CookieOptions = {}): strin
+   }
+ 
+   if (opt.sameSite) {
++    if (opt.sameSite.toLowerCase() === 'none' && !opt.secure) {
++      // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#none
++      throw new Error('SameSite=None Cookie must have Secure attributes')
++    }
+     cookie += `; SameSite=${opt.sameSite.charAt(0).toUpperCase() + opt.sameSite.slice(1)}`
+   }
+ 
+diff --git a/src/utils/coord-cookie-samesite-none.test.ts b/src/utils/coord-cookie-samesite-none.test.ts
+new file mode 100644
+index 00000000..79b71568
+--- /dev/null
++++ b/src/utils/coord-cookie-samesite-none.test.ts
+@@ -0,0 +1,26 @@
++import { serialize } from './cookie'
++
++describe('Cookie serializer SameSite=None guard', () => {
++  it('Should serialize SameSite=None together with Secure', () => {
++    const serialized = serialize('great_cookie', 'banana', { secure: true, sameSite: 'None' })
++    expect(serialized).toBe('great_cookie=banana; Secure; SameSite=None')
++    expect(serialized).toContain('; Secure; SameSite=None')
++  })
++
++  it('Should throw when SameSite=None is set without Secure', () => {
++    expect(() => serialize('great_cookie', 'banana', { sameSite: 'None' })).toThrowError(
++      'SameSite=None Cookie must have Secure attributes'
++    )
++  })
++
++  it('Should throw for lowercase none without Secure', () => {
++    expect(() => serialize('great_cookie', 'banana', { sameSite: 'none' })).toThrowError(
++      'SameSite=None Cookie must have Secure attributes'
++    )
++  })
++
++  it('Should still serialize SameSite=Lax without Secure', () => {
++    const serialized = serialize('great_cookie', 'banana', { sameSite: 'Lax' })
++    expect(serialized).toBe('great_cookie=banana; SameSite=Lax')
++  })
++})

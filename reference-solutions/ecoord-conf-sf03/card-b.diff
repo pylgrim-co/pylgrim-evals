@@ -1,0 +1,135 @@
+diff --git a/src/validateConfig.ts b/src/validateConfig.ts
+index 8789fe63..9daef8da 100644
+--- a/src/validateConfig.ts
++++ b/src/validateConfig.ts
+@@ -25,9 +25,15 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+     );
+   }
+ 
+-  if (cfg.params && !validateParams(cfg.params)) {
+-    // eslint-disable-next-line no-console
+-    console.warn('WARNING: All "params" option values should be strings.');
++  if (cfg.params) {
++    const nonStringParams = findNonStringParams(cfg.params);
++    if (nonStringParams.length > 0) {
++      // eslint-disable-next-line no-console
++      console.warn(
++        'WARNING: All "params" option values should be strings. ' +
++          `Found non-string values for: ${nonStringParams.join(', ')}.`
++      );
++    }
+   }
+ 
+   if (cfg.paramTypes && !validateParamTypes(cfg.paramTypes)) {
+@@ -39,9 +45,17 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+   return cfg;
+ }
+ 
+-function validateParams(params: ParamItems | string[]): boolean {
+-  const paramValues = params instanceof Array ? params : Object.values(params);
+-  return paramValues.every(p => typeof p === 'string');
++// Describes each non-string params value as its key (or index) and typeof
++function findNonStringParams(params: ParamItems | string[]): string[] {
++  if (params instanceof Array) {
++    return params
++      .map((value, index) => ({ value, index }))
++      .filter(({ value }) => typeof value !== 'string')
++      .map(({ value, index }) => `index ${index} (${typeof value})`);
++  }
++  return Object.entries(params)
++    .filter(([, value]) => typeof value !== 'string')
++    .map(([key, value]) => `"${key}" (${typeof value})`);
+ }
+ 
+ function validateParamTypes(paramTypes: ParamTypes): boolean {
+diff --git a/test/coord-params-warning-detail.test.ts b/test/coord-params-warning-detail.test.ts
+new file mode 100644
+index 00000000..76895de0
+--- /dev/null
++++ b/test/coord-params-warning-detail.test.ts
+@@ -0,0 +1,85 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('detailed params validation warning', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'sqlite' });
++
++  let warnSpy: jest.SpyInstance;
++
++  beforeEach(() => {
++    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
++  });
++
++  afterEach(() => {
++    warnSpy.mockRestore();
++  });
++
++  it('warns once, naming the offending object key and its type', () => {
++    const result = format('SELECT :name FROM tbl;', {
++      params: { name: "'John'", age: 25 as unknown as string },
++    });
++
++    expect(warnSpy).toHaveBeenCalledTimes(1);
++    const message: string = warnSpy.mock.calls[0][0];
++    expect(message).toContain('age');
++    expect(message).toContain('number');
++
++    // the query still formats successfully, with substitution
++    expect(result).toBe(dedent`
++      SELECT
++        'John'
++      FROM
++        tbl;
++    `);
++  });
++
++  it('warns naming the offending array index and its type', () => {
++    const result = format('SELECT ? FROM tbl;', {
++      params: ['first', 42 as unknown as string],
++    });
++
++    expect(warnSpy).toHaveBeenCalledTimes(1);
++    const message: string = warnSpy.mock.calls[0][0];
++    expect(message).toContain('index 1');
++    expect(message).toContain('number');
++
++    // the query still formats successfully, with substitution
++    expect(result).toBe(dedent`
++      SELECT
++        first
++      FROM
++        tbl;
++    `);
++  });
++
++  it('does not warn when all params values are strings', () => {
++    const result = format('SELECT :name FROM tbl;', {
++      params: { name: "'John'", age: '25' },
++    });
++
++    expect(warnSpy).not.toHaveBeenCalled();
++    expect(result).toBe(dedent`
++      SELECT
++        'John'
++      FROM
++        tbl;
++    `);
++  });
++
++  it('does not warn for an all-string params array', () => {
++    const result = format('SELECT ?, ? FROM tbl;', {
++      params: ['first', 'second'],
++    });
++
++    expect(warnSpy).not.toHaveBeenCalled();
++    expect(result).toBe(dedent`
++      SELECT
++        first,
++        second
++      FROM
++        tbl;
++    `);
++  });
++});

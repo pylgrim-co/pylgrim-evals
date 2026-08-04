@@ -1,0 +1,123 @@
+diff --git a/src/formatter/Params.ts b/src/formatter/Params.ts
+index cae1aa95..afefe2ff 100644
+--- a/src/formatter/Params.ts
++++ b/src/formatter/Params.ts
+@@ -14,6 +14,7 @@ export default class Params {
+ 
+   /**
+    * Returns param value that matches given placeholder with param key.
++   * Falls back to the original placeholder text when no value is available.
+    */
+   public get({ key, text }: { key?: string; text: string }): string {
+     if (!this.params) {
+@@ -21,9 +22,13 @@ export default class Params {
+     }
+ 
+     if (key) {
+-      return (this.params as ParamItems)[key];
++      const value = (this.params as ParamItems)[key];
++      return value === undefined ? text : value;
+     }
+-    return (this.params as string[])[this.index++];
++    // Advance the index even when the lookup misses,
++    // so later placeholders keep their positions.
++    const value = (this.params as string[])[this.index++];
++    return value === undefined ? text : value;
+   }
+ 
+   /**
+diff --git a/test/coord-params-missing-fallback.test.ts b/test/coord-params-missing-fallback.test.ts
+new file mode 100644
+index 00000000..16eab808
+--- /dev/null
++++ b/test/coord-params-missing-fallback.test.ts
+@@ -0,0 +1,89 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('params fallback for missing values', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'sqlite' });
++
++  it('leaves a named placeholder as-is when its key is missing from params', () => {
++    const result = format('SELECT :name, :missing FROM tbl;', {
++      params: { name: "'John'" },
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        'John',
++        :missing
++      FROM
++        tbl;
++    `);
++  });
++
++  it('leaves positional placeholders beyond the end of the params array as ?', () => {
++    const result = format('SELECT ?, ?, ? FROM tbl;', {
++      params: ['first', 'second'],
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        first,
++        second,
++        ?
++      FROM
++        tbl;
++    `);
++  });
++
++  it('keeps later positional placeholders in position when an earlier lookup misses', () => {
++    const result = format('SELECT ?, ?, ? FROM tbl;', {
++      params: ['first', undefined as unknown as string, 'third'],
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        first,
++        ?,
++        third
++      FROM
++        tbl;
++    `);
++  });
++
++  it('substitutes fully-supplied positional params exactly as before', () => {
++    const result = format('SELECT ?, ?, ? FROM tbl;', {
++      params: ['first', 'second', 'third'],
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        first,
++        second,
++        third
++      FROM
++        tbl;
++    `);
++  });
++
++  it('substitutes fully-supplied named params exactly as before', () => {
++    const result = format('SELECT * FROM tbl WHERE name = :name AND age > :age;', {
++      params: { name: "'John'", age: '10' },
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        *
++      FROM
++        tbl
++      WHERE
++        name = 'John'
++        AND age > 10;
++    `);
++  });
++
++  it('leaves all placeholders untouched when no params config is given', () => {
++    const result = format('SELECT ?, :name FROM tbl;');
++    expect(result).toBe(dedent`
++      SELECT
++        ?,
++        :name
++      FROM
++        tbl;
++    `);
++  });
++});

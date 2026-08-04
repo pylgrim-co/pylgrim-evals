@@ -1,0 +1,52 @@
+diff --git a/packages/zod/src/v4/classic/schemas.ts b/packages/zod/src/v4/classic/schemas.ts
+index eb57e017..45d022c6 100644
+--- a/packages/zod/src/v4/classic/schemas.ts
++++ b/packages/zod/src/v4/classic/schemas.ts
+@@ -1016,7 +1016,15 @@ export function hash<Alg extends util.HashAlgorithm, Enc extends util.HashEncodi
+     enc?: Enc;
+   } & core.$ZodStringFormatParams
+ ): ZodCustomStringFormat<`${Alg}_${Enc}`> {
++  const validAlgs: util.HashAlgorithm[] = ["md5", "sha1", "sha256", "sha384", "sha512"];
++  if (!validAlgs.includes(alg)) {
++    throw new TypeError(`Invalid hash algorithm: ${alg}. Supported algorithms: ${util.joinValues(validAlgs, ", ")}`);
++  }
+   const enc = params?.enc ?? "hex";
++  const validEncs: util.HashEncoding[] = ["hex", "base64", "base64url"];
++  if (!validEncs.includes(enc)) {
++    throw new TypeError(`Invalid hash encoding: ${enc}. Supported encodings: ${util.joinValues(validEncs, ", ")}`);
++  }
+   const format = `${alg}_${enc}` as const;
+   const regex = core.regexes[format as keyof typeof core.regexes] as RegExp;
+   if (!regex) throw new Error(`Unrecognized hash format: ${format}`);
+diff --git a/packages/zod/src/v4/classic/tests/coord-hash-arg-guard.test.ts b/packages/zod/src/v4/classic/tests/coord-hash-arg-guard.test.ts
+new file mode 100644
+index 00000000..d85f3060
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-hash-arg-guard.test.ts
+@@ -0,0 +1,26 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("z.hash rejects an unknown algorithm with a TypeError naming the supported algorithms", () => {
++  expect(() => z.hash("sha999" as any)).toThrow(TypeError);
++  expect(() => z.hash("sha999" as any)).toThrow("sha256");
++});
++
++test("z.hash rejects an unknown encoding with a TypeError naming the supported encodings", () => {
++  expect(() => z.hash("sha256", { enc: "hex64" as any })).toThrow(TypeError);
++  expect(() => z.hash("sha256", { enc: "hex64" as any })).toThrow("base64url");
++});
++
++test("valid alg/enc combinations behave exactly as before", () => {
++  const hexDigest = "a".repeat(64); // 64-char sha256 hex digest
++  expect(z.hash("sha256").parse(hexDigest)).toBe(hexDigest);
++
++  const base64Digest = `${"A".repeat(27)}=`; // 28-char sha1 base64 digest
++  expect(z.hash("sha1", { enc: "base64" }).parse(base64Digest)).toBe(base64Digest);
++});
++
++test("valid schemas still reject malformed digests", () => {
++  expect(() => z.hash("sha256").parse("not-a-digest")).toThrow();
++  expect(() => z.hash("sha1", { enc: "base64" }).parse("tooshort")).toThrow();
++});

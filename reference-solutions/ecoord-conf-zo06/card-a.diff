@@ -1,0 +1,61 @@
+diff --git a/packages/zod/src/v4/classic/checks.ts b/packages/zod/src/v4/classic/checks.ts
+index cd78c0e4..1e881106 100644
+--- a/packages/zod/src/v4/classic/checks.ts
++++ b/packages/zod/src/v4/classic/checks.ts
+@@ -24,6 +24,7 @@ export {
+   _mime as mime,
+   _overwrite as overwrite,
+   _normalize as normalize,
++  _capitalize as capitalize,
+   _trim as trim,
+   _toLowerCase as toLowerCase,
+   _toUpperCase as toUpperCase,
+diff --git a/packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts b/packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts
+new file mode 100644
+index 00000000..ab31fba9
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-check-capitalize.test.ts
+@@ -0,0 +1,27 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("capitalize uppercases the first character and leaves the rest untouched", () => {
++  expect(z.string().check(z.capitalize()).parse("hello world")).toBe("Hello world");
++});
++
++test("an already-capitalized input is unchanged", () => {
++  expect(z.string().check(z.capitalize()).parse("Hello world")).toBe("Hello world");
++});
++
++test("the empty string stays empty", () => {
++  expect(z.string().check(z.capitalize()).parse("")).toBe("");
++});
++
++test("a single character is uppercased", () => {
++  expect(z.string().check(z.capitalize()).parse("a")).toBe("A");
++});
++
++test("a first character with no uppercase form is left as is", () => {
++  expect(z.string().check(z.capitalize()).parse("1abc")).toBe("1abc");
++});
++
++test("capitalize composes after trim in the same check call", () => {
++  expect(z.string().check(z.trim(), z.capitalize()).parse("  hello")).toBe("Hello");
++});
+diff --git a/packages/zod/src/v4/core/api.ts b/packages/zod/src/v4/core/api.ts
+index c1d2d7ef..e4caf793 100644
+--- a/packages/zod/src/v4/core/api.ts
++++ b/packages/zod/src/v4/core/api.ts
+@@ -1132,6 +1132,11 @@ export function _overwrite<T>(tx: (input: T) => T): checks.$ZodCheckOverwrite<T>
+ export function _normalize(form?: "NFC" | "NFD" | "NFKC" | "NFKD" | (string & {})): checks.$ZodCheckOverwrite<string> {
+   return _overwrite((input) => input.normalize(form));
+ }
++// capitalize
++// @__NO_SIDE_EFFECTS__
++export function _capitalize(): checks.$ZodCheckOverwrite<string> {
++  return _overwrite((input) => input.charAt(0).toUpperCase() + input.slice(1));
++}
+ 
+ // trim
+ // @__NO_SIDE_EFFECTS__

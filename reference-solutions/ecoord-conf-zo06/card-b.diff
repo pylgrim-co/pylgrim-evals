@@ -1,0 +1,62 @@
+diff --git a/packages/zod/src/v4/classic/checks.ts b/packages/zod/src/v4/classic/checks.ts
+index cd78c0e4..a1cf8b52 100644
+--- a/packages/zod/src/v4/classic/checks.ts
++++ b/packages/zod/src/v4/classic/checks.ts
+@@ -28,5 +28,6 @@ export {
+   _toLowerCase as toLowerCase,
+   _toUpperCase as toUpperCase,
+   _slugify as slugify,
++  _truncate as truncate,
+   type $RefinementCtx as RefinementCtx,
+ } from "../core/index.js";
+diff --git a/packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts b/packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts
+new file mode 100644
+index 00000000..5b743bec
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-check-truncate.test.ts
+@@ -0,0 +1,26 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("truncate caps strings longer than maxLength", () => {
++  expect(z.string().check(z.truncate(5)).parse("hello world")).toBe("hello");
++});
++
++test("a string shorter than the cap is unchanged", () => {
++  expect(z.string().check(z.truncate(5)).parse("hi")).toBe("hi");
++  expect(z.string().check(z.truncate(5)).parse("hello")).toBe("hello");
++});
++
++test("truncate(0) maps any string to the empty string", () => {
++  expect(z.string().check(z.truncate(0)).parse("hello")).toBe("");
++  expect(z.string().check(z.truncate(0)).parse("")).toBe("");
++});
++
++test("an invalid maxLength throws TypeError at construction", () => {
++  expect(() => z.truncate(2.5 as any)).toThrow(TypeError);
++  expect(() => z.truncate(-1)).toThrow(TypeError);
++});
++
++test("truncate composes after trim in the same check call", () => {
++  expect(z.string().check(z.trim(), z.truncate(5)).parse("  hello world")).toBe("hello");
++});
+diff --git a/packages/zod/src/v4/core/api.ts b/packages/zod/src/v4/core/api.ts
+index c1d2d7ef..326f584b 100644
+--- a/packages/zod/src/v4/core/api.ts
++++ b/packages/zod/src/v4/core/api.ts
+@@ -1153,6 +1153,14 @@ export function _toUpperCase(): checks.$ZodCheckOverwrite<string> {
+ export function _slugify(): checks.$ZodCheckOverwrite<string> {
+   return _overwrite((input) => util.slugify(input));
+ }
++// truncate
++// @__NO_SIDE_EFFECTS__
++export function _truncate(maxLength: number): checks.$ZodCheckOverwrite<string> {
++  if (!Number.isInteger(maxLength) || maxLength < 0) {
++    throw new TypeError(`truncate: maxLength must be a non-negative integer, received ${maxLength}`);
++  }
++  return _overwrite((input) => (input.length <= maxLength ? input : input.slice(0, maxLength)));
++}
+ 
+ ///////  collections   ///////
+ 

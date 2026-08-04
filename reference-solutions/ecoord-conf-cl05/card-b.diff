@@ -1,0 +1,111 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+index 4780902..445ddc8 100644
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -17,6 +17,7 @@ from ._compat import strip_ansi
+ from .exceptions import Abort
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
++from .types import BoolParamType
+ from .types import Choice
+ from .types import convert_type
+ from .types import ParamType
+@@ -265,6 +266,10 @@ def confirm(
+     :param err: if set to true the file defaults to ``stderr`` instead of
+                 ``stdout``, the same as with echo.
+ 
++    Accepts the same words as the :data:`BOOL` parameter type: ``1``/``0``,
++    ``t``/``f``, ``true``/``false``, ``on``/``off``, ``y``/``n``, and
++    ``yes``/``no``.
++
+     .. versionchanged:: 8.3.1
+         A space is no longer appended to the prompt.
+ 
+@@ -286,16 +291,21 @@ def confirm(
+             value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+         except (KeyboardInterrupt, EOFError):
+             raise Abort() from None
+-        if value in ("y", "yes"):
+-            rv = True
+-        elif value in ("n", "no"):
+-            rv = False
+-        elif default is not None and value == "":
+-            rv = default
++
++        # Empty input keeps the default handling and is never routed
++        # through the boolean mapping.
++        if value == "":
++            if default is not None:
++                rv = default
++                break
+         else:
+-            echo(_("Error: invalid input"), err=err)
+-            continue
+-        break
++            parsed = BoolParamType.str_to_bool(value)
++
++            if parsed is not None:
++                rv = parsed
++                break
++
++        echo(_("Error: invalid input"), err=err)
+     if abort and not rv:
+         raise Abort()
+     return rv
+diff --git a/tests/test_coord_confirm_bool_words.py b/tests/test_coord_confirm_bool_words.py
+new file mode 100644
+index 0000000..3c0cd6d
+--- /dev/null
++++ b/tests/test_coord_confirm_bool_words.py
+@@ -0,0 +1,51 @@
++import pytest
++
++import click
++
++
++@click.command()
++def cli():
++    if click.confirm("Continue?"):
++        click.echo("CONFIRMED")
++    else:
++        click.echo("DECLINED")
++
++
++@pytest.mark.parametrize("answer", ["t", "true", "1", "on"])
++def test_bool_truthy_words_are_accepted(runner, answer):
++    result = runner.invoke(cli, input=f"{answer}\n")
++    assert result.exit_code == 0
++    assert "CONFIRMED" in result.output
++
++
++@pytest.mark.parametrize("answer", ["f", "false", "0", "off"])
++def test_bool_falsy_words_are_accepted(runner, answer):
++    result = runner.invoke(cli, input=f"{answer}\n")
++    assert result.exit_code == 0
++    assert "DECLINED" in result.output
++
++
++def test_unrecognized_answer_still_retries(runner):
++    result = runner.invoke(cli, input="maybe\ny\n")
++    assert result.exit_code == 0
++    assert "Error: invalid input" in result.output
++    assert "CONFIRMED" in result.output
++
++
++def test_empty_input_still_uses_default(runner):
++    @click.command()
++    def cli_with_default():
++        if click.confirm("Continue?", default=True):
++            click.echo("CONFIRMED")
++        else:
++            click.echo("DECLINED")
++
++    result = runner.invoke(cli_with_default, input="\n")
++    assert result.exit_code == 0
++    assert "CONFIRMED" in result.output
++
++
++def test_legacy_n_still_declines(runner):
++    result = runner.invoke(cli, input="n\n")
++    assert result.exit_code == 0
++    assert "DECLINED" in result.output

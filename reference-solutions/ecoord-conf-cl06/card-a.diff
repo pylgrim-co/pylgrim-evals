@@ -1,0 +1,97 @@
+diff --git a/src/click/core.py b/src/click/core.py
+index 6de4216..153f8da 100644
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -1733,11 +1733,30 @@ class Group(Command):
+     def add_command(self, cmd: Command, name: str | None = None) -> None:
+         """Registers another :class:`Command` with this group.  If the name
+         is not provided, the name of the command is used.
++
++        Registering a different command under a name that is already
++        taken issues a :exc:`UserWarning` naming the duplicate; the new
++        command still replaces the old one. Re-registering the identical
++        command object under the same name stays silent.
+         """
+         name = name or cmd.name
+         if name is None:
+             raise TypeError("Command has no name.")
+         _check_nested_chain(self, name, cmd, register=True)
++
++        existing = self.commands.get(name)
++
++        if existing is not None and existing is not cmd:
++            import warnings
++
++            group_name = f" in group {self.name!r}" if self.name else ""
++            warnings.warn(
++                f"The command name {name!r} is already registered{group_name}"
++                " and will be replaced.",
++                UserWarning,
++                stacklevel=2,
++            )
++
+         self.commands[name] = cmd
+ 
+     @t.overload
+diff --git a/tests/test_coord_group_duplicate.py b/tests/test_coord_group_duplicate.py
+new file mode 100644
+index 0000000..6dd3f92
+--- /dev/null
++++ b/tests/test_coord_group_duplicate.py
+@@ -0,0 +1,56 @@
++import warnings
++
++import pytest
++
++import click
++
++
++def test_duplicate_name_warns_and_replaces():
++    group = click.Group("cli")
++    first = click.Command("sync")
++    second = click.Command("sync")
++    group.add_command(first)
++
++    with pytest.warns(UserWarning, match="sync"):
++        group.add_command(second)
++
++    assert group.commands["sync"] is second
++
++
++def test_readding_identical_command_is_silent():
++    group = click.Group("cli")
++    cmd = click.Command("sync")
++    group.add_command(cmd)
++
++    with warnings.catch_warnings():
++        warnings.simplefilter("error")
++        group.add_command(cmd)
++
++    assert group.commands["sync"] is cmd
++
++
++def test_distinct_names_are_silent():
++    group = click.Group("cli")
++
++    with warnings.catch_warnings():
++        warnings.simplefilter("error")
++        group.add_command(click.Command("push"))
++        group.add_command(click.Command("pull"))
++
++    assert set(group.commands) == {"push", "pull"}
++
++
++def test_group_command_decorator_path_warns():
++    group = click.Group("cli")
++
++    @group.command("dup")
++    def first():
++        pass
++
++    with pytest.warns(UserWarning, match="dup"):
++
++        @group.command("dup")
++        def second():
++            pass
++
++    assert group.commands["dup"] is second

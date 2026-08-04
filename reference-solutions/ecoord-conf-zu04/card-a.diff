@@ -1,0 +1,56 @@
+diff --git a/src/vanilla.ts b/src/vanilla.ts
+index a20f0f8..ae3f095 100644
+--- a/src/vanilla.ts
++++ b/src/vanilla.ts
+@@ -86,6 +86,9 @@ const createStoreImpl: CreateStoreImpl = (createState) => {
+     initialState
+ 
+   const subscribe: StoreApi<TState>['subscribe'] = (listener) => {
++    if (typeof listener !== 'function') {
++      throw new TypeError('[zustand] the subscribe listener must be a function')
++    }
+     listeners.add(listener)
+     // Unsubscribe
+     return () => listeners.delete(listener)
+diff --git a/tests/coord/subscribe-guard.test.ts b/tests/coord/subscribe-guard.test.ts
+new file mode 100644
+index 0000000..4e625d4
+--- /dev/null
++++ b/tests/coord/subscribe-guard.test.ts
+@@ -0,0 +1,36 @@
++import { expect, it, vi } from 'vitest'
++import { createStore } from 'zustand/vanilla'
++
++it('a valid listener is notified on setState and unsubscribe stops notifications', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe(listener)
++  store.setState({ count: 1 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith({ count: 1 }, { count: 0 })
++  unsubscribe()
++  store.setState({ count: 2 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})
++
++it('subscribe(undefined) throws TypeError and registers nothing', () => {
++  const store = createStore(() => ({ count: 0 }))
++  expect(() => store.subscribe(undefined as never)).toThrow(TypeError)
++  expect(() => store.setState({ count: 1 })).not.toThrow()
++  expect(store.getState().count).toBe(1)
++})
++
++it('subscribe("handler") throws TypeError', () => {
++  const store = createStore(() => ({ count: 0 }))
++  expect(() => store.subscribe('handler' as never)).toThrow(TypeError)
++})
++
++it('after a rejected subscribe, setState still notifies valid listeners', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const validListener = vi.fn()
++  store.subscribe(validListener)
++  expect(() => store.subscribe(null as never)).toThrow(TypeError)
++  store.setState({ count: 5 })
++  expect(validListener).toHaveBeenCalledTimes(1)
++  expect(validListener).toHaveBeenCalledWith({ count: 5 }, { count: 0 })
++})

@@ -1,0 +1,64 @@
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+index c4aa2de..1c65412 100644
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -239,8 +239,15 @@ class HelpFormatter:
+         :param col_max: the maximum width of the first column.
+         :param col_spacing: the number of spaces between the first and
+                             second column.
++
++        An empty ``rows`` iterable is a no-op: nothing is written and the
++        buffer is left untouched.
+         """
+         rows = list(rows)
++
++        if not rows:
++            return
++
+         widths = measure_table(rows)
+         if len(widths) != 2:
+             raise TypeError("Expected two columns for definition list")
+diff --git a/tests/test_coord_empty_dl.py b/tests/test_coord_empty_dl.py
+new file mode 100644
+index 0000000..c30e709
+--- /dev/null
++++ b/tests/test_coord_empty_dl.py
+@@ -0,0 +1,38 @@
++import pytest
++
++from click.formatting import HelpFormatter
++
++
++def test_empty_list_is_a_no_op():
++    formatter = HelpFormatter()
++    formatter.write_dl([])
++    assert formatter.getvalue() == ""
++
++
++def test_empty_list_leaves_existing_buffer_untouched():
++    formatter = HelpFormatter()
++    formatter.write("Commands:\n")
++    before = formatter.getvalue()
++    formatter.write_dl([])
++    assert formatter.getvalue() == before
++
++
++def test_empty_generator_is_a_no_op():
++    formatter = HelpFormatter()
++    formatter.write_dl(iter(()))
++    assert formatter.getvalue() == ""
++
++
++def test_two_column_rows_still_render():
++    formatter = HelpFormatter()
++    formatter.write_dl([("--verbose", "Enable verbose output.")])
++    output = formatter.getvalue()
++    assert "--verbose" in output
++    assert "Enable verbose output." in output
++
++
++def test_three_column_row_still_raises_type_error():
++    formatter = HelpFormatter()
++
++    with pytest.raises(TypeError, match="Expected two columns"):
++        formatter.write_dl([("a", "b", "c")])

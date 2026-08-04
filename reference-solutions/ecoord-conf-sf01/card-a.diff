@@ -1,0 +1,112 @@
+diff --git a/src/languages/sqlite/sqlite.functions.ts b/src/languages/sqlite/sqlite.functions.ts
+index 7878802d..76e49756 100644
+--- a/src/languages/sqlite/sqlite.functions.ts
++++ b/src/languages/sqlite/sqlite.functions.ts
+@@ -4,6 +4,8 @@ export const functions: string[] = [
+   'CHANGES',
+   'CHAR',
+   'COALESCE',
++  'CONCAT',
++  'CONCAT_WS',
+   'FORMAT',
+   'GLOB',
+   'HEX',
+@@ -19,6 +21,7 @@ export const functions: string[] = [
+   'LOWER',
+   'LTRIM',
+   'NULLIF',
++  'OCTET_LENGTH',
+   'PRINTF',
+   'QUOTE',
+   'RANDOM',
+@@ -39,6 +42,7 @@ export const functions: string[] = [
+   'TRIM',
+   'TYPEOF',
+   'UNICODE',
++  'UNHEX',
+   'UNLIKELY',
+   'UPPER',
+   'ZEROBLOB',
+@@ -49,6 +53,7 @@ export const functions: string[] = [
+   'GROUP_CONCAT',
+   'MAX',
+   'MIN',
++  'STRING_AGG',
+   'SUM',
+   'TOTAL',
+ 
+@@ -59,6 +64,7 @@ export const functions: string[] = [
+   'JULIANDAY',
+   'UNIXEPOCH',
+   'STRFTIME',
++  'TIMEDIFF',
+ 
+   // https://www.sqlite.org/windowfunctions.html#biwinfunc
+   'row_number',
+diff --git a/test/coord-sqlite-modern-functions.test.ts b/test/coord-sqlite-modern-functions.test.ts
+new file mode 100644
+index 00000000..bd57e2e6
+--- /dev/null
++++ b/test/coord-sqlite-modern-functions.test.ts
+@@ -0,0 +1,61 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('sqlite modern built-in functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'sqlite' });
++
++  it('uppercases concat_ws, unhex, string_agg and timediff with functionCase: "upper"', () => {
++    const result = format(
++      "SELECT concat_ws('-', a, b), unhex(h), string_agg(x, ','), timediff(t1, t2) FROM tbl",
++      { functionCase: 'upper' }
++    );
++    expect(result).toBe(dedent`
++      SELECT
++        CONCAT_WS('-', a, b),
++        UNHEX(h),
++        STRING_AGG(x, ','),
++        TIMEDIFF(t1, t2)
++      FROM
++        tbl
++    `);
++  });
++
++  it('lowercases CONCAT and OCTET_LENGTH with functionCase: "lower"', () => {
++    const result = format('SELECT CONCAT(a, b), OCTET_LENGTH(s) FROM tbl', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        concat(a, b),
++        octet_length(s)
++      FROM
++        tbl
++    `);
++  });
++
++  it('preserves mixed-case spellings of the new functions by default', () => {
++    const result = format("SELECT Concat_Ws('-', a, b), Octet_Length(s) FROM tbl");
++    expect(result).toBe(dedent`
++      SELECT
++        Concat_Ws('-', a, b),
++        Octet_Length(s)
++      FROM
++        tbl
++    `);
++  });
++
++  it('does not uppercase unknown function names with functionCase: "upper"', () => {
++    const result = format('SELECT my_custom_fn(x), unhex(h) FROM tbl', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        my_custom_fn(x),
++        UNHEX(h)
++      FROM
++        tbl
++    `);
++  });
++});

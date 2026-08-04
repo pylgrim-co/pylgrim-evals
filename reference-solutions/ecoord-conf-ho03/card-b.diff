@@ -1,0 +1,81 @@
+diff --git a/src/middleware/secure-headers/coord-x-robots-tag.test.ts b/src/middleware/secure-headers/coord-x-robots-tag.test.ts
+new file mode 100644
+index 00000000..3f6af290
+--- /dev/null
++++ b/src/middleware/secure-headers/coord-x-robots-tag.test.ts
+@@ -0,0 +1,47 @@
++import { Hono } from '../../hono'
++import { secureHeaders } from '.'
++
++describe('Secure Headers xRobotsTag option', () => {
++  it('Should set X-Robots-Tag to "noindex" when enabled', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders({ xRobotsTag: true }))
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('X-Robots-Tag')).toEqual('noindex')
++  })
++
++  it('Should use a string option value verbatim as the header value', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders({ xRobotsTag: 'noindex, nofollow' }))
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('X-Robots-Tag')).toEqual('noindex, nofollow')
++  })
++
++  it('Should not set an X-Robots-Tag header by default', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders())
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('X-Robots-Tag')).toBeNull()
++  })
++
++  it('Should leave existing default headers such as X-Content-Type-Options unchanged', async () => {
++    const app = new Hono()
++    app.use('*', secureHeaders({ xRobotsTag: true }))
++    app.get('/test', (c) => c.text('ok'))
++
++    const res = await app.request('/test')
++    expect(res.headers.get('X-Content-Type-Options')).toEqual('nosniff')
++
++    const defaultApp = new Hono()
++    defaultApp.use('*', secureHeaders())
++    defaultApp.get('/test', (c) => c.text('ok'))
++
++    const defaultRes = await defaultApp.request('/test')
++    expect(defaultRes.headers.get('X-Content-Type-Options')).toEqual('nosniff')
++  })
++})
+diff --git a/src/middleware/secure-headers/secure-headers.ts b/src/middleware/secure-headers/secure-headers.ts
+index cb81a0fd..11f521a6 100644
+--- a/src/middleware/secure-headers/secure-headers.ts
++++ b/src/middleware/secure-headers/secure-headers.ts
+@@ -85,6 +85,7 @@ interface SecureHeadersOptions {
+   xXssProtection?: overridableHeader
+   removePoweredBy?: boolean
+   permissionsPolicy?: PermissionsPolicyOptions
++  xRobotsTag?: overridableHeader
+ }
+ 
+ type HeadersMap = {
+@@ -104,6 +105,7 @@ const HEADERS_MAP: HeadersMap = {
+   xFrameOptions: ['X-Frame-Options', 'SAMEORIGIN'],
+   xPermittedCrossDomainPolicies: ['X-Permitted-Cross-Domain-Policies', 'none'],
+   xXssProtection: ['X-XSS-Protection', '0'],
++  xRobotsTag: ['X-Robots-Tag', 'noindex'],
+ }
+ 
+ const DEFAULT_OPTIONS: SecureHeadersOptions = {
+@@ -121,6 +123,7 @@ const DEFAULT_OPTIONS: SecureHeadersOptions = {
+   xXssProtection: true,
+   removePoweredBy: true,
+   permissionsPolicy: {},
++  xRobotsTag: false,
+ }
+ 
+ type SecureHeadersCallback = (

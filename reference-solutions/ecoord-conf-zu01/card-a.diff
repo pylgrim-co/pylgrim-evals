@@ -1,0 +1,87 @@
+diff --git a/src/middleware/subscribeWithSelector.ts b/src/middleware/subscribeWithSelector.ts
+index 608c470..867acb4 100644
+--- a/src/middleware/subscribeWithSelector.ts
++++ b/src/middleware/subscribeWithSelector.ts
+@@ -50,7 +50,17 @@ const subscribeWithSelectorImpl: SubscribeWithSelectorImpl =
+     const origSubscribe = api.subscribe as (listener: Listener) => () => void
+     api.subscribe = ((selector: any, optListener: any, options: any) => {
+       let listener: Listener = selector // if no selector
+-      if (optListener) {
++      if (optListener !== undefined) {
++        if (typeof selector !== 'function') {
++          throw new TypeError(
++            '[zustand subscribeWithSelector] the selector must be a function when a listener is provided',
++          )
++        }
++        if (typeof optListener !== 'function') {
++          throw new TypeError(
++            '[zustand subscribeWithSelector] the listener must be a function',
++          )
++        }
+         const equalityFn = options?.equalityFn || Object.is
+         let currentSlice = selector(api.getState())
+         listener = (state) => {
+diff --git a/tests/coord/select-subscribe-guard.test.ts b/tests/coord/select-subscribe-guard.test.ts
+new file mode 100644
+index 0000000..1d78f02
+--- /dev/null
++++ b/tests/coord/select-subscribe-guard.test.ts
+@@ -0,0 +1,58 @@
++import { expect, it, vi } from 'vitest'
++import { subscribeWithSelector } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number; other: string }
++
++const makeStore = () =>
++  createStore(subscribeWithSelector(() => ({ count: 0, other: 'a' })))
++
++it('a valid selector subscription fires on selected-slice changes only', () => {
++  const store = makeStore()
++  const listener = vi.fn()
++  store.subscribe((s: State) => s.count, listener)
++  store.setState({ other: 'b' })
++  expect(listener).not.toHaveBeenCalled()
++  store.setState({ count: 1 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith(1, 0)
++})
++
++it('a valid selector with a non-function listener throws TypeError', () => {
++  const store = makeStore()
++  expect(() =>
++    store.subscribe((s: State) => s.count, 'oops' as never),
++  ).toThrow(TypeError)
++})
++
++it('a non-function selector with a valid listener throws TypeError', () => {
++  const store = makeStore()
++  expect(() => store.subscribe(42 as never, vi.fn())).toThrow(TypeError)
++})
++
++it('after a rejected call, setState still notifies only valid listeners', () => {
++  const store = makeStore()
++  const validListener = vi.fn()
++  store.subscribe((s: State) => s.count, validListener)
++  expect(() =>
++    store.subscribe((s: State) => s.count, 'broken' as never),
++  ).toThrow(TypeError)
++  store.setState({ count: 5 })
++  expect(validListener).toHaveBeenCalledTimes(1)
++  expect(validListener).toHaveBeenCalledWith(5, 0)
++})
++
++it('the single-argument subscribe(listener) form still works', () => {
++  const store = makeStore()
++  const listener = vi.fn()
++  const unsubscribe = store.subscribe(listener)
++  store.setState({ count: 9 })
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith(
++    expect.objectContaining({ count: 9 }),
++    expect.objectContaining({ count: 0 }),
++  )
++  unsubscribe()
++  store.setState({ count: 10 })
++  expect(listener).toHaveBeenCalledTimes(1)
++})

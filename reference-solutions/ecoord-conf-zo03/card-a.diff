@@ -1,0 +1,84 @@
+diff --git a/packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts b/packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts
+new file mode 100644
+index 00000000..29af78a0
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-prettify-max-issues.test.ts
+@@ -0,0 +1,43 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++const schema = z.object({
++  name: z.string(),
++  age: z.number(),
++  email: z.string(),
++});
++
++const getError = () => {
++  const result = schema.safeParse({ name: 1, age: "x", email: 2 });
++  expect(result.success).toBe(false);
++  return result.error!;
++};
++
++test("the default one-argument output is unchanged", () => {
++  const error = getError();
++  expect(error.issues.length).toBe(3);
++  const output = z.prettifyError(error);
++  expect(output).toBe(z.prettifyError(error, {}));
++  expect(output.split("\n").filter((line) => line.startsWith("✖")).length).toBe(3);
++});
++
++test("maxIssues of 1 renders exactly one issue block plus a final +2 more line", () => {
++  const error = getError();
++  const output = z.prettifyError(error, { maxIssues: 1 });
++  const lines = output.split("\n");
++  expect(lines.filter((line) => line.startsWith("✖")).length).toBe(1);
++  expect(lines[lines.length - 1]).toBe("+2 more");
++});
++
++test("maxIssues equal to or greater than the issue count matches the default output", () => {
++  const error = getError();
++  const expected = z.prettifyError(error);
++  expect(z.prettifyError(error, { maxIssues: 3 })).toBe(expected);
++  expect(z.prettifyError(error, { maxIssues: 100 })).toBe(expected);
++});
++
++test("maxIssues of 0 is ignored", () => {
++  const error = getError();
++  expect(z.prettifyError(error, { maxIssues: 0 })).toBe(z.prettifyError(error));
++});
+diff --git a/packages/zod/src/v4/core/errors.ts b/packages/zod/src/v4/core/errors.ts
+index 27f7c5a7..0431a4db 100644
+--- a/packages/zod/src/v4/core/errors.ts
++++ b/packages/zod/src/v4/core/errors.ts
+@@ -439,17 +439,28 @@ export function toDotPath(_path: readonly (string | number | symbol | StandardSc
+   return segs.join("");
+ }
+ 
+-export function prettifyError(error: StandardSchemaV1.FailureResult): string {
++export function prettifyError(error: StandardSchemaV1.FailureResult, params?: { maxIssues?: number }): string {
+   const lines: string[] = [];
+   // sort by path length
+   const issues = [...error.issues].sort((a, b) => (a.path ?? []).length - (b.path ?? []).length);
+ 
++  // cap the number of rendered issues when a valid maxIssues is provided
++  let visibleIssues = issues;
++  let omitted = 0;
++  const maxIssues = params?.maxIssues;
++  if (typeof maxIssues === "number" && Number.isInteger(maxIssues) && maxIssues > 0 && issues.length > maxIssues) {
++    visibleIssues = issues.slice(0, maxIssues);
++    omitted = issues.length - maxIssues;
++  }
++
+   // Process each issue
+-  for (const issue of issues) {
++  for (const issue of visibleIssues) {
+     lines.push(`✖ ${issue.message}`);
+     if (issue.path?.length) lines.push(`  → at ${toDotPath(issue.path)}`);
+   }
+ 
++  if (omitted > 0) lines.push(`+${omitted} more`);
++
+   // Convert Map to formatted string
+   return lines.join("\n");
+ }

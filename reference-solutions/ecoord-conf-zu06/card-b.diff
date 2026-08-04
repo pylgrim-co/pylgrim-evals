@@ -1,0 +1,80 @@
+diff --git a/src/middleware/devtools.ts b/src/middleware/devtools.ts
+index cbbe683..f0aeda9 100644
+--- a/src/middleware/devtools.ts
++++ b/src/middleware/devtools.ts
+@@ -246,6 +246,9 @@ const devtoolsImpl: DevtoolsImpl =
+     }) as NamedSet<S>
+     ;(api as StoreApi<S> & StoreDevtools<S>).devtools = {
+       cleanup: () => {
++        // Stop recording so the setState wrapper no longer sends actions
++        // to a connection the caller considers dead.
++        isRecording = false
+         if (
+           connection &&
+           typeof (connection as any).unsubscribe === 'function'
+diff --git a/tests/coord/devtools-cleanup-send.test.ts b/tests/coord/devtools-cleanup-send.test.ts
+new file mode 100644
+index 0000000..7b3ce9b
+--- /dev/null
++++ b/tests/coord/devtools-cleanup-send.test.ts
+@@ -0,0 +1,60 @@
++import { afterEach, beforeEach, expect, it, vi } from 'vitest'
++import { devtools } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++const connection = {
++  init: vi.fn(),
++  send: vi.fn(),
++  subscribe: vi.fn(() => undefined),
++  unsubscribe: vi.fn(),
++}
++const extension = { connect: vi.fn(() => connection) }
++
++beforeEach(() => {
++  ;(window as any).__REDUX_DEVTOOLS_EXTENSION__ = extension
++})
++
++afterEach(() => {
++  delete (window as any).__REDUX_DEVTOOLS_EXTENSION__
++  vi.clearAllMocks()
++})
++
++const makeStore = () =>
++  createStore(devtools(() => ({ count: 0 }), { enabled: true }))
++
++it('before cleanup, a setState triggers a connection.send call', () => {
++  const store = makeStore()
++  store.setState({ count: 1 }, false, 'inc')
++  expect(connection.send).toHaveBeenCalledTimes(1)
++  expect(connection.send).toHaveBeenCalledWith({ type: 'inc' }, { count: 1 })
++})
++
++it('after cleanup, further setState calls trigger no additional send calls', () => {
++  const store = makeStore()
++  store.setState({ count: 1 }, false, 'inc')
++  const sendCallsBeforeCleanup = connection.send.mock.calls.length
++  store.devtools.cleanup()
++  store.setState({ count: 2 }, false, 'inc')
++  store.setState({ count: 3 }, false, 'inc')
++  expect(connection.send).toHaveBeenCalledTimes(sendCallsBeforeCleanup)
++})
++
++it('post-cleanup setState still updates state and notifies subscribers', () => {
++  const store = makeStore()
++  store.devtools.cleanup()
++  const listener = vi.fn()
++  store.subscribe(listener)
++  store.setState({ count: 5 }, false, 'inc')
++  expect(store.getState().count).toBe(5)
++  expect(listener).toHaveBeenCalledTimes(1)
++  expect(listener).toHaveBeenCalledWith(
++    expect.objectContaining({ count: 5 }),
++    expect.objectContaining({ count: 0 }),
++  )
++})
++
++it("cleanup still invokes the connection's unsubscribe", () => {
++  const store = makeStore()
++  store.devtools.cleanup()
++  expect(connection.unsubscribe).toHaveBeenCalledTimes(1)
++})

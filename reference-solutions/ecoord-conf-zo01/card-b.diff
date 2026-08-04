@@ -1,0 +1,85 @@
+diff --git a/packages/zod/src/v4/classic/coerce.ts b/packages/zod/src/v4/classic/coerce.ts
+index cc400e0d..4c9564f0 100644
+--- a/packages/zod/src/v4/classic/coerce.ts
++++ b/packages/zod/src/v4/classic/coerce.ts
+@@ -1,27 +1,39 @@
+ import * as core from "../core/index.js";
+ import * as schemas from "./schemas.js";
+ 
++function assertCoerceParams(factory: string, params: unknown): void {
++  if (params === undefined) return;
++  if (typeof params === "string") return;
++  if (typeof params === "object" && params !== null && !Array.isArray(params)) return;
++  throw new TypeError(`${factory}: params must be a string or a params object`);
++}
++
+ export interface ZodCoercedString<T = unknown> extends schemas._ZodString<core.$ZodStringInternals<T>> {}
+ export function string<T = unknown>(params?: string | core.$ZodStringParams): ZodCoercedString<T> {
++  assertCoerceParams("z.coerce.string", params);
+   return core._coercedString(schemas.ZodString, params) as any;
+ }
+ 
+ export interface ZodCoercedNumber<T = unknown> extends schemas._ZodNumber<core.$ZodNumberInternals<T>> {}
+ export function number<T = unknown>(params?: string | core.$ZodNumberParams): ZodCoercedNumber<T> {
++  assertCoerceParams("z.coerce.number", params);
+   return core._coercedNumber(schemas.ZodNumber, params) as ZodCoercedNumber<T>;
+ }
+ 
+ export interface ZodCoercedBoolean<T = unknown> extends schemas._ZodBoolean<core.$ZodBooleanInternals<T>> {}
+ export function boolean<T = unknown>(params?: string | core.$ZodBooleanParams): ZodCoercedBoolean<T> {
++  assertCoerceParams("z.coerce.boolean", params);
+   return core._coercedBoolean(schemas.ZodBoolean, params) as ZodCoercedBoolean<T>;
+ }
+ 
+ export interface ZodCoercedBigInt<T = unknown> extends schemas._ZodBigInt<core.$ZodBigIntInternals<T>> {}
+ export function bigint<T = unknown>(params?: string | core.$ZodBigIntParams): ZodCoercedBigInt<T> {
++  assertCoerceParams("z.coerce.bigint", params);
+   return core._coercedBigint(schemas.ZodBigInt, params) as ZodCoercedBigInt<T>;
+ }
+ 
+ export interface ZodCoercedDate<T = unknown> extends schemas._ZodDate<core.$ZodDateInternals<T>> {}
+ export function date<T = unknown>(params?: string | core.$ZodDateParams): ZodCoercedDate<T> {
++  assertCoerceParams("z.coerce.date", params);
+   return core._coercedDate(schemas.ZodDate, params) as ZodCoercedDate<T>;
+ }
+diff --git a/packages/zod/src/v4/classic/tests/coord-coerce-param-guard.test.ts b/packages/zod/src/v4/classic/tests/coord-coerce-param-guard.test.ts
+new file mode 100644
+index 00000000..81d11a8e
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-coerce-param-guard.test.ts
+@@ -0,0 +1,35 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("z.coerce.number rejects a malformed params argument with a TypeError", () => {
++  expect(() => z.coerce.number(42 as any)).toThrow(TypeError);
++});
++
++test("z.coerce.string and z.coerce.date reject malformed params arguments", () => {
++  expect(() => z.coerce.string(null as any)).toThrow(TypeError);
++  expect(() => z.coerce.date([] as any)).toThrow(TypeError);
++});
++
++test("z.coerce.boolean and z.coerce.bigint reject malformed params arguments", () => {
++  expect(() => z.coerce.boolean(true as any)).toThrow(TypeError);
++  expect(() => z.coerce.bigint(7 as any)).toThrow(TypeError);
++});
++
++test("the TypeError message names the factory", () => {
++  expect(() => z.coerce.number(42 as any)).toThrow("z.coerce.number");
++  expect(() => z.coerce.string(null as any)).toThrow("z.coerce.string");
++  expect(() => z.coerce.date([] as any)).toThrow("z.coerce.date");
++});
++
++test("valid calls still coerce exactly as before", () => {
++  expect(z.coerce.number().parse("42")).toBe(42);
++  expect(z.coerce.number("custom message").parse("42")).toBe(42);
++  expect(z.coerce.number({ error: "custom" }).parse("42")).toBe(42);
++});
++
++test("a custom string message still surfaces on failure", () => {
++  const result = z.coerce.number("custom message").safeParse("NOT_A_NUMBER");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("custom message");
++});

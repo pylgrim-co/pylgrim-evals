@@ -1,0 +1,102 @@
+diff --git a/src/languages/snowflake/snowflake.functions.ts b/src/languages/snowflake/snowflake.functions.ts
+index cc47a529..a8e8d8a1 100644
+--- a/src/languages/snowflake/snowflake.functions.ts
++++ b/src/languages/snowflake/snowflake.functions.ts
+@@ -42,10 +42,14 @@ export const functions: string[] = [
+   'ARRAY_CONTAINS',
+   'ARRAY_INSERT',
+   'ARRAY_INTERSECTION',
++  'ARRAY_MAX',
++  'ARRAY_MIN',
+   'ARRAY_POSITION',
+   'ARRAY_PREPEND',
++  'ARRAY_REVERSE',
+   'ARRAY_SIZE',
+   'ARRAY_SLICE',
++  'ARRAY_SORT',
+   'ARRAY_TO_STRING',
+   'ARRAY_UNION_AGG',
+   'ARRAY_UNIQUE_AGG',
+@@ -171,6 +175,7 @@ export const functions: string[] = [
+   'DEGREES',
+   'DENSE_RANK',
+   'DIV0',
++  'DIV0NULL',
+   'EDITDISTANCE',
+   'ENCRYPT',
+   'ENCRYPT_RAW',
+@@ -200,6 +205,7 @@ export const functions: string[] = [
+   'GET_RELATIVE_PATH',
+   'GET_STAGE_LOCATION',
+   'GETBIT',
++  'GETDATE',
+   'GREATEST',
+   'GREATEST_IGNORE_NULLS',
+   'GROUPING',
+diff --git a/test/coord-snowflake-array-functions.test.ts b/test/coord-snowflake-array-functions.test.ts
+new file mode 100644
+index 00000000..96c9b188
+--- /dev/null
++++ b/test/coord-snowflake-array-functions.test.ts
+@@ -0,0 +1,61 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('snowflake newer array and utility functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'snowflake' });
++
++  it('uppercases array_min, array_sort, div0null and getdate with functionCase: "upper"', () => {
++    const result = format(
++      'SELECT array_min(v), array_sort(v), div0null(a, b), getdate() FROM tbl',
++      { functionCase: 'upper' }
++    );
++    expect(result).toBe(dedent`
++      SELECT
++        ARRAY_MIN(v),
++        ARRAY_SORT(v),
++        DIV0NULL(a, b),
++        GETDATE()
++      FROM
++        tbl
++    `);
++  });
++
++  it('lowercases ARRAY_MAX and ARRAY_REVERSE with functionCase: "lower"', () => {
++    const result = format('SELECT ARRAY_MAX(v), ARRAY_REVERSE(v) FROM tbl', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        array_max(v),
++        array_reverse(v)
++      FROM
++        tbl
++    `);
++  });
++
++  it('preserves mixed-case spellings of the new functions by default', () => {
++    const result = format('SELECT Array_Min(v), Div0Null(a, b) FROM tbl');
++    expect(result).toBe(dedent`
++      SELECT
++        Array_Min(v),
++        Div0Null(a, b)
++      FROM
++        tbl
++    `);
++  });
++
++  it('does not uppercase unknown function names with functionCase: "upper"', () => {
++    const result = format('SELECT my_custom_fn(x), array_min(v) FROM tbl', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        my_custom_fn(x),
++        ARRAY_MIN(v)
++      FROM
++        tbl
++    `);
++  });
++});

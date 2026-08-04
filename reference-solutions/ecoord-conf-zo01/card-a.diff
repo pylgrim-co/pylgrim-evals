@@ -1,0 +1,74 @@
+diff --git a/packages/zod/src/v4/classic/iso.ts b/packages/zod/src/v4/classic/iso.ts
+index 34cb978c..4e0efe9a 100644
+--- a/packages/zod/src/v4/classic/iso.ts
++++ b/packages/zod/src/v4/classic/iso.ts
+@@ -3,18 +3,29 @@ import { ZodISODate, ZodISODateTime, ZodISODuration, ZodISOTime } from "./schema
+ 
+ export { ZodISODate, ZodISODateTime, ZodISODuration, ZodISOTime } from "./schemas.js";
+ 
++function assertISOParams(factory: string, params: unknown): void {
++  if (params === undefined) return;
++  if (typeof params === "string") return;
++  if (typeof params === "object" && params !== null && !Array.isArray(params)) return;
++  throw new TypeError(`${factory}: params must be a string or a params object`);
++}
++
+ export function datetime(params?: string | core.$ZodISODateTimeParams): ZodISODateTime {
++  assertISOParams("z.iso.datetime", params);
+   return core._isoDateTime(ZodISODateTime, params);
+ }
+ 
+ export function date(params?: string | core.$ZodISODateParams): ZodISODate {
++  assertISOParams("z.iso.date", params);
+   return core._isoDate(ZodISODate, params);
+ }
+ 
+ export function time(params?: string | core.$ZodISOTimeParams): ZodISOTime {
++  assertISOParams("z.iso.time", params);
+   return core._isoTime(ZodISOTime, params);
+ }
+ 
+ export function duration(params?: string | core.$ZodISODurationParams): ZodISODuration {
++  assertISOParams("z.iso.duration", params);
+   return core._isoDuration(ZodISODuration, params);
+ }
+diff --git a/packages/zod/src/v4/classic/tests/coord-iso-param-guard.test.ts b/packages/zod/src/v4/classic/tests/coord-iso-param-guard.test.ts
+new file mode 100644
+index 00000000..9fc658cb
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-iso-param-guard.test.ts
+@@ -0,0 +1,34 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("z.iso.date rejects a malformed params argument with a TypeError", () => {
++  expect(() => z.iso.date(123 as any)).toThrow(TypeError);
++});
++
++test("z.iso.time and z.iso.datetime reject malformed params arguments", () => {
++  expect(() => z.iso.time(null as any)).toThrow(TypeError);
++  expect(() => z.iso.datetime([] as any)).toThrow(TypeError);
++});
++
++test("z.iso.duration rejects a malformed params argument", () => {
++  expect(() => z.iso.duration(42 as any)).toThrow(TypeError);
++});
++
++test("the TypeError message names the factory", () => {
++  expect(() => z.iso.date(123 as any)).toThrow("z.iso.date");
++  expect(() => z.iso.time(null as any)).toThrow("z.iso.time");
++  expect(() => z.iso.datetime([] as any)).toThrow("z.iso.datetime");
++});
++
++test("valid calls behave exactly as before", () => {
++  expect(z.iso.date().parse("2024-01-01")).toBe("2024-01-01");
++  expect(z.iso.date("custom message").parse("2024-01-01")).toBe("2024-01-01");
++  expect(z.iso.date({ error: "custom" }).parse("2024-01-01")).toBe("2024-01-01");
++});
++
++test("a custom string message still surfaces on failure", () => {
++  const result = z.iso.date("custom message").safeParse("not-a-date");
++  expect(result.success).toBe(false);
++  expect(result.error!.issues[0].message).toBe("custom message");
++});

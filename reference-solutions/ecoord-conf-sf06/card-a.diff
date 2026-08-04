@@ -1,0 +1,75 @@
+diff --git a/src/validateConfig.ts b/src/validateConfig.ts
+index 8789fe63..e6db06d9 100644
+--- a/src/validateConfig.ts
++++ b/src/validateConfig.ts
+@@ -25,6 +25,18 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+     );
+   }
+ 
++  if (!Number.isFinite(cfg.tabWidth) || cfg.tabWidth < 0) {
++    throw new ConfigError(
++      `tabWidth config must be a finite non-negative number. Received ${cfg.tabWidth} instead.`
++    );
++  }
++
++  if (!Number.isFinite(cfg.linesBetweenQueries) || cfg.linesBetweenQueries < 0) {
++    throw new ConfigError(
++      `linesBetweenQueries config must be a finite non-negative number. Received ${cfg.linesBetweenQueries} instead.`
++    );
++  }
++
+   if (cfg.params && !validateParams(cfg.params)) {
+     // eslint-disable-next-line no-console
+     console.warn('WARNING: All "params" option values should be strings.');
+diff --git a/test/coord-numeric-option-validation.test.ts b/test/coord-numeric-option-validation.test.ts
+new file mode 100644
+index 00000000..dc0386a5
+--- /dev/null
++++ b/test/coord-numeric-option-validation.test.ts
+@@ -0,0 +1,46 @@
++import dedent from 'dedent-js';
++
++import { format } from '../src/sqlFormatter.js';
++import { ConfigError } from '../src/index.js';
++
++describe('numeric layout option validation', () => {
++  it('throws ConfigError naming tabWidth and the value when tabWidth is negative', () => {
++    expect(() => format('SELECT *', { tabWidth: -2 })).toThrow(ConfigError);
++    expect(() => format('SELECT *', { tabWidth: -2 })).toThrow(
++      'tabWidth config must be a finite non-negative number. Received -2 instead.'
++    );
++  });
++
++  it('throws ConfigError naming linesBetweenQueries when it is negative', () => {
++    expect(() => format('SELECT 1; SELECT 2;', { linesBetweenQueries: -1 })).toThrow(ConfigError);
++    expect(() => format('SELECT 1; SELECT 2;', { linesBetweenQueries: -1 })).toThrow(
++      'linesBetweenQueries'
++    );
++  });
++
++  it('throws ConfigError when tabWidth is NaN', () => {
++    expect(() => format('SELECT *', { tabWidth: NaN })).toThrow(ConfigError);
++  });
++
++  it('throws ConfigError when tabWidth is Infinity', () => {
++    expect(() => format('SELECT *', { tabWidth: Infinity })).toThrow(ConfigError);
++  });
++
++  it('accepts tabWidth 0', () => {
++    expect(format('SELECT one FROM tbl', { tabWidth: 0 })).toBe(dedent`
++      SELECT
++      one
++      FROM
++      tbl
++    `);
++  });
++
++  it('still formats correctly with a normal config', () => {
++    expect(format('SELECT one FROM tbl', { tabWidth: 4 })).toBe(dedent`
++      SELECT
++          one
++      FROM
++          tbl
++    `);
++  });
++});

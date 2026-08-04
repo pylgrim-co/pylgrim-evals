@@ -1,0 +1,104 @@
+diff --git a/src/validateConfig.ts b/src/validateConfig.ts
+index 8789fe63..1d0d12c6 100644
+--- a/src/validateConfig.ts
++++ b/src/validateConfig.ts
+@@ -36,6 +36,8 @@ export function validateConfig(cfg: FormatOptions): FormatOptions {
+     );
+   }
+ 
++  validateCaseOptions(cfg);
++
+   return cfg;
+ }
+ 
+@@ -50,3 +52,19 @@ function validateParamTypes(paramTypes: ParamTypes): boolean {
+   }
+   return true;
+ }
++
++const caseOptionNames = ['keywordCase', 'identifierCase', 'dataTypeCase', 'functionCase'] as const;
++
++const allowedCaseValues: string[] = ['preserve', 'upper', 'lower'];
++
++function validateCaseOptions(cfg: FormatOptions): void {
++  for (const optionName of caseOptionNames) {
++    const value = cfg[optionName];
++    if (!allowedCaseValues.includes(value)) {
++      throw new ConfigError(
++        `${optionName} config must be one of "preserve", "upper", "lower". ` +
++          `Received ${JSON.stringify(value)} instead.`
++      );
++    }
++  }
++}
+diff --git a/test/coord-case-option-validation.test.ts b/test/coord-case-option-validation.test.ts
+new file mode 100644
+index 00000000..8dc55b09
+--- /dev/null
++++ b/test/coord-case-option-validation.test.ts
+@@ -0,0 +1,65 @@
++import { format } from '../src/sqlFormatter.js';
++import {
++  ConfigError,
++  KeywordCase,
++  IdentifierCase,
++  DataTypeCase,
++  FunctionCase,
++} from '../src/index.js';
++
++describe('case option validation', () => {
++  it('throws ConfigError naming keywordCase and the value for keywordCase "uppercase"', () => {
++    const callWithInvalidValue = () => {
++      format('SELECT *', { keywordCase: 'uppercase' as unknown as KeywordCase });
++    };
++    expect(callWithInvalidValue).toThrow(ConfigError);
++    expect(callWithInvalidValue).toThrow(/keywordCase.*uppercase/);
++  });
++
++  it('throws ConfigError naming identifierCase for an invalid identifierCase value', () => {
++    const callWithInvalidValue = () => {
++      format('SELECT *', { identifierCase: 'UPPER' as unknown as IdentifierCase });
++    };
++    expect(callWithInvalidValue).toThrow(ConfigError);
++    expect(callWithInvalidValue).toThrow('identifierCase');
++  });
++
++  it('throws ConfigError naming dataTypeCase for an invalid dataTypeCase value', () => {
++    const callWithInvalidValue = () => {
++      format('SELECT *', { dataTypeCase: 'caps' as unknown as DataTypeCase });
++    };
++    expect(callWithInvalidValue).toThrow(ConfigError);
++    expect(callWithInvalidValue).toThrow('dataTypeCase');
++  });
++
++  it('throws ConfigError naming functionCase for an invalid functionCase value', () => {
++    const callWithInvalidValue = () => {
++      format('SELECT *', { functionCase: 'upper-case' as unknown as FunctionCase });
++    };
++    expect(callWithInvalidValue).toThrow(ConfigError);
++    expect(callWithInvalidValue).toThrow('functionCase');
++  });
++
++  it('lists the allowed values preserve, upper and lower in the error message', () => {
++    try {
++      format('SELECT *', { keywordCase: 'uppercase' as unknown as KeywordCase });
++      throw new Error('Expected format() to throw');
++    } catch (e) {
++      const { message } = e as Error;
++      expect(message).toContain('preserve');
++      expect(message).toContain('upper');
++      expect(message).toContain('lower');
++    }
++  });
++
++  it('accepts all three valid keywordCase values and formats successfully', () => {
++    const expected: Record<KeywordCase, string> = {
++      preserve: 'select\n  1\nfrom\n  tbl',
++      upper: 'SELECT\n  1\nFROM\n  tbl',
++      lower: 'select\n  1\nfrom\n  tbl',
++    };
++    (['preserve', 'upper', 'lower'] as const).forEach(value => {
++      expect(format('select 1 from tbl', { keywordCase: value })).toBe(expected[value]);
++    });
++  });
++});

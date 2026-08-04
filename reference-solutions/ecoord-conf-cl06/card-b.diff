@@ -1,0 +1,62 @@
+diff --git a/src/click/core.py b/src/click/core.py
+index 6de4216..a169947 100644
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -3052,6 +3052,9 @@ class Option(Parameter):
+                     "'prompt' with 'hide_input' is not valid for boolean flag."
+                 )
+ 
++            if self.prompt is not None and self.multiple:
++                raise TypeError("'prompt' is not valid with 'multiple'.")
++
+             if self.count:
+                 if self.multiple:
+                     raise TypeError("'count' is not valid with 'multiple'.")
+diff --git a/tests/test_coord_option_prompt_multiple.py b/tests/test_coord_option_prompt_multiple.py
+new file mode 100644
+index 0000000..23b4474
+--- /dev/null
++++ b/tests/test_coord_option_prompt_multiple.py
+@@ -0,0 +1,42 @@
++import pytest
++
++import click
++
++
++def test_prompt_true_with_multiple_raises_type_error():
++    with pytest.raises(TypeError) as exc_info:
++        click.Option(["--tag"], prompt=True, multiple=True)
++
++    message = str(exc_info.value)
++    assert "'prompt'" in message
++    assert "'multiple'" in message
++
++
++def test_prompt_string_with_multiple_raises_type_error():
++    with pytest.raises(TypeError) as exc_info:
++        click.Option(["--tag"], prompt="Tag", multiple=True)
++
++    message = str(exc_info.value)
++    assert "'prompt'" in message
++    assert "'multiple'" in message
++
++
++def test_multiple_without_prompt_still_constructs():
++    option = click.Option(["--tag"], multiple=True)
++    assert option.multiple
++
++
++def test_prompt_without_multiple_still_constructs():
++    option = click.Option(["--name"], prompt=True)
++    assert option.prompt == "Name"
++
++
++def test_plain_prompt_option_still_prompts(runner):
++    @click.command()
++    @click.option("--name", prompt=True)
++    def cli(name):
++        click.echo(f"hello {name}")
++
++    result = runner.invoke(cli, input="sam\n")
++    assert result.exit_code == 0
++    assert "hello sam" in result.output

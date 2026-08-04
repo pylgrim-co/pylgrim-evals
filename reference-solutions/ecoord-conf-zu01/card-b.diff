@@ -1,0 +1,94 @@
+diff --git a/src/middleware/ssrSafe.ts b/src/middleware/ssrSafe.ts
+index ac8fc78..83c4cf1 100644
+--- a/src/middleware/ssrSafe.ts
++++ b/src/middleware/ssrSafe.ts
+@@ -11,12 +11,17 @@ export function ssrSafe<
+ >(
+   config: StateCreator<T, Mps, Mcs, U>,
+   isSSR: boolean = typeof window === 'undefined',
++  options?: { warnOnly?: boolean },
+ ): StateCreator<T, Mps, Mcs, U> {
+   return (set, get, api) => {
+     if (!isSSR) {
+       return config(set, get, api)
+     }
+     const ssrSet = () => {
++      if (options?.warnOnly) {
++        console.warn('Cannot set state of Zustand store in SSR')
++        return
++      }
+       throw new Error('Cannot set state of Zustand store in SSR')
+     }
+     api.setState = ssrSet
+diff --git a/tests/coord/ssr-safe-warn.test.ts b/tests/coord/ssr-safe-warn.test.ts
+new file mode 100644
+index 0000000..21ed6f4
+--- /dev/null
++++ b/tests/coord/ssr-safe-warn.test.ts
+@@ -0,0 +1,66 @@
++import { afterAll, afterEach, expect, it, vi } from 'vitest'
++import { unstable_ssrSafe as ssrSafe } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++import type { StateCreator } from 'zustand/vanilla'
++
++type CounterState = { count: number; inc: () => void }
++
++const counterInitializer: StateCreator<CounterState> = (set) => ({
++  count: 0,
++  inc: () => set((s) => ({ count: s.count + 1 })),
++})
++
++const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
++
++afterEach(() => {
++  warnSpy.mockClear()
++})
++
++afterAll(() => {
++  warnSpy.mockRestore()
++})
++
++it('setState during SSR still throws when no options are passed', () => {
++  const store = createStore(ssrSafe(counterInitializer, true))
++  expect(() => store.setState({ count: 1 })).toThrow(
++    'Cannot set state of Zustand store in SSR',
++  )
++  expect(warnSpy).not.toHaveBeenCalled()
++})
++
++it('warnOnly makes an SSR setState a warning no-op that leaves state unchanged', () => {
++  const store = createStore(ssrSafe(counterInitializer, true, { warnOnly: true }))
++  expect(() => store.setState({ count: 1 })).not.toThrow()
++  expect(warnSpy).toHaveBeenCalledTimes(1)
++  expect(store.getState().count).toBe(0)
++  store.setState({ count: 2 })
++  expect(warnSpy).toHaveBeenCalledTimes(2)
++  expect(store.getState().count).toBe(0)
++})
++
++it('the set handed to config follows the same warn-or-throw rule', () => {
++  const warnStore = createStore(
++    ssrSafe(counterInitializer, true, { warnOnly: true }),
++  )
++  expect(() => warnStore.getState().inc()).not.toThrow()
++  expect(warnSpy).toHaveBeenCalledTimes(1)
++  expect(warnStore.getState().count).toBe(0)
++
++  const throwStore = createStore(ssrSafe(counterInitializer, true))
++  expect(() => throwStore.getState().inc()).toThrow(
++    'Cannot set state of Zustand store in SSR',
++  )
++})
++
++it('with isSSR false, setState updates state normally with or without options', () => {
++  const plainStore = createStore(ssrSafe(counterInitializer, false))
++  plainStore.setState({ count: 3 })
++  expect(plainStore.getState().count).toBe(3)
++
++  const optionsStore = createStore(
++    ssrSafe(counterInitializer, false, { warnOnly: true }),
++  )
++  optionsStore.setState({ count: 7 })
++  expect(optionsStore.getState().count).toBe(7)
++  expect(warnSpy).not.toHaveBeenCalled()
++})

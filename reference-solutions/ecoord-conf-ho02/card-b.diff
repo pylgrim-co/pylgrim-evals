@@ -1,0 +1,70 @@
+diff --git a/src/helper/cookie/coord-oversize-warning.test.ts b/src/helper/cookie/coord-oversize-warning.test.ts
+new file mode 100644
+index 00000000..26c9f44b
+--- /dev/null
++++ b/src/helper/cookie/coord-oversize-warning.test.ts
+@@ -0,0 +1,48 @@
++import { vi } from 'vitest'
++import { Context } from '../../context'
++import { setCookie } from '.'
++
++describe('setCookie oversize warning', () => {
++  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
++
++  beforeEach(() => {
++    warnSpy.mockClear()
++  })
++
++  afterAll(() => {
++    warnSpy.mockRestore()
++  })
++
++  it('Should warn once for an oversized cookie and still append the Set-Cookie header', () => {
++    const c = new Context(new Request('http://localhost/'))
++    const bigValue = 'a'.repeat(5000)
++    setCookie(c, 'big_cookie', bigValue)
++
++    expect(warnSpy).toHaveBeenCalledTimes(1)
++    const message = warnSpy.mock.calls[0][0] as string
++    expect(message).toContain('big_cookie')
++    // default path attribute `; Path=/` is part of the serialized string
++    const expectedLength = `big_cookie=${bigValue}; Path=/`.length
++    expect(message).toContain(String(expectedLength))
++
++    const header = c.res.headers.get('Set-Cookie')
++    expect(header).not.toBeNull()
++    expect(header).toContain(`big_cookie=${bigValue}`)
++  })
++
++  it('Should not warn for a normal-size cookie', () => {
++    const c = new Context(new Request('http://localhost/'))
++    setCookie(c, 'small_cookie', 'tasty')
++
++    expect(warnSpy).not.toHaveBeenCalled()
++    expect(c.res.headers.get('Set-Cookie')).toContain('small_cookie=tasty')
++  })
++
++  it('Should warn twice for two oversized setCookie calls', () => {
++    const c = new Context(new Request('http://localhost/'))
++    setCookie(c, 'first_big', 'a'.repeat(5000))
++    setCookie(c, 'second_big', 'b'.repeat(5000))
++
++    expect(warnSpy).toHaveBeenCalledTimes(2)
++  })
++})
+diff --git a/src/helper/cookie/index.ts b/src/helper/cookie/index.ts
+index 4602a8db..0ace907e 100644
+--- a/src/helper/cookie/index.ts
++++ b/src/helper/cookie/index.ts
+@@ -98,6 +98,11 @@ export const generateCookie = (name: string, value: string, opt?: CookieOptions)
+ 
+ export const setCookie = (c: Context, name: string, value: string, opt?: CookieOptions): void => {
+   const cookie = generateCookie(name, value, opt)
++  if (cookie.length > 4096) {
++    console.warn(
++      `Cookie "${name}" is ${cookie.length} bytes when serialized, which exceeds the 4096-byte limit and is likely to be silently dropped by browsers`
++    )
++  }
+   c.header('Set-Cookie', cookie, { append: true })
+ }
+ 

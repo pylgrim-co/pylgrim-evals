@@ -1,0 +1,66 @@
+diff --git a/src/click/types.py b/src/click/types.py
+index a27983b..aaeea47 100644
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -962,8 +962,11 @@ class File(ParamType[t.IO[t.Any]]):
+ 
+             return f
+         except OSError as e:
++            # ``strerror`` is ``None`` for OSErrors raised with a single
++            # argument. Fall back to ``str(e)`` so the user is not shown a
++            # literal "None".
+             self.fail(
+-                f"'{format_filename(value)}': {e.strerror}",
++                f"'{format_filename(value)}': {e.strerror or e}",
+                 param,
+                 ctx,
+             )
+diff --git a/tests/test_coord_file_type_oserror.py b/tests/test_coord_file_type_oserror.py
+new file mode 100644
+index 0000000..6f98842
+--- /dev/null
++++ b/tests/test_coord_file_type_oserror.py
+@@ -0,0 +1,43 @@
++import pytest
++
++import click
++import click.types
++
++
++def test_oserror_without_strerror_reports_str(monkeypatch):
++    def raise_bare_oserror(*args, **kwargs):
++        raise OSError("kaboom")
++
++    monkeypatch.setattr(click.types, "open_stream", raise_bare_oserror)
++
++    with pytest.raises(click.UsageError) as exc_info:
++        click.File("r").convert("x.txt", None, None)
++
++    message = exc_info.value.message
++    assert "kaboom" in message
++    assert "None" not in message
++
++
++def test_oserror_with_strerror_is_unchanged(monkeypatch):
++    def raise_full_oserror(*args, **kwargs):
++        raise OSError(2, "No such file or directory")
++
++    monkeypatch.setattr(click.types, "open_stream", raise_full_oserror)
++
++    with pytest.raises(click.UsageError) as exc_info:
++        click.File("r").convert("x.txt", None, None)
++
++    assert "No such file or directory" in exc_info.value.message
++
++
++def test_real_missing_file_still_exits_2_and_names_file(runner):
++    @click.command()
++    @click.option("--f", type=click.File("r"))
++    def cli(f):
++        pass
++
++    with runner.isolated_filesystem():
++        result = runner.invoke(cli, ["--f", "missing-file.txt"])
++
++    assert result.exit_code == 2
++    assert "missing-file.txt" in result.output
