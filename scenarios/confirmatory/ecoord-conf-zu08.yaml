@@ -122,8 +122,9 @@ cards:
       null must all be rejected; null is not an acceptable state), throw a
       TypeError with a clear message before any state change. Function
       updaters and object updaters must behave exactly as today, and
-      undefined must remain accepted and forwarded unchanged (it is a
-      harmless merge no-op in the vanilla store). Both paths through the
+      undefined must remain accepted and forwarded unchanged (the guard
+      rejects only null and primitives; whatever the vanilla store does
+      with a forwarded undefined today is preserved). Both paths through the
       middleware — direct store.setState calls and the set function handed
       to the initializer — must share the validation, which they already
       do structurally since the initializer receives store.setState.
@@ -149,7 +150,7 @@ cards:
         criteria:
           - setState with a number, string, boolean, or null throws TypeError and leaves state unchanged
           - Function updaters and plain-object partials behave exactly as before
-          - setState(undefined) remains accepted and state is unchanged
+          - setState(undefined) is not rejected by the guard (today's forwarding preserved)
           - The set function passed to the initializer applies the same validation
           - New tests in tests/coord/immer-primitive-guard.test.ts cover the four rejected shapes, the function and object paths, and the initializer-set path
         scope_paths:
