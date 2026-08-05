@@ -1,0 +1,169 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-sf09
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add entries to the SAME exported functions array in
+    src/languages/transactsql/transactsql.functions.ts — one string-array
+    literal organized by T-SQL documentation categories. The default path
+    collides: both cards' lazy move is appending at the array tail,
+    stacking the insertions adjacently, and both cards' entries are
+    late-alphabet names that interleave if sorted into the same block. A
+    region-disjoint pair still exists because the cards belong to
+    different documentation categories many lines apart — the date
+    functions beside the existing date-and-time block near the top half
+    of the array, the JSON functions beside the json block — keeping
+    every insertion several lines from the other card's. Collision is
+    evitable per §3 rule 1 but the default gravity is a single shared
+    array literal. Measured score computed by scripts/scenario-check.sh;
+    the authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-sf09-a
+    kind: coord
+    title: T-SQL dialect learns the SQL Server 2022 date bucket functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The T-SQL function list
+      (src/languages/transactsql/transactsql.functions.ts) predates SQL
+      Server 2022: DATETRUNC, DATE_BUCKET, and GENERATE_SERIES are not
+      recognized, so the formatter treats them as plain identifiers and
+      the functionCase option never touches them.
+
+      Extend the exported functions array in
+      src/languages/transactsql/transactsql.functions.ts with exactly
+      three entries: DATETRUNC, DATE_BUCKET, and GENERATE_SERIES. Keep
+      the array's category-comment organization intact and do not remove
+      or reorder any existing entry.
+
+      Add tests in a new file test/coord-tsql-date-functions.test.ts
+      covering: formatting a SELECT that calls datetrunc and date_bucket
+      with functionCase 'upper' uppercases both; formatting a
+      GENERATE_SERIES call with functionCase 'lower' lowercases it; an
+      existing function such as DATEADD still uppercases with
+      functionCase 'upper'; an unrelated identifier is left untouched by
+      functionCase. Use the sql-formatter public API with language
+      'transactsql'. Stay inside
+      src/languages/transactsql/transactsql.functions.ts plus your new
+      test file. Do not touch the T-SQL formatter or keywords modules,
+      any other dialect, or the core formatter. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/transactsql/transactsql.functions.ts, limited to adding the three entries
+        - No existing entry is removed, changed, or reordered
+        - The category-comment organization of the array is preserved
+        - New tests only, in test/coord-tsql-date-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - DATETRUNC, DATE_BUCKET, and GENERATE_SERIES are recognized as functions in the transactsql dialect
+          - functionCase 'upper' and 'lower' rewrite the three names accordingly
+          - Existing functions and plain identifiers behave exactly as before
+          - New tests in test/coord-tsql-date-functions.test.ts cover the upper, lower, existing-function, and identifier cases
+        scope_paths:
+          - "src/languages/transactsql/transactsql.functions.ts"
+          - "test/coord-tsql-date-functions.test.ts"
+        out_of_scope:
+          - "src/languages/transactsql/transactsql.formatter.ts"
+          - "src/languages/transactsql/transactsql.keywords.ts"
+          - "src/languages/bigquery/**"
+          - "src/languages/spark/**"
+          - "src/sqlFormatter.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-tsql-date-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf09-b
+    kind: coord
+    title: T-SQL dialect learns the JSON construction functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The T-SQL function list
+      (src/languages/transactsql/transactsql.functions.ts) predates SQL
+      Server's JSON construction support: JSON_OBJECT, JSON_ARRAY, and
+      JSON_PATH_EXISTS are not recognized, so the formatter treats them
+      as plain identifiers and the functionCase option never touches
+      them.
+
+      Extend the exported functions array in
+      src/languages/transactsql/transactsql.functions.ts with exactly
+      three entries: JSON_OBJECT, JSON_ARRAY, and JSON_PATH_EXISTS. Keep
+      the array's category-comment organization intact and do not remove
+      or reorder any existing entry.
+
+      Add tests in a new file test/coord-tsql-json-functions.test.ts
+      covering: formatting a SELECT that calls json_object and json_array
+      with functionCase 'upper' uppercases both; formatting a
+      JSON_PATH_EXISTS call with functionCase 'lower' lowercases it; an
+      existing function such as ISJSON still uppercases with functionCase
+      'upper'; an unrelated identifier is left untouched by functionCase.
+      Use the sql-formatter public API with language 'transactsql'. Stay
+      inside src/languages/transactsql/transactsql.functions.ts plus your
+      new test file. Do not touch the T-SQL formatter or keywords
+      modules, any other dialect, or the core formatter. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/transactsql/transactsql.functions.ts, limited to adding the three entries
+        - No existing entry is removed, changed, or reordered
+        - The category-comment organization of the array is preserved
+        - New tests only, in test/coord-tsql-json-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - JSON_OBJECT, JSON_ARRAY, and JSON_PATH_EXISTS are recognized as functions in the transactsql dialect
+          - functionCase 'upper' and 'lower' rewrite the three names accordingly
+          - Existing functions and plain identifiers behave exactly as before
+          - New tests in test/coord-tsql-json-functions.test.ts cover the upper, lower, existing-function, and identifier cases
+        scope_paths:
+          - "src/languages/transactsql/transactsql.functions.ts"
+          - "test/coord-tsql-json-functions.test.ts"
+        out_of_scope:
+          - "src/languages/transactsql/transactsql.formatter.ts"
+          - "src/languages/transactsql/transactsql.keywords.ts"
+          - "src/languages/bigquery/**"
+          - "src/languages/spark/**"
+          - "src/sqlFormatter.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-tsql-json-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

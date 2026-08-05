@@ -1,0 +1,185 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail. Shares a file (but not a case block) with ecoord-conf-zo07,
+# mirroring the corpus precedent of subscribeWithSelector.ts appearing in
+# zu01/zu03/cal-zu01; the two scenarios never co-run in an episode.
+scenario_id: ecoord-conf-zo09
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items extend the SAME array case of convertBaseSchema
+    (packages/zod/src/v4/classic/from-json-schema.ts) — the case block
+    already carries TODO comments naming both cards' keywords
+    (uniqueItems, contains/minContains/maxContains), and the natural
+    landing zone for both is identical: new refinement logic between the
+    end of the items if/else chain and the case's break. The default path
+    stacks both cards' additions in that same slot and collides. A
+    region-disjoint pair still exists: the uniqueItems refinement can
+    live inside the regular-array else-if branch beside the existing
+    minItems/maxItems constraint lines, while the contains handling lands
+    after the chain (covering the regular and no-items branches) just
+    before break, with the branch's tail separating the regions.
+    Collision is evitable per §3 rule 1 but the default gravity is one
+    shared case tail. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-zo09-a
+    kind: coord
+    title: fromJSONSchema enforces uniqueItems on regular arrays
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      fromJSONSchema (packages/zod/src/v4/classic/from-json-schema.ts)
+      ignores the JSON Schema uniqueItems keyword — the array case even
+      carries a TODO admitting it. A schema declaring
+      { type: "array", items: ..., uniqueItems: true } converts to a
+      z.array that happily accepts duplicates.
+
+      Extend the array case of convertBaseSchema in
+      packages/zod/src/v4/classic/from-json-schema.ts so that
+      uniqueItems: true on a REGULAR array (an items object, not a tuple
+      form) produces a schema that rejects arrays containing duplicate
+      elements. Compare elements by JSON.stringify serialization — a
+      documented approximation of JSON Schema's deep equality that is
+      exact for primitives and stable for plain objects (add a short
+      comment saying so). uniqueItems on the tuple forms (prefixItems or
+      an items array) is out of scope and must remain ignored;
+      uniqueItems absent or false changes nothing; minItems and maxItems
+      keep working alongside.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts
+      covering: a { type: "array", items: { type: "number" },
+      uniqueItems: true } schema parses [1, 2, 3] and rejects [1, 2, 1];
+      duplicate objects ({ a: 1 } twice) are rejected; without
+      uniqueItems duplicates parse; uniqueItems combined with minItems
+      enforces both. Stay inside
+      packages/zod/src/v4/classic/from-json-schema.ts plus your new test
+      file. Do not touch the core package or other classic modules. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/from-json-schema.ts
+        - A true uniqueItems on regular arrays rejects duplicates via JSON.stringify comparison
+        - Tuple forms and absent/false uniqueItems are unchanged
+        - minItems and maxItems keep working alongside
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - Arrays with duplicate primitives are rejected when uniqueItems is true
+          - Arrays with duplicate plain objects are rejected
+          - Without uniqueItems duplicates still parse
+          - uniqueItems composes with minItems/maxItems
+          - New tests in packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts cover the distinct, duplicate-primitive, duplicate-object, absent-keyword, and combined-constraint cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/from-json-schema.ts"
+          - "packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/iso.ts"
+          - "packages/zod/src/v4/classic/coerce.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/locales/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo09-b
+    kind: coord
+    title: fromJSONSchema enforces contains with minContains and maxContains
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      fromJSONSchema (packages/zod/src/v4/classic/from-json-schema.ts)
+      ignores the JSON Schema contains keyword family — the array case
+      carries a TODO admitting it. A schema declaring
+      { type: "array", contains: { type: "number" } } converts to a
+      schema that accepts arrays with no matching element at all.
+
+      Extend the array case of convertBaseSchema in
+      packages/zod/src/v4/classic/from-json-schema.ts so that a contains
+      subschema on a non-tuple array (a regular items object or no items
+      at all) produces a schema that counts elements matching the
+      converted contains subschema (use its safeParse success) and
+      rejects the array unless the count is at least minContains (default
+      1) and, when maxContains is present, at most maxContains. The tuple
+      forms (prefixItems or an items array) are out of scope and must
+      remain ignored; schemas without contains are unchanged.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts
+      covering: a { type: "array", contains: { type: "number" } } schema
+      parses ["a", 1] and rejects ["a", "b"]; with minContains 2, one
+      matching element is rejected and two pass; with maxContains 1, two
+      matching elements are rejected; contains works when items is absent
+      (untyped arrays); without contains an untyped array of anything
+      still parses. Stay inside
+      packages/zod/src/v4/classic/from-json-schema.ts plus your new test
+      file. Do not touch the core package or other classic modules. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/from-json-schema.ts
+        - contains counts matching elements via the converted subschema's safeParse
+        - minContains defaults to 1; maxContains bounds the count when present
+        - Tuple forms and schemas without contains are unchanged
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - contains requires at least one matching element by default
+          - minContains raises the required count; maxContains caps it
+          - contains works on arrays without an items schema
+          - Schemas without contains behave exactly as before
+          - New tests in packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts cover the default, minContains, maxContains, no-items, and absent-keyword cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/from-json-schema.ts"
+          - "packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/iso.ts"
+          - "packages/zod/src/v4/classic/coerce.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/locales/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

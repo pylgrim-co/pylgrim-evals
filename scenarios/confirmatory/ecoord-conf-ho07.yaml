@@ -1,0 +1,183 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-ho07
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items widen the SAME small PrettyOptions interface and the
+    SAME four-line response-rewrite block inside the prettyJSON closure
+    (src/middleware/pretty-json/index.ts) — the if-block that checks the
+    Content-Type and re-stringifies the body is the only place either
+    card's behavior can land. The default path collides twice: both cards
+    append their option at the interface tail, and both rework the same
+    contiguous if-block. A region-disjoint pair still exists: the
+    interface has two ends (one option after space at the top, the other
+    after force at the bottom), and inside the block card A only edits the
+    Content-Type condition line while card B only edits the
+    JSON.stringify line, with the res.json() line separating them.
+    Collision is evitable per §3 rule 1 but the default gravity is one
+    shared type literal plus one shared four-line block. Measured score
+    computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho07-a
+    kind: coord
+    title: prettyJSON learns extra JSON content types via a contentTypes option
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The prettyJSON middleware (src/middleware/pretty-json/index.ts)
+      re-serializes JSON responses with indentation when the pretty query
+      parameter is present, but it only recognizes responses whose
+      Content-Type starts with 'application/json'. APIs that emit
+      'application/problem+json' or 'application/vnd.api+json' get no
+      prettification at all.
+
+      Extend PrettyOptions in src/middleware/pretty-json/index.ts with a
+      contentTypes?: string[] entry. When provided, a response qualifies
+      for prettification if its Content-Type starts with
+      'application/json' OR starts with any entry in contentTypes. When
+      absent, behavior is byte-for-byte identical to today. The query
+      trigger, the force option, and the space option must keep working
+      unchanged in combination with contentTypes.
+
+      Add tests in a new file
+      src/middleware/pretty-json/coord-content-types.test.ts covering:
+      with contentTypes ['application/problem+json'], a ?pretty request
+      whose handler returns a problem+json body (c.body with an explicit
+      Content-Type header) is re-serialized with 2-space indentation; the
+      same handler without the option is left untouched; plain
+      application/json responses still prettify with the option present;
+      a non-listed content type (text/plain) is untouched; no query and
+      no force leaves listed types untouched. Stay inside
+      src/middleware/pretty-json/index.ts plus your new test file. Do not
+      touch other middleware, helpers, or utils. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/pretty-json/index.ts
+        - contentTypes extends, never replaces, the application/json prefix check
+        - Without contentTypes the middleware behaves exactly as before
+        - Query, force, and space options keep working with contentTypes
+        - New tests only, in src/middleware/pretty-json/coord-content-types.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A listed content type is prettified on ?pretty requests when contentTypes is provided
+          - The same response is untouched when contentTypes is absent
+          - application/json responses still prettify when contentTypes is provided
+          - Unlisted content types are never rewritten
+          - Without the query trigger (and force false) listed types are untouched
+          - New tests in src/middleware/pretty-json/coord-content-types.test.ts cover the listed, absent-option, json-still-works, unlisted, and no-trigger cases
+        scope_paths:
+          - "src/middleware/pretty-json/index.ts"
+          - "src/middleware/pretty-json/coord-content-types.test.ts"
+        out_of_scope:
+          - "src/middleware/pretty-json/index.test.ts"
+          - "src/middleware/etag/**"
+          - "src/middleware/request-id/**"
+          - "src/middleware/secure-headers/**"
+          - "src/utils/**"
+          - "src/helper/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/pretty-json/coord-content-types.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho07-b
+    kind: coord
+    title: prettyJSON supports a JSON.stringify replacer option
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The prettyJSON middleware (src/middleware/pretty-json/index.ts)
+      re-serializes JSON responses for human eyes, which is exactly the
+      moment teams want to drop noisy fields or mask secrets — but the
+      middleware hard-codes JSON.stringify(obj, null, space) with no way
+      to influence the serialization.
+
+      Extend PrettyOptions in src/middleware/pretty-json/index.ts with a
+      replacer?: (this: any, key: string, value: unknown) => unknown
+      entry, passed as the second argument to JSON.stringify when the
+      middleware prettifies a response. The replacer must only affect
+      prettified output: responses that do not qualify (no query
+      parameter, force false, or non-JSON content type) are never
+      re-serialized and therefore never see the replacer. When replacer is
+      absent, behavior is byte-for-byte identical to today. The space
+      option must keep working in combination with replacer.
+
+      Add tests in a new file
+      src/middleware/pretty-json/coord-replacer.test.ts covering: with a
+      replacer that returns undefined for a "secret" key, a ?pretty
+      request's output omits the secret field and keeps 2-space
+      indentation; the same request without the query parameter returns
+      the original compact body including the secret field; a replacer
+      that uppercases string values is applied to the prettified output;
+      without replacer the prettified output matches today's
+      JSON.stringify(obj, null, 2) form. Stay inside
+      src/middleware/pretty-json/index.ts plus your new test file. Do not
+      touch other middleware, helpers, or utils. No new dependencies, no
+      CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/pretty-json/index.ts
+        - replacer is forwarded to JSON.stringify only when the response is prettified
+        - Non-qualifying responses are never re-serialized
+        - Without replacer the middleware behaves exactly as before
+        - New tests only, in src/middleware/pretty-json/coord-replacer.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A replacer dropping a key removes it from prettified output while indentation is preserved
+          - Without the query trigger the original body passes through untouched, replacer never applied
+          - A value-transforming replacer is reflected in prettified output
+          - Without replacer the prettified output is identical to today's
+          - New tests in src/middleware/pretty-json/coord-replacer.test.ts cover the key-dropping, no-trigger, value-transforming, and no-replacer cases
+        scope_paths:
+          - "src/middleware/pretty-json/index.ts"
+          - "src/middleware/pretty-json/coord-replacer.test.ts"
+        out_of_scope:
+          - "src/middleware/pretty-json/index.test.ts"
+          - "src/middleware/etag/**"
+          - "src/middleware/request-id/**"
+          - "src/middleware/secure-headers/**"
+          - "src/utils/**"
+          - "src/helper/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/pretty-json/coord-replacer.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

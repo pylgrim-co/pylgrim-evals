@@ -1,0 +1,170 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-cl07
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add dunder methods to the SAME small CompletionItem
+    class in src/click/shell_completion.py — a value holder of roughly
+    thirty lines whose body ends right after __getattr__. The default
+    path for both cards is identical: append the new method at the class
+    tail, which stacks the two insertions adjacently and collides. A
+    region-disjoint pair still exists because the class has two natural
+    insertion points: the repr can sit directly beneath __init__ (beside
+    the attributes it renders) while the equality pair lands after
+    __getattr__ at the class end, several unchanged lines apart.
+    Collision is evitable per §3 rule 1 but the default gravity is the
+    same class-tail append. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-cl07-a
+    kind: coord
+    title: CompletionItem gains a debugging-friendly repr
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      Shell completion plumbing hands around CompletionItem objects
+      (src/click/shell_completion.py), and anyone debugging a completion
+      function sees the default `<click.shell_completion.CompletionItem
+      object at 0x...>` — useless when a test failure prints a list of
+      candidates.
+
+      Add a __repr__ method to the CompletionItem class in
+      src/click/shell_completion.py that returns exactly
+      `CompletionItem({value!r}, type={type!r}, help={help!r})` — for
+      example `CompletionItem('file.txt', type='plain', help=None)`. Only
+      the value, type, and help attributes appear in the repr; extra
+      keyword attributes stored on the item are not rendered. No other
+      behavior of the class may change.
+
+      Add tests in a new file tests/test_coord_completion_item_repr.py
+      covering: the exact repr string for an item built with just a value
+      (default type 'plain', help None); the exact repr for an item with
+      an explicit type and help text; repr of an item constructed with
+      extra keyword attributes does not include them; printing a list of
+      items shows the reprs (str of a list uses repr). Stay inside
+      src/click/shell_completion.py plus your new test file. Do not touch
+      other click modules. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/shell_completion.py, limited to adding CompletionItem.__repr__
+        - The repr format is exactly CompletionItem({value!r}, type={type!r}, help={help!r})
+        - Extra keyword attributes are not rendered
+        - No other behavior of CompletionItem changes
+        - New tests only, in tests/test_coord_completion_item_repr.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - repr of CompletionItem('file.txt') is "CompletionItem('file.txt', type='plain', help=None)"
+          - repr renders explicit type and help values with their repr forms
+          - Extra keyword attributes passed to the constructor do not appear in the repr
+          - New tests in tests/test_coord_completion_item_repr.py cover the default, explicit, extra-kwargs, and list-printing cases
+        scope_paths:
+          - "src/click/shell_completion.py"
+          - "tests/test_coord_completion_item_repr.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/decorators.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_completion_item_repr.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl07-b
+    kind: coord
+    title: CompletionItem supports value equality and hashing
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      Tests for shell completion functions want to assert on the produced
+      candidates, but CompletionItem (src/click/shell_completion.py) only
+      supports identity comparison: two items built from the same value
+      compare unequal, so test authors resort to comparing item.value by
+      hand and sets of items behave uselessly.
+
+      Add __eq__ and __hash__ methods to the CompletionItem class in
+      src/click/shell_completion.py. Two items are equal exactly when
+      their value, type, and help attributes are all equal; extra keyword
+      attributes are ignored for comparison. Comparing against a
+      non-CompletionItem must return NotImplemented so Python falls back
+      normally. __hash__ must hash the (value, type, help) triple so equal
+      items collapse in sets and dicts. No other behavior of the class may
+      change.
+
+      Add tests in a new file tests/test_coord_completion_item_eq.py
+      covering: two items with the same value, type, and help are equal
+      and hash-equal; items differing in value, in type, or in help are
+      unequal; extra keyword attributes do not affect equality; comparing
+      an item to a plain string is False (and != is True) without raising;
+      a set built from duplicate items collapses them. Stay inside
+      src/click/shell_completion.py plus your new test file. Do not touch
+      other click modules. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/shell_completion.py, limited to adding CompletionItem.__eq__ and __hash__
+        - Equality compares value, type, and help; extra keyword attributes are ignored
+        - Non-CompletionItem comparisons return NotImplemented
+        - Equal items are hash-equal; sets collapse duplicates
+        - New tests only, in tests/test_coord_completion_item_eq.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - Items with equal value, type, and help compare equal and share a hash
+          - Items differing in any of value, type, or help compare unequal
+          - Extra keyword attributes never affect equality
+          - Comparison with a non-CompletionItem returns NotImplemented (== is False, != is True, no exception)
+          - A set of duplicate items collapses to one element
+          - New tests in tests/test_coord_completion_item_eq.py cover the equal, per-field-unequal, extra-kwargs, foreign-type, and set-collapse cases
+        scope_paths:
+          - "src/click/shell_completion.py"
+          - "tests/test_coord_completion_item_eq.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/decorators.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_completion_item_eq.py"
+      deterministic_checks: []
+    source:
+      authored: true

@@ -1,0 +1,173 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zo08
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add id-keyed methods to the SAME $ZodRegistry class
+    in packages/zod/src/v4/core/registries.ts — a small class whose
+    method list ends at has(), and both cards' behavior is backed by the
+    same private _idmap. The default path for both is the same append at
+    the class tail after has(), stacking the two insertions adjacently
+    and colliding. A region-disjoint pair still exists: the getById
+    lookup is a read-side peer of get() and can sit directly after add()
+    near the top of the method list, while removeById is a write-side
+    peer of remove() and lands at the class tail, with clear(), remove(),
+    get(), and has() separating the regions. Collision is evitable per
+    §3 rule 1 but the default gravity is the same class-tail append.
+    Measured score computed by scripts/scenario-check.sh; the authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-zo08-a
+    kind: coord
+    title: $ZodRegistry gains a getById lookup
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Zod registries (packages/zod/src/v4/core/registries.ts) index
+      schemas by id internally — add() populates a private _idmap — but
+      there is no public way to get a schema back by its id: consumers
+      building $ref-style resolvers walk their own duplicate maps.
+
+      Add a getById(id: string) method to the $ZodRegistry class in
+      packages/zod/src/v4/core/registries.ts that returns the schema
+      registered under that id, or undefined when no schema carries the
+      id. The result must track the registry's life cycle: after
+      remove(schema) the schema's id no longer resolves, and re-adding a
+      schema under a new id resolves to the new registration. No existing
+      method's behavior may change.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts
+      covering: after reg.add(schema, { id: "user" }),
+      reg.getById("user") returns exactly that schema; an unknown id
+      returns undefined; after reg.remove(schema) the id returns
+      undefined; two schemas registered under different ids resolve
+      independently. Use z.registry() from the classic API. Stay inside
+      packages/zod/src/v4/core/registries.ts plus your new test file. Do
+      not touch other core modules or the classic wrappers. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/core/registries.ts, limited to adding getById
+        - getById returns the schema for a registered id and undefined otherwise
+        - remove() invalidates the id lookup
+        - No existing method changes behavior
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - getById returns the schema registered under the id
+          - Unknown ids return undefined
+          - After remove(schema) the schema's id no longer resolves
+          - Independent ids resolve independently
+          - New tests in packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts cover the hit, miss, removed, and multi-id cases
+        scope_paths:
+          - "packages/zod/src/v4/core/registries.ts"
+          - "packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/schemas.ts"
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/from-json-schema.ts"
+          - "packages/zod/src/v4/locales/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo08-b
+    kind: coord
+    title: $ZodRegistry gains removeById
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Zod registries (packages/zod/src/v4/core/registries.ts) can only
+      forget a schema when the caller still holds the schema object:
+      remove(schema) is the sole eviction API. Long-lived registries that
+      hand out ids (code generators, doc pipelines) end up keeping their
+      own id-to-schema books just to be able to evict.
+
+      Add a removeById(id: string) method to the $ZodRegistry class in
+      packages/zod/src/v4/core/registries.ts that removes the schema
+      registered under the id from the registry — after the call, has()
+      on that schema is false, get() returns undefined for it, and the id
+      no longer maps to anything. Calling removeById with an unknown id
+      is a safe no-op. The method returns this so calls chain like add()
+      and remove(). No existing method's behavior may change.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts
+      covering: after reg.add(schema, { id: "user" }),
+      reg.removeById("user") makes reg.has(schema) false and reg.get(
+      schema) undefined; removeById("nope") on a fresh registry does not
+      throw and returns the registry; removing one id leaves a schema
+      registered under another id untouched; removeById returns this so
+      chaining works. Use z.registry() from the classic API. Stay inside
+      packages/zod/src/v4/core/registries.ts plus your new test file. Do
+      not touch other core modules or the classic wrappers. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/core/registries.ts, limited to adding removeById
+        - removeById evicts the schema registered under the id from both internal maps
+        - Unknown ids are safe no-ops; the method returns this
+        - No existing method changes behavior
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - removeById evicts the schema so has() is false and get() is undefined
+          - The id itself no longer resolves after eviction
+          - Unknown ids do not throw and return the registry
+          - Other registrations are unaffected and chaining works
+          - New tests in packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts cover the evict, unknown-id, isolation, and chaining cases
+        scope_paths:
+          - "packages/zod/src/v4/core/registries.ts"
+          - "packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/schemas.ts"
+          - "packages/zod/src/v4/core/checks.ts"
+          - "packages/zod/src/v4/core/api.ts"
+          - "packages/zod/src/v4/core/util.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/from-json-schema.ts"
+          - "packages/zod/src/v4/locales/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

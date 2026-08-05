@@ -1,0 +1,183 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zu08
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items land inside the SAME replaced store.setState closure
+    in immerImpl (src/middleware/immer.ts) — an eight-line function whose
+    body computes nextState and forwards to set. Card A must intercept the
+    produced result of a function updater; card B must reject primitive
+    updaters before anything runs; the default path for both is to rework
+    the one `const nextState = ...` expression and the surrounding lines,
+    which is exactly where the other card lands. A region-disjoint pair
+    still exists: the primitive guard is a single inserted line at the
+    closure's head (backed by a module-level helper), while the no-op
+    warning wraps the already-computed producer in new lines between the
+    nextState computation and the trailing return — with card A alone
+    widening the immer signature and its type at the far top of the file.
+    Collision is evitable per §3 rule 1 but the default gravity is one
+    small shared closure. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-zu08-a
+    kind: coord
+    title: immer middleware warns when a function updater produces no changes
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The immer middleware (src/middleware/immer.ts) lets callers mutate a
+      draft inside setState. A common bug is an updater that never touches
+      the draft (wrong branch, misspelled field): immer then returns the
+      same state object, no listener fires, and the author stares at a
+      silently dead update.
+
+      Extend the signature in src/middleware/immer.ts to
+      immer(initializer, options?) where options is
+      { warnOnNoop?: boolean }. When warnOnNoop is true and setState is
+      called with a FUNCTION updater whose produced next state is
+      reference-equal to the current state, call console.warn once per
+      such call with a message that includes the words "no changes". State
+      handling is otherwise untouched: the produced value is still
+      forwarded to set exactly as today. When warnOnNoop is absent or
+      false, behavior is byte-for-byte identical to today. Non-function
+      updaters must never trigger the warning. Update the Immer and
+      ImmerImpl types so typed callers can pass the option.
+
+      Add tests in a new file tests/coord/immer-noop-warn.test.ts
+      covering: with warnOnNoop true, an updater that mutates the draft
+      updates state and does not warn; an updater that touches nothing
+      warns once and leaves the state reference unchanged; a plain-object
+      setState never warns; without options an empty updater does not
+      warn. Stay inside src/middleware/immer.ts plus your new test file.
+      Do not touch other middleware modules, the middleware registry, or
+      the vanilla core. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/immer.ts
+        - Warning fires only with warnOnNoop true, a function updater, and a reference-equal produced state
+        - State forwarding to set is unchanged in every case
+        - Without options the middleware behaves exactly as before
+        - New tests only, in tests/coord/immer-noop-warn.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With warnOnNoop true, a draft-mutating updater updates state without warning
+          - With warnOnNoop true, an updater that produces a reference-equal state calls console.warn once with a message including "no changes" and state is unchanged
+          - Plain-object setState calls never warn
+          - Without options (or warnOnNoop false) behavior is identical to today, including no warnings
+          - The Immer and ImmerImpl types accept the optional options argument
+          - New tests in tests/coord/immer-noop-warn.test.ts cover the mutating, no-op, plain-object, and no-options cases
+        scope_paths:
+          - "src/middleware/immer.ts"
+          - "tests/coord/immer-noop-warn.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/immer-noop-warn.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu08-b
+    kind: coord
+    title: immer middleware rejects primitive setState values with a TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The immer middleware (src/middleware/immer.ts) assumes the store
+      state is a draftable object. Calling store.setState(5) or
+      store.setState("oops") on an immer store silently merges or replaces
+      state with a primitive, corrupting the store far from the buggy call
+      site.
+
+      Add argument validation to the replaced store.setState inside
+      immerImpl in src/middleware/immer.ts: when the updater argument is
+      neither a function nor an object (numbers, strings, booleans, and
+      null must all be rejected; null is not an acceptable state), throw a
+      TypeError with a clear message before any state change. Function
+      updaters and object updaters must behave exactly as today, and
+      undefined must remain accepted and forwarded unchanged (it is a
+      harmless merge no-op in the vanilla store). Both paths through the
+      middleware — direct store.setState calls and the set function handed
+      to the initializer — must share the validation, which they already
+      do structurally since the initializer receives store.setState.
+
+      Add tests in a new file tests/coord/immer-primitive-guard.test.ts
+      covering: setState(5), setState("oops"), setState(true), and
+      setState(null) each throw TypeError and leave getState() unchanged;
+      a draft-mutating function updater still works; a plain-object
+      partial still merges; the set received inside the initializer
+      rejects primitives the same way. Stay inside src/middleware/immer.ts
+      plus your new test file. Do not touch other middleware modules, the
+      middleware registry, or the vanilla core. No new dependencies, no CI
+      or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/immer.ts
+        - Primitive and null updaters throw TypeError before any state change
+        - Function, object, and undefined updaters behave exactly as before
+        - New tests only, in tests/coord/immer-primitive-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - setState with a number, string, boolean, or null throws TypeError and leaves state unchanged
+          - Function updaters and plain-object partials behave exactly as before
+          - setState(undefined) remains accepted and state is unchanged
+          - The set function passed to the initializer applies the same validation
+          - New tests in tests/coord/immer-primitive-guard.test.ts cover the four rejected shapes, the function and object paths, and the initializer-set path
+        scope_paths:
+          - "src/middleware/immer.ts"
+          - "tests/coord/immer-primitive-guard.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/redux.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/immer-primitive-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

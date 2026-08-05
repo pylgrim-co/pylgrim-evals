@@ -1,0 +1,178 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zo07
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add branches to the SAME if/else-if format chain
+    inside the string case of convertBaseSchema
+    (packages/zod/src/v4/classic/from-json-schema.ts) — a single
+    contiguous ladder of `else if (format === ...)` arms ending at the
+    ksuid branch. The default path for both cards is identical: append
+    new arms after the last branch, stacking the two insertions
+    adjacently and colliding. A region-disjoint pair still exists
+    because the chain has semantic anchor points far apart: the hostname
+    arm belongs beside the existing uri/url arm near the chain's head,
+    while the hash-format arms extend the tail after ksuid, keeping the
+    insertions dozens of lines apart inside the same chain. Collision is
+    evitable per §3 rule 1 but the default gravity is one shared else-if
+    ladder. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-zo07-a
+    kind: coord
+    title: fromJSONSchema maps the hostname format to z.hostname()
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      fromJSONSchema (packages/zod/src/v4/classic/from-json-schema.ts)
+      maps common JSON Schema string formats onto zod checks, but the
+      standard "hostname" format is missing from the chain: schemas that
+      declare { type: "string", format: "hostname" } convert to a plain
+      z.string() that happily accepts "not a hostname!!".
+
+      Extend the string-format mapping in the string case of
+      convertBaseSchema in
+      packages/zod/src/v4/classic/from-json-schema.ts so that the formats
+      "hostname" and "idn-hostname" both map to
+      stringSchema.check(z.hostname()) ("idn-hostname" is approximated by
+      the same ASCII hostname check, matching the file's existing
+      approximation style). Every already-mapped format must keep its
+      current mapping, and unknown custom formats must still fall through
+      to a plain string exactly as today.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts
+      covering: a { type: "string", format: "hostname" } schema parses
+      "example.com" and "sub.example-site.org" and rejects "exa mple.com"
+      and "-leading.example.com"; format "idn-hostname" behaves the same
+      for the ASCII cases; an unmapped custom format (e.g. "my-format")
+      still parses arbitrary strings; minLength/maxLength constraints
+      still combine with the hostname format. Stay inside
+      packages/zod/src/v4/classic/from-json-schema.ts plus your new test
+      file. Do not touch the core package, other classic modules, or
+      to-json-schema. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/from-json-schema.ts
+        - hostname and idn-hostname map to z.hostname(); every existing mapping is unchanged
+        - Unknown custom formats still fall through to plain strings
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - format "hostname" produces a schema accepting valid hostnames and rejecting invalid ones
+          - format "idn-hostname" maps to the same check
+          - Unmapped custom formats still convert to plain strings
+          - Length constraints combine with the hostname format
+          - New tests in packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts cover the valid, invalid, idn, custom-format, and combined-constraint cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/from-json-schema.ts"
+          - "packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/iso.ts"
+          - "packages/zod/src/v4/classic/coerce.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/locales/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo07-b
+    kind: coord
+    title: fromJSONSchema maps hex and hash digest formats to zod checks
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      fromJSONSchema (packages/zod/src/v4/classic/from-json-schema.ts)
+      maps common JSON Schema string formats onto zod checks, but
+      digest-shaped formats are missing from the chain: API schemas that
+      declare hex-encoded ids or content hashes as
+      { type: "string", format: "hex" } (or "md5" / "sha256") convert to
+      plain strings with no validation at all.
+
+      Extend the string-format mapping in the string case of
+      convertBaseSchema in
+      packages/zod/src/v4/classic/from-json-schema.ts with three arms:
+      "hex" maps to stringSchema.check(z.hex()), "md5" maps to
+      stringSchema.check(z.hash("md5")), and "sha256" maps to
+      stringSchema.check(z.hash("sha256")). Every already-mapped format
+      must keep its current mapping, and unknown custom formats must
+      still fall through to a plain string exactly as today.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts covering:
+      a format "hex" schema parses "deadBEEF01" and rejects "xyz"; a
+      format "md5" schema parses a 32-character hex digest and rejects a
+      31-character one; a format "sha256" schema parses a 64-character
+      hex digest and rejects a 63-character one; an unmapped custom
+      format (e.g. "my-format") still parses arbitrary strings. Stay
+      inside packages/zod/src/v4/classic/from-json-schema.ts plus your
+      new test file. Do not touch the core package, other classic
+      modules, or to-json-schema. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/from-json-schema.ts
+        - hex, md5, and sha256 map to z.hex() and z.hash(...); every existing mapping is unchanged
+        - Unknown custom formats still fall through to plain strings
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - format "hex" accepts hex strings and rejects non-hex input
+          - format "md5" accepts 32-char hex digests and rejects other lengths
+          - format "sha256" accepts 64-char hex digests and rejects other lengths
+          - Unmapped custom formats still convert to plain strings
+          - New tests in packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts cover the hex, md5, sha256, and custom-format cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/from-json-schema.ts"
+          - "packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/iso.ts"
+          - "packages/zod/src/v4/classic/coerce.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/locales/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

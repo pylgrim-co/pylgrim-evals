@@ -1,0 +1,181 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-ho08
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items widen the SAME three-line ETagOptions type, the SAME
+    three-line option-unpacking preamble of the etag factory, and the SAME
+    response-processing closure in src/middleware/etag/index.ts. The
+    default path for both cards is to stack a new option at the type tail,
+    a new const at the preamble tail, and new logic in the middle of the
+    one closure — colliding three times over. A region-disjoint pair
+    still exists: card A's status guard is a single early-return inserted
+    right after the closure re-reads c.res (the region above the digest
+    computation), while card B's Vary handling lands in the trailing
+    else-branch where the ETag header is set, with the whole
+    digest-and-compare body separating them; the type and preamble
+    insertions go at opposite ends. Collision is evitable per §3 rule 1
+    but the default gravity is one shared type, preamble, and closure.
+    Measured score computed by scripts/scenario-check.sh; the authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho08-a
+    kind: coord
+    title: etag middleware can skip configured response statuses
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The etag middleware (src/middleware/etag/index.ts) digests every
+      response body and answers If-None-Match with 304s. That is wrong
+      for some statuses: hashing a 206 partial body or replacing an
+      already-minimal 204 costs work and can confuse caches, and today
+      there is no way to opt statuses out.
+
+      Extend ETagOptions in src/middleware/etag/index.ts with a
+      skipStatuses?: number[] entry. When the response status after next()
+      is in the list, the middleware must leave the response completely
+      untouched: no digest computation, no ETag header added, and no 304
+      conversion even when If-None-Match matches an ETag the handler set
+      itself. When skipStatuses is absent or empty, behavior is
+      byte-for-byte identical to today for every status. Other options
+      (weak, retainedHeaders, generateDigest) keep working unchanged for
+      non-skipped statuses.
+
+      Add tests in a new file src/middleware/etag/coord-skip-statuses.test.ts
+      covering: with skipStatuses [206], a 206 response gets no ETag
+      header; a 200 response through the same app still gets an ETag; a
+      request with a matching If-None-Match against a skipped-status
+      response is not converted to 304; without the option a 206 response
+      still gets an ETag (today's behavior). Stay inside
+      src/middleware/etag/index.ts plus your new test file. Do not touch
+      the digest helper module, other middleware, or utils. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/etag/index.ts
+        - Skipped statuses see no digest, no ETag header, and no 304 conversion
+        - Absent or empty skipStatuses preserves today's behavior exactly
+        - weak, retainedHeaders, and generateDigest keep working for non-skipped statuses
+        - New tests only, in src/middleware/etag/coord-skip-statuses.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A response whose status is listed in skipStatuses receives no ETag header
+          - Non-listed statuses still receive ETags through the same app
+          - If-None-Match never produces a 304 for a skipped status
+          - Without skipStatuses all statuses behave exactly as today
+          - New tests in src/middleware/etag/coord-skip-statuses.test.ts cover the skipped, non-skipped, if-none-match, and default cases
+        scope_paths:
+          - "src/middleware/etag/index.ts"
+          - "src/middleware/etag/coord-skip-statuses.test.ts"
+        out_of_scope:
+          - "src/middleware/etag/digest.ts"
+          - "src/middleware/etag/index.test.ts"
+          - "src/middleware/pretty-json/**"
+          - "src/middleware/request-id/**"
+          - "src/middleware/cache/**"
+          - "src/utils/**"
+          - "src/helper/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/etag/coord-skip-statuses.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho08-b
+    kind: coord
+    title: etag middleware can emit Vary headers alongside generated ETags
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      An ETag is only cache-safe together with the right Vary header:
+      a response that differs by Accept-Encoding needs Vary:
+      Accept-Encoding next to its validator or shared caches will serve
+      the wrong variant. The etag middleware
+      (src/middleware/etag/index.ts) generates validators but leaves Vary
+      entirely to the handler.
+
+      Extend ETagOptions in src/middleware/etag/index.ts with a
+      vary?: string[] entry. On the path where the middleware sets the
+      ETag response header (the non-304 outcome), it must also append the
+      listed header names to the response's Vary header: when the response
+      already has a Vary header the names are appended comma-separated,
+      preserving the existing value; duplicates (case-insensitive) must
+      not be added twice. The 304 conversion path is unchanged by this
+      card. When vary is absent or empty, behavior is byte-for-byte
+      identical to today. Other options (weak, retainedHeaders,
+      generateDigest) keep working unchanged.
+
+      Add tests in a new file src/middleware/etag/coord-vary.test.ts
+      covering: with vary ['Accept-Encoding'], a response carries both an
+      ETag and a Vary header containing Accept-Encoding; a handler that
+      already sets Vary: Origin ends with both Origin and Accept-Encoding
+      present; a handler whose Vary already contains accept-encoding
+      (any case) is not given a duplicate; without the option the Vary
+      header is untouched. Stay inside src/middleware/etag/index.ts plus
+      your new test file. Do not touch the digest helper module, other
+      middleware, or utils. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/etag/index.ts
+        - Vary names are appended on the ETag-setting path, preserving existing values
+        - Case-insensitive duplicates are not added
+        - The 304 path and absent-option behavior are unchanged
+        - New tests only, in src/middleware/etag/coord-vary.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With vary provided, responses that receive an ETag also carry the listed names in Vary
+          - Existing Vary values set by handlers are preserved and extended
+          - A name already present in Vary (any case) is not duplicated
+          - Without vary the middleware never touches the Vary header
+          - New tests in src/middleware/etag/coord-vary.test.ts cover the fresh-vary, merge, duplicate, and absent-option cases
+        scope_paths:
+          - "src/middleware/etag/index.ts"
+          - "src/middleware/etag/coord-vary.test.ts"
+        out_of_scope:
+          - "src/middleware/etag/digest.ts"
+          - "src/middleware/etag/index.test.ts"
+          - "src/middleware/pretty-json/**"
+          - "src/middleware/request-id/**"
+          - "src/middleware/cache/**"
+          - "src/utils/**"
+          - "src/helper/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/etag/coord-vary.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

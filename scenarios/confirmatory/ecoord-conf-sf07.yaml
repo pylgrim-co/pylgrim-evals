@@ -1,0 +1,169 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-sf07
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items add entries to the SAME exported functions array in
+    src/languages/bigquery/bigquery.functions.ts — one long string-array
+    literal organized by category comments. The default path collides:
+    both cards' lazy move is appending at the array tail, stacking the two
+    insertions adjacently, and the tidy alternative — inserting under the
+    most plausible existing category comment — still pulls both cards
+    toward the same JSON-adjacent blocks of the array. A region-disjoint
+    pair still exists because the category blocks are far apart: the JSON
+    functions belong beside the existing json_functions comment block
+    while the distance functions sit under the mathematical or search
+    blocks hundreds of lines away, keeping every insertion several lines
+    from the other card's. Collision is evitable per §3 rule 1 but the
+    default gravity is a single shared array literal. Measured score
+    computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf07-a
+    kind: coord
+    title: BigQuery dialect learns the JSON constructor and lax accessor functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The BigQuery function list
+      (src/languages/bigquery/bigquery.functions.ts) predates BigQuery's
+      JSON constructor and lax accessor functions: PARSE_JSON, TO_JSON,
+      JSON_ARRAY, JSON_OBJECT, LAX_STRING, and LAX_INT64 are not
+      recognized, so the formatter treats them as plain identifiers and
+      the functionCase option never touches them.
+
+      Extend the exported functions array in
+      src/languages/bigquery/bigquery.functions.ts with exactly six
+      entries: PARSE_JSON, TO_JSON, JSON_ARRAY, JSON_OBJECT, LAX_STRING,
+      and LAX_INT64. Keep the array's category-comment organization
+      intact and do not remove or reorder any existing entry.
+
+      Add tests in a new file test/coord-bigquery-json-functions.test.ts
+      covering: formatting a SELECT that calls parse_json, json_array,
+      and lax_string with functionCase 'upper' uppercases all three;
+      formatting TO_JSON, JSON_OBJECT, and LAX_INT64 calls with
+      functionCase 'lower' lowercases them; an existing function such as
+      ARRAY_CONCAT still uppercases with functionCase 'upper'; an
+      unrelated identifier is left untouched by functionCase. Use the
+      sql-formatter public API with language 'bigquery'. Stay inside
+      src/languages/bigquery/bigquery.functions.ts plus your new test
+      file. Do not touch the BigQuery formatter or keywords modules, any
+      other dialect, or the core formatter. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/bigquery/bigquery.functions.ts, limited to adding the six entries
+        - No existing entry is removed, changed, or reordered
+        - The category-comment organization of the array is preserved
+        - New tests only, in test/coord-bigquery-json-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - PARSE_JSON, TO_JSON, JSON_ARRAY, JSON_OBJECT, LAX_STRING, and LAX_INT64 are recognized as functions in the bigquery dialect
+          - functionCase 'upper' and 'lower' rewrite the six names accordingly
+          - Existing functions and plain identifiers behave exactly as before
+          - New tests in test/coord-bigquery-json-functions.test.ts cover the upper, lower, existing-function, and identifier cases
+        scope_paths:
+          - "src/languages/bigquery/bigquery.functions.ts"
+          - "test/coord-bigquery-json-functions.test.ts"
+        out_of_scope:
+          - "src/languages/bigquery/bigquery.formatter.ts"
+          - "src/languages/bigquery/bigquery.keywords.ts"
+          - "src/languages/**/[!b]*"
+          - "src/sqlFormatter.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-bigquery-json-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf07-b
+    kind: coord
+    title: BigQuery dialect learns the vector distance and edit distance functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      The BigQuery function list
+      (src/languages/bigquery/bigquery.functions.ts) predates the
+      similarity and distance functions BigQuery added for vector and
+      fuzzy matching workloads: COSINE_DISTANCE, EUCLIDEAN_DISTANCE, and
+      EDIT_DISTANCE are not recognized, so the formatter treats them as
+      plain identifiers and the functionCase option never touches them.
+
+      Extend the exported functions array in
+      src/languages/bigquery/bigquery.functions.ts with exactly three
+      entries: COSINE_DISTANCE, EUCLIDEAN_DISTANCE, and EDIT_DISTANCE.
+      Keep the array's category-comment organization intact and do not
+      remove or reorder any existing entry.
+
+      Add tests in a new file
+      test/coord-bigquery-distance-functions.test.ts covering: formatting
+      a SELECT that calls cosine_distance and euclidean_distance with
+      functionCase 'upper' uppercases both; formatting an EDIT_DISTANCE
+      call with functionCase 'lower' lowercases it; an existing function
+      such as ARRAY_LENGTH still uppercases with functionCase 'upper'; an
+      unrelated identifier is left untouched by functionCase. Use the
+      sql-formatter public API with language 'bigquery'. Stay inside
+      src/languages/bigquery/bigquery.functions.ts plus your new test
+      file. Do not touch the BigQuery formatter or keywords modules, any
+      other dialect, or the core formatter. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/bigquery/bigquery.functions.ts, limited to adding the three entries
+        - No existing entry is removed, changed, or reordered
+        - The category-comment organization of the array is preserved
+        - New tests only, in test/coord-bigquery-distance-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - COSINE_DISTANCE, EUCLIDEAN_DISTANCE, and EDIT_DISTANCE are recognized as functions in the bigquery dialect
+          - functionCase 'upper' and 'lower' rewrite the three names accordingly
+          - Existing functions and plain identifiers behave exactly as before
+          - New tests in test/coord-bigquery-distance-functions.test.ts cover the upper, lower, existing-function, and identifier cases
+        scope_paths:
+          - "src/languages/bigquery/bigquery.functions.ts"
+          - "test/coord-bigquery-distance-functions.test.ts"
+        out_of_scope:
+          - "src/languages/bigquery/bigquery.formatter.ts"
+          - "src/languages/bigquery/bigquery.keywords.ts"
+          - "src/languages/**/[!b]*"
+          - "src/sqlFormatter.ts"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-bigquery-distance-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

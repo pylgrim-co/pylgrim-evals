@@ -1,0 +1,166 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-cl09
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items extend the SAME Result class in src/click/testing.py —
+    the captured-invocation value object whose member list ends at
+    __repr__. Both cards add a success-oriented member that reads the same
+    two attributes (exit_code, exception), and the default path for both
+    is the same append after __repr__ at the class tail, where the two
+    insertions stack adjacently and collide. A region-disjoint pair still
+    exists: the ok property can sit in the property block directly after
+    the output/stdout/stderr properties (it is a peer accessor) while
+    raise_on_error lands after __repr__ at the class end, with the stderr
+    property and __repr__ separating the regions. Collision is evitable
+    per §3 rule 1 but the default gravity is the same class-tail append.
+    Measured score computed by scripts/scenario-check.sh; the authored
+    label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-cl09-a
+    kind: coord
+    title: Result gains an ok property for one-line success asserts
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      CliRunner tests repeat the same two asserts everywhere:
+      result.exit_code == 0 and result.exception is None. The Result class
+      in src/click/testing.py has no single success signal, so test suites
+      grow inconsistent half-checks that miss captured exceptions.
+
+      Add an ok property to the Result class in src/click/testing.py that
+      returns True exactly when exit_code == 0 and exception is None, and
+      False otherwise. It must be a read-only property computed from the
+      existing attributes, with no caching and no other behavior change to
+      the class.
+
+      Add tests in a new file tests/test_coord_result_ok.py covering: a
+      command that completes normally yields result.ok True; a command
+      that raises an exception (invoked with the default
+      catch_exceptions=True) yields ok False; a command that exits with
+      SystemExit(2) via ctx.exit(2) yields ok False; ok is a plain bool.
+      Stay inside src/click/testing.py plus your new test file. Do not
+      touch other click modules. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/testing.py, limited to adding the Result.ok property
+        - ok is True exactly when exit_code == 0 and exception is None
+        - No other behavior of Result changes
+        - New tests only, in tests/test_coord_result_ok.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - A normally-completing invocation has ok True
+          - An invocation whose command raised has ok False
+          - An invocation exiting nonzero has ok False
+          - ok is a read-only property returning a bool
+          - New tests in tests/test_coord_result_ok.py cover the success, exception, and nonzero-exit cases
+        scope_paths:
+          - "src/click/testing.py"
+          - "tests/test_coord_result_ok.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/decorators.py"
+          - "src/click/_compat.py"
+          - "src/click/shell_completion.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_result_ok.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl09-b
+    kind: coord
+    title: Result gains raise_on_error to surface captured exceptions
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      CliRunner.invoke captures command exceptions by default, which is
+      right for asserting on output but wrong when a test just wants the
+      original failure: authors get an opaque nonzero exit_code and have
+      to dig result.exception out by hand, losing the traceback in the
+      test report.
+
+      Add a raise_on_error method to the Result class in
+      src/click/testing.py. When self.exception is None it returns None
+      and does nothing. Otherwise it re-raises the captured exception; when
+      exc_info is available, re-raise with the original traceback (raise
+      exc.with_traceback(tb)) so pytest reports point at the command code.
+      SystemExit captured from nonzero exits is re-raised like any other
+      exception. No other behavior of the class may change.
+
+      Add tests in a new file tests/test_coord_result_raise.py covering: a
+      command raising ValueError("boom") produces a result whose
+      raise_on_error raises ValueError with the original message
+      (pytest.raises); the raised exception's traceback includes the
+      command function frame; a successful invocation's raise_on_error
+      returns None and raises nothing; a command using ctx.exit(3)
+      produces a result whose raise_on_error raises SystemExit. Stay
+      inside src/click/testing.py plus your new test file. Do not touch
+      other click modules. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/testing.py, limited to adding Result.raise_on_error
+        - No exception captured means return None and no side effects
+        - The captured exception is re-raised with its original traceback when exc_info is available
+        - No other behavior of Result changes
+        - New tests only, in tests/test_coord_result_raise.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - raise_on_error re-raises a captured ValueError with its original message
+          - The re-raised exception carries the original traceback (command frame visible)
+          - raise_on_error on a successful result returns None
+          - A nonzero-exit result re-raises its captured SystemExit
+          - New tests in tests/test_coord_result_raise.py cover the raising, traceback, success, and SystemExit cases
+        scope_paths:
+          - "src/click/testing.py"
+          - "tests/test_coord_result_raise.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/decorators.py"
+          - "src/click/_compat.py"
+          - "src/click/shell_completion.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_result_raise.py"
+      deterministic_checks: []
+    source:
+      authored: true

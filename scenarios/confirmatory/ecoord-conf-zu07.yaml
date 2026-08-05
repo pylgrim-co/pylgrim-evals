@@ -1,0 +1,183 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zu07
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items extend the SAME four-line dispatch closure inside
+    reduxImpl (src/middleware/redux.ts) — the arrow function assigned to
+    (api as any).dispatch is the only place either card's behavior can
+    fire. Card A's natural move is a guard at the top of that closure;
+    card B's natural move is an observer call inside the same closure,
+    and the lazy path for both is to rewrite the whole tiny arrow in one
+    go, colliding on the same lines. A region-disjoint pair still exists:
+    the validation can live in a module-level helper invoked by a single
+    inserted line at the closure's head while the observer hook rides the
+    options parameter (types and signature card B alone touches) with its
+    single inserted line before the closure's return, leaving the set call
+    between them untouched. Collision is evitable per §3 rule 1 but the
+    default gravity is one small shared closure. Measured score computed
+    by scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-zu07-a
+    kind: coord
+    title: redux middleware dispatch rejects malformed actions with a TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The redux middleware (src/middleware/redux.ts) exposes dispatch on
+      the store api and in the returned state. Today dispatch forwards
+      whatever it is given straight into the reducer: dispatch(null),
+      dispatch(42), or dispatch({}) with no type all invoke the reducer
+      with garbage, and the failure surfaces later as a confusing reducer
+      bug instead of at the buggy call site.
+
+      Add argument validation to the dispatch function created inside
+      reduxImpl in src/middleware/redux.ts: when dispatch is called with a
+      value that is not an object, or with an object whose type property
+      is missing or not a string, throw a TypeError with a clear message.
+      The reducer must not be invoked and the state must not change when
+      validation fails. Valid actions (objects with a string type) must be
+      reduced and returned exactly as today, including dispatch's return
+      value being the action itself. Both entry points — api.dispatch and
+      the dispatch included in the returned initial state — must share the
+      validation, which they already do structurally since both route
+      through the same closure.
+
+      Add tests in a new file tests/coord/redux-action-guard.test.ts
+      covering: a valid action updates state through the reducer and is
+      returned from dispatch; dispatch(null), dispatch(42), and
+      dispatch({}) (no type) each throw TypeError and leave getState()
+      unchanged with the reducer never invoked; dispatch({ type: 5 })
+      (non-string type) throws TypeError; a valid dispatch after a
+      rejected one still works. Stay inside src/middleware/redux.ts plus
+      your new test file. Do not touch other middleware modules, the
+      middleware registry, or the vanilla core. No new dependencies, no CI
+      or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/redux.ts
+        - Invalid actions throw TypeError before the reducer runs; state never changes on a rejected dispatch
+        - Valid actions are reduced and returned exactly as before
+        - New tests only, in tests/coord/redux-action-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - dispatch with a non-object value throws TypeError, does not invoke the reducer, and leaves state unchanged
+          - dispatch with an object whose type is missing or not a string throws TypeError, does not invoke the reducer, and leaves state unchanged
+          - A valid action updates state through the reducer and dispatch returns the action
+          - A valid dispatch after a rejected dispatch still works
+          - New tests in tests/coord/redux-action-guard.test.ts cover the valid, non-object, missing-type, non-string-type, and post-rejection cases
+        scope_paths:
+          - "src/middleware/redux.ts"
+          - "tests/coord/redux-action-guard.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/immer.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/redux-action-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu07-b
+    kind: coord
+    title: redux middleware gains an onAction observer option
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      The redux middleware (src/middleware/redux.ts) applies actions
+      through a reducer, but there is no supported way to observe the
+      action stream: teams wiring analytics or logging have to wrap every
+      dispatch call site by hand.
+
+      Extend the signature in src/middleware/redux.ts to
+      redux(reducer, initialState, options?) where options is
+      { onAction?: (action) => void }. When onAction is provided, it must
+      be invoked exactly once per dispatched action, after the reducer's
+      result has been applied to the store, so that getState() inside the
+      callback observes the post-action state. Its return value is
+      ignored. When options or onAction is absent, behavior must be
+      byte-for-byte identical to today: dispatch reduces the action and
+      returns it. Update the Redux and ReduxImpl types so typed callers
+      can pass the optional third argument.
+
+      Add tests in a new file tests/coord/redux-on-action.test.ts
+      covering: onAction receives each dispatched action in order;
+      getState() inside the callback reflects the already-updated state;
+      dispatch still returns the action when onAction is provided; without
+      options the middleware behaves exactly as before; multiple
+      dispatches invoke the callback once each. Stay inside
+      src/middleware/redux.ts plus your new test file. Do not touch other
+      middleware modules, the middleware registry, or the vanilla core. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/redux.ts
+        - onAction fires once per dispatch, after the state update
+        - Without options the middleware behaves exactly as before
+        - dispatch's return value (the action) is unchanged
+        - New tests only, in tests/coord/redux-on-action.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - redux(reducer, initialState, { onAction }) invokes onAction exactly once per dispatched action, in dispatch order
+          - getState() inside the onAction callback observes the post-action state
+          - dispatch still returns the dispatched action when onAction is provided
+          - Without a third argument the middleware behaves exactly as before
+          - The Redux and ReduxImpl types accept the optional options argument
+          - New tests in tests/coord/redux-on-action.test.ts cover the per-dispatch, post-update-state, return-value, and no-options cases
+        scope_paths:
+          - "src/middleware/redux.ts"
+          - "tests/coord/redux-on-action.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/combine.ts"
+          - "src/middleware/devtools.ts"
+          - "src/middleware/persist.ts"
+          - "src/middleware/immer.ts"
+          - "src/middleware/subscribeWithSelector.ts"
+          - "src/middleware/ssrSafe.ts"
+          - "src/react.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/redux-on-action.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

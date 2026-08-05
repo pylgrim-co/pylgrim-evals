@@ -1,0 +1,185 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (very-high stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-ho09
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: very-high
+  rationale: >
+    Both work items widen the SAME RequestIdOptions type, the SAME
+    multi-line destructured-parameter list of the requestId factory, and
+    the SAME ten-line middleware closure in
+    src/middleware/request-id/request-id.ts. The default path for both
+    cards stacks a new option at the type tail and a new destructure entry
+    at the parameter-list tail, then reworks the closure — colliding in
+    all three places. A region-disjoint pair still exists: card A's
+    validator hook edits only the acceptance condition on the incoming id
+    (the closure's second line) with its type and destructure entries at
+    the top of each list, while card B's response-header name edits only
+    the trailing echo block with its entries at the bottom of each list;
+    the c.set line separates the two closure regions. Collision is
+    evitable per §3 rule 1 but the default gravity is one shared type,
+    parameter list, and closure. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho09-a
+    kind: coord
+    title: requestId accepts a custom validator for incoming ids
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The requestId middleware
+      (src/middleware/request-id/request-id.ts) trusts incoming
+      X-Request-Id values that pass a fixed character-class check. Teams
+      that require UUIDs (or their own id scheme) cannot express that:
+      any word-character string sails through and pollutes traces.
+
+      Extend RequestIdOptions in
+      src/middleware/request-id/request-id.ts with a
+      validator?: (reqId: string) => boolean entry. When provided, an
+      incoming header id is accepted only if validator returns true —
+      replacing the default character-class regex test while the
+      limitLength check keeps applying. A missing or empty incoming
+      header still generates a fresh id exactly as today. When validator
+      is absent, the current regex behavior is preserved byte-for-byte.
+      Accepted or generated ids are still stored in the requestId
+      context variable and echoed to the response header as today.
+
+      Add tests in a new file
+      src/middleware/request-id/coord-validator.test.ts covering: with a
+      validator accepting only 36-character UUID-shaped ids, a request
+      carrying a non-UUID id gets a freshly generated id (the incoming
+      value is not reused); a request carrying a UUID id keeps it; with a
+      validator, an id longer than limitLength is regenerated even if the
+      validator would accept it; without the option, an underscore id is
+      still accepted by the default regex. Stay inside
+      src/middleware/request-id/request-id.ts plus your new test file. Do
+      not touch the middleware's index barrel, other middleware, or
+      utils. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/request-id/request-id.ts
+        - validator replaces the default charset test for incoming ids; limitLength still applies
+        - Missing or empty incoming headers still generate fresh ids
+        - Without validator the default regex behavior is unchanged
+        - New tests only, in src/middleware/request-id/coord-validator.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An incoming id rejected by the validator is replaced by a generated id
+          - An incoming id accepted by the validator is kept, stored in context, and echoed
+          - Over-length ids are regenerated regardless of the validator's verdict
+          - Without validator the default character-class acceptance is unchanged
+          - New tests in src/middleware/request-id/coord-validator.test.ts cover the rejected, accepted, over-length, and default cases
+        scope_paths:
+          - "src/middleware/request-id/request-id.ts"
+          - "src/middleware/request-id/coord-validator.test.ts"
+        out_of_scope:
+          - "src/middleware/request-id/index.ts"
+          - "src/middleware/request-id/index.test.ts"
+          - "src/middleware/pretty-json/**"
+          - "src/middleware/etag/**"
+          - "src/utils/**"
+          - "src/helper/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/request-id/coord-validator.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho09-b
+    kind: coord
+    title: requestId can echo the id under a different response header
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The requestId middleware
+      (src/middleware/request-id/request-id.ts) reads and echoes the same
+      header name. Gateways often consume X-Request-Id inbound but expect
+      the service to answer with its own name (X-Trace-Id,
+      X-Correlation-Id); today the only knob renames both directions at
+      once.
+
+      Extend RequestIdOptions in
+      src/middleware/request-id/request-id.ts with a
+      responseHeaderName?: string entry. When provided, the id (incoming
+      or generated) is echoed to the response under responseHeaderName
+      instead of headerName; the incoming read side and the requestId
+      context variable are unaffected. When responseHeaderName is an
+      empty string, no response header is set at all while the context
+      variable still carries the id. When absent, the response header is
+      headerName exactly as today, including the existing rule that an
+      empty headerName disables the echo.
+
+      Add tests in a new file
+      src/middleware/request-id/coord-response-header.test.ts covering:
+      with responseHeaderName 'X-Trace-Id', the response carries the id
+      in X-Trace-Id and not in X-Request-Id, while an incoming
+      X-Request-Id id is still honored and visible in the requestId
+      variable; with responseHeaderName '', no response header is set but
+      the handler can read c.get('requestId'); without the option the
+      response still echoes X-Request-Id. Stay inside
+      src/middleware/request-id/request-id.ts plus your new test file. Do
+      not touch the middleware's index barrel, other middleware, or
+      utils. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/request-id/request-id.ts
+        - responseHeaderName affects only the response echo, never the read side or context variable
+        - Empty responseHeaderName disables the echo while the context variable is still set
+        - Without the option the echo uses headerName exactly as today
+        - New tests only, in src/middleware/request-id/coord-response-header.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With responseHeaderName set, the id appears under that header and not under headerName
+          - Incoming ids are still read from headerName and stored in the requestId variable
+          - Empty responseHeaderName suppresses the response header while context keeps the id
+          - Without the option the response echo is unchanged
+          - New tests in src/middleware/request-id/coord-response-header.test.ts cover the renamed, read-side, suppressed, and default cases
+        scope_paths:
+          - "src/middleware/request-id/request-id.ts"
+          - "src/middleware/request-id/coord-response-header.test.ts"
+        out_of_scope:
+          - "src/middleware/request-id/index.ts"
+          - "src/middleware/request-id/index.test.ts"
+          - "src/middleware/pretty-json/**"
+          - "src/middleware/etag/**"
+          - "src/utils/**"
+          - "src/helper/**"
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/request-id/coord-response-header.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
