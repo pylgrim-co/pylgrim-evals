@@ -276,6 +276,29 @@ mechanically-defined substantive-edit exclusion rule (§5, M4). The
 5-per-repo clustering is a known independence violation carried to the
 analysis plan as pre-registered leave-one-repo-out sensitivity (§5, M6).
 
+**COMPOSITION AMENDMENT (ratified Sam, 2026-08-05, pre-freeze):** the
+gate-calibration study (20 control-arm Haiku episodes across five
+pressure strata, task #58; data in `episodes-cal-strata.db` +
+calibration rows of the confirmatory-subset db) measured control-arm
+collision rates of low 0/4, medium 1/4, high 0/4, **very-high 3/4,
+extreme 2/4** — the original low/medium/high mix pools to ~8%, below
+the §6 gate window, and would freeze an undecidable C1 endpoint (the
+rung-2 lesson applied ex ante). The confirmatory set is therefore
+re-composed to **48 scenarios: 12 high (existing certified) + 18
+very-high (the 4 calibration scenarios, disclosed below, + 14 new) +
+18 extreme (4 calibration + 14 new)**, authored to the calibration
+recipes (same-function insertion points, shared registries in small
+files; stratum definitions in scenarios/calibration/README.md, now
+canonical). Low/medium scenarios are DEMOTED to descriptive corpus
+(never in the confirmatory family). Budget becomes 48 × 3 arms × 3
+reps = **432 episodes** (~1.3× the prior plan). Disclosure: the 8
+calibration scenarios' CONTROL-arm base rates were observed pre-freeze
+(control-only; no treatment or ledger-arm data exists for them);
+selecting scenarios by measured collision propensity is the §3
+overlap-pressure floor operating as designed, and the observation is
+disclosed here and in the prereg. All 28 new scenarios follow the M5
+authoring-order rule and on-host certification before freeze.
+
 ## 4. Metrics (C-series; deterministic first, house discipline)
 
 All computed from the two final branch diffs, the merged tree (§2, O5
