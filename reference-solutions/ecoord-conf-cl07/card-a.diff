@@ -1,0 +1,47 @@
+diff --git a/src/click/shell_completion.py b/src/click/shell_completion.py
+index 5652214..968cc09 100644
+--- a/src/click/shell_completion.py
++++ b/src/click/shell_completion.py
+@@ -97,6 +97,11 @@ class CompletionItem(t.Generic[_ValueT_co]):
+         self.help: str | None = help
+         self._info = kwargs
+ 
++    def __repr__(self) -> str:
++        return (
++            f"CompletionItem({self.value!r}, type={self.type!r}, help={self.help!r})"
++        )
++
+     def __getattr__(self, name: str) -> t.Any:
+         return self._info.get(name)
+ 
+diff --git a/tests/test_coord_completion_item_repr.py b/tests/test_coord_completion_item_repr.py
+new file mode 100644
+index 0000000..a942291
+--- /dev/null
++++ b/tests/test_coord_completion_item_repr.py
+@@ -0,0 +1,25 @@
++from click.shell_completion import CompletionItem
++
++
++def test_repr_with_defaults():
++    item = CompletionItem("file.txt")
++    assert repr(item) == "CompletionItem('file.txt', type='plain', help=None)"
++
++
++def test_repr_with_explicit_type_and_help():
++    item = CompletionItem("docs", type="dir", help="a directory")
++    assert repr(item) == "CompletionItem('docs', type='dir', help='a directory')"
++
++
++def test_repr_ignores_extra_kwargs():
++    item = CompletionItem("x", flavor="spicy")
++    assert "flavor" not in repr(item)
++    assert repr(item) == "CompletionItem('x', type='plain', help=None)"
++
++
++def test_list_printing_shows_reprs():
++    items = [CompletionItem("a"), CompletionItem("b")]
++    assert str(items) == (
++        "[CompletionItem('a', type='plain', help=None),"
++        " CompletionItem('b', type='plain', help=None)]"
++    )

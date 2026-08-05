@@ -1,0 +1,78 @@
+diff --git a/packages/zod/src/v4/classic/from-json-schema.ts b/packages/zod/src/v4/classic/from-json-schema.ts
+index 7934f337..64b5089a 100644
+--- a/packages/zod/src/v4/classic/from-json-schema.ts
++++ b/packages/zod/src/v4/classic/from-json-schema.ts
+@@ -520,6 +520,22 @@ function convertBaseSchema(schema: JSONSchema.JSONSchema, ctx: ConversionContext
+         // No items specified - array of any
+         zodSchema = z.array(z.any());
+       }
++
++      if (schema.contains !== undefined && !(prefixItems && Array.isArray(prefixItems)) && !Array.isArray(items)) {
++        const containsSchema = convertSchema(schema.contains as JSONSchema.JSONSchema, ctx);
++        const minContains = typeof schema.minContains === "number" ? schema.minContains : 1;
++        const maxContains = typeof schema.maxContains === "number" ? schema.maxContains : Infinity;
++        zodSchema = zodSchema.refine(
++          (arr: unknown) => {
++            if (!Array.isArray(arr)) {
++              return true;
++            }
++            const count = arr.filter((el) => containsSchema.safeParse(el).success).length;
++            return count >= minContains && count <= maxContains;
++          },
++          { message: "Array does not satisfy the contains constraint" }
++        );
++      }
+       break;
+     }
+ 
+diff --git a/packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts b/packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts
+new file mode 100644
+index 00000000..1c61977e
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-fjs-contains.test.ts
+@@ -0,0 +1,45 @@
++import { expect, test } from "vitest";
++import { fromJSONSchema } from "../from-json-schema.js";
++
++test("contains requires at least one matching element by default", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    contains: { type: "number" },
++  });
++  expect(schema.parse(["a", 1])).toEqual(["a", 1]);
++  expect(() => schema.parse(["a", "b"])).toThrow();
++});
++
++test("minContains raises the required count", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    contains: { type: "number" },
++    minContains: 2,
++  });
++  expect(() => schema.parse(["a", 1])).toThrow();
++  expect(schema.parse(["a", 1, 2])).toEqual(["a", 1, 2]);
++});
++
++test("maxContains caps the count", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    contains: { type: "number" },
++    maxContains: 1,
++  });
++  expect(schema.parse(["a", 1])).toEqual(["a", 1]);
++  expect(() => schema.parse([1, 2])).toThrow();
++});
++
++test("contains works when items is absent", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    contains: { type: "string" },
++  });
++  expect(schema.parse([1, "x"])).toEqual([1, "x"]);
++  expect(() => schema.parse([1, 2])).toThrow();
++});
++
++test("without contains untyped arrays still parse anything", () => {
++  const schema = fromJSONSchema({ type: "array" });
++  expect(schema.parse([1, "x", null])).toEqual([1, "x", null]);
++});

@@ -1,0 +1,73 @@
+diff --git a/src/click/testing.py b/src/click/testing.py
+index 19fae4a..a7d22c6 100644
+--- a/src/click/testing.py
++++ b/src/click/testing.py
+@@ -313,6 +313,19 @@ class Result:
+         exc_str = repr(self.exception) if self.exception else "okay"
+         return f"<{type(self).__name__} {exc_str}>"
+ 
++    def raise_on_error(self) -> None:
++        """Re-raise the exception captured by :meth:`CliRunner.invoke`,
++        with its original traceback when available. Does nothing when the
++        invocation did not capture an exception.
++        """
++        if self.exception is None:
++            return
++
++        if self.exc_info is not None:
++            raise self.exception.with_traceback(self.exc_info[2])
++
++        raise self.exception
++
+ 
+ class CliRunner:
+     """The CLI runner provides functionality to invoke a Click command line
+diff --git a/tests/test_coord_result_raise.py b/tests/test_coord_result_raise.py
+new file mode 100644
+index 0000000..34bb673
+--- /dev/null
++++ b/tests/test_coord_result_raise.py
+@@ -0,0 +1,43 @@
++import click
++import pytest
++from click.testing import CliRunner
++
++
++@click.command()
++def ok_cli():
++    click.echo("fine")
++
++
++@click.command()
++def boom_cli():
++    raise ValueError("boom")
++
++
++@click.command()
++def exit_cli():
++    ctx = click.get_current_context()
++    ctx.exit(3)
++
++
++def test_reraises_captured_value_error():
++    result = CliRunner().invoke(boom_cli)
++    with pytest.raises(ValueError, match="boom"):
++        result.raise_on_error()
++
++
++def test_traceback_includes_command_frame():
++    result = CliRunner().invoke(boom_cli)
++    with pytest.raises(ValueError) as excinfo:
++        result.raise_on_error()
++    assert "boom_cli" in [entry.name for entry in excinfo.traceback]
++
++
++def test_success_returns_none():
++    result = CliRunner().invoke(ok_cli)
++    assert result.raise_on_error() is None
++
++
++def test_nonzero_exit_reraises_system_exit():
++    result = CliRunner().invoke(exit_cli)
++    with pytest.raises(SystemExit):
++        result.raise_on_error()

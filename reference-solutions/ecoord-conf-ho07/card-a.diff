@@ -1,0 +1,83 @@
+diff --git a/src/middleware/pretty-json/coord-content-types.test.ts b/src/middleware/pretty-json/coord-content-types.test.ts
+new file mode 100644
+index 00000000..54df130a
+--- /dev/null
++++ b/src/middleware/pretty-json/coord-content-types.test.ts
+@@ -0,0 +1,46 @@
++import { Hono } from '../../hono'
++import { prettyJSON } from '.'
++
++describe('Pretty JSON Middleware with contentTypes option', () => {
++  const body = { message: 'hono', secret: 'x' }
++
++  const makeApp = (contentTypes?: string[]) => {
++    const app = new Hono()
++    app.use('*', prettyJSON(contentTypes ? { contentTypes } : undefined))
++    app.get('/problem', (c) =>
++      c.body(JSON.stringify(body), 200, {
++        'Content-Type': 'application/problem+json',
++      })
++    )
++    app.get('/plain', (c) =>
++      c.body(JSON.stringify(body), 200, { 'Content-Type': 'text/plain' })
++    )
++    app.get('/json', (c) => c.json(body))
++    return app
++  }
++
++  it('Should prettify a listed content type on ?pretty requests', async () => {
++    const res = await makeApp(['application/problem+json']).request('/problem?pretty')
++    expect(await res.text()).toBe(JSON.stringify(body, null, 2))
++  })
++
++  it('Should leave the same response untouched without the option', async () => {
++    const res = await makeApp().request('/problem?pretty')
++    expect(await res.text()).toBe(JSON.stringify(body))
++  })
++
++  it('Should still prettify application/json with the option present', async () => {
++    const res = await makeApp(['application/problem+json']).request('/json?pretty')
++    expect(await res.text()).toBe(JSON.stringify(body, null, 2))
++  })
++
++  it('Should never rewrite unlisted content types', async () => {
++    const res = await makeApp(['application/problem+json']).request('/plain?pretty')
++    expect(await res.text()).toBe(JSON.stringify(body))
++  })
++
++  it('Should leave listed types untouched without the query trigger', async () => {
++    const res = await makeApp(['application/problem+json']).request('/problem')
++    expect(await res.text()).toBe(JSON.stringify(body))
++  })
++})
+diff --git a/src/middleware/pretty-json/index.ts b/src/middleware/pretty-json/index.ts
+index 785e4a9a..e333719e 100644
+--- a/src/middleware/pretty-json/index.ts
++++ b/src/middleware/pretty-json/index.ts
+@@ -12,6 +12,12 @@ interface PrettyOptions {
+    */
+   space?: number
+ 
++  /**
++   * Additional Content-Type prefixes to treat as JSON.
++   * @default []
++   */
++  contentTypes?: string[]
++
+   /**
+    * Query conditions for when to Pretty.
+    * @default 'pretty'
+@@ -48,7 +54,12 @@ export const prettyJSON = (options?: PrettyOptions): MiddlewareHandler => {
+   return async function prettyJSON(c, next) {
+     const pretty = options?.force || c.req.query(targetQuery) || c.req.query(targetQuery) === ''
+     await next()
+-    if (pretty && c.res.headers.get('Content-Type')?.startsWith('application/json')) {
++    const contentType = c.res.headers.get('Content-Type')
++    const isJsonType =
++      contentType?.startsWith('application/json') ||
++      (contentType != null &&
++        options?.contentTypes?.some((type) => contentType.startsWith(type)))
++    if (pretty && isJsonType) {
+       const obj = await c.res.json()
+       c.res = new Response(JSON.stringify(obj, null, options?.space ?? 2), c.res)
+     }

@@ -1,0 +1,70 @@
+diff --git a/src/middleware/request-id/coord-response-header.test.ts b/src/middleware/request-id/coord-response-header.test.ts
+new file mode 100644
+index 00000000..529db4e3
+--- /dev/null
++++ b/src/middleware/request-id/coord-response-header.test.ts
+@@ -0,0 +1,33 @@
++import { Hono } from '../../hono'
++import { requestId } from '.'
++
++describe('Request ID Middleware with responseHeaderName option', () => {
++  const makeApp = (options?: Parameters<typeof requestId>[0]) => {
++    const app = new Hono()
++    app.use('*', requestId(options))
++    app.get('/', (c) => c.text(c.get('requestId')))
++    return app
++  }
++
++  it('Should echo under the configured header and not under headerName', async () => {
++    const res = await makeApp({ responseHeaderName: 'X-Trace-Id' }).request('/', {
++      headers: { 'X-Request-Id': 'incoming-id' },
++    })
++    expect(res.headers.get('X-Trace-Id')).toBe('incoming-id')
++    expect(res.headers.get('X-Request-Id')).toBeNull()
++    expect(await res.text()).toBe('incoming-id')
++  })
++
++  it('Should suppress the echo with an empty responseHeaderName', async () => {
++    const res = await makeApp({ responseHeaderName: '' }).request('/')
++    expect(res.headers.get('X-Request-Id')).toBeNull()
++    expect((await res.text()).length).toBeGreaterThan(0)
++  })
++
++  it('Should keep echoing X-Request-Id without the option', async () => {
++    const res = await makeApp().request('/', {
++      headers: { 'X-Request-Id': 'incoming-id' },
++    })
++    expect(res.headers.get('X-Request-Id')).toBe('incoming-id')
++  })
++})
+diff --git a/src/middleware/request-id/request-id.ts b/src/middleware/request-id/request-id.ts
+index 04d78965..dec4d8ec 100644
+--- a/src/middleware/request-id/request-id.ts
++++ b/src/middleware/request-id/request-id.ts
+@@ -14,6 +14,7 @@ export type RequestIdOptions = {
+   limitLength?: number
+   headerName?: string
+   generator?: (c: Context) => string
++  responseHeaderName?: string
+ }
+ 
+ /**
+@@ -42,6 +43,7 @@ export const requestId = ({
+   limitLength = 255,
+   headerName = 'X-Request-Id',
+   generator = () => crypto.randomUUID(),
++  responseHeaderName = headerName,
+ }: RequestIdOptions = {}): MiddlewareHandler => {
+   return async function requestId(c, next) {
+     // If `headerName` is empty string, req.header will return the object
+@@ -51,8 +53,8 @@ export const requestId = ({
+     }
+ 
+     c.set('requestId', reqId)
+-    if (headerName) {
+-      c.header(headerName, reqId)
++    if (responseHeaderName) {
++      c.header(responseHeaderName, reqId)
+     }
+     await next()
+   }

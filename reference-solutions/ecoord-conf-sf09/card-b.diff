@@ -1,0 +1,73 @@
+diff --git a/src/languages/transactsql/transactsql.functions.ts b/src/languages/transactsql/transactsql.functions.ts
+index c7a6ef23..d06f4d52 100644
+--- a/src/languages/transactsql/transactsql.functions.ts
++++ b/src/languages/transactsql/transactsql.functions.ts
+@@ -126,6 +126,9 @@ export const functions: string[] = [
+   'JSON_VALUE',
+   'JSON_QUERY',
+   'JSON_MODIFY',
++  'JSON_OBJECT',
++  'JSON_ARRAY',
++  'JSON_PATH_EXISTS',
+ 
+   // mathematical
+   'ABS',
+diff --git a/test/coord-tsql-json-functions.test.ts b/test/coord-tsql-json-functions.test.ts
+new file mode 100644
+index 00000000..ee771233
+--- /dev/null
++++ b/test/coord-tsql-json-functions.test.ts
+@@ -0,0 +1,53 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('transactsql JSON construction functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'transactsql' });
++
++  it('uppercases json_object and json_array with functionCase: "upper"', () => {
++    const result = format('SELECT json_object(a), json_array(b) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_OBJECT(a),
++        JSON_ARRAY(b)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases JSON_PATH_EXISTS with functionCase: "lower"', () => {
++    const result = format("SELECT JSON_PATH_EXISTS(j, '$.a') FROM t", {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        json_path_exists(j, '$.a')
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing isjson function', () => {
++    const result = format('SELECT isjson(j) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        ISJSON(j)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

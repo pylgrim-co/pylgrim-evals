@@ -1,0 +1,53 @@
+diff --git a/packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts b/packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts
+new file mode 100644
+index 00000000..a000d438
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-registry-get-by-id.test.ts
+@@ -0,0 +1,32 @@
++import { expect, test } from "vitest";
++import * as z from "zod/v4";
++
++test("getById returns the schema registered under the id", () => {
++  const reg = z.registry();
++  const user = z.string();
++  reg.add(user, { id: "user" });
++  expect(reg.getById("user")).toBe(user);
++});
++
++test("unknown ids return undefined", () => {
++  const reg = z.registry();
++  expect(reg.getById("nope")).toBeUndefined();
++});
++
++test("remove(schema) invalidates the id lookup", () => {
++  const reg = z.registry();
++  const user = z.string();
++  reg.add(user, { id: "user" });
++  reg.remove(user);
++  expect(reg.getById("user")).toBeUndefined();
++});
++
++test("independent ids resolve independently", () => {
++  const reg = z.registry();
++  const user = z.string();
++  const post = z.number();
++  reg.add(user, { id: "user" });
++  reg.add(post, { id: "post" });
++  expect(reg.getById("user")).toBe(user);
++  expect(reg.getById("post")).toBe(post);
++});
+diff --git a/packages/zod/src/v4/core/registries.ts b/packages/zod/src/v4/core/registries.ts
+index 6d04ea15..3f621df0 100644
+--- a/packages/zod/src/v4/core/registries.ts
++++ b/packages/zod/src/v4/core/registries.ts
+@@ -42,6 +42,10 @@ export class $ZodRegistry<Meta extends MetadataType = MetadataType, Schema exten
+     return this as any;
+   }
+ 
++  getById(id: string): Schema | undefined {
++    return this._idmap.get(id);
++  }
++
+   clear(): this {
+     this._map = new WeakMap();
+     this._idmap = new Map();

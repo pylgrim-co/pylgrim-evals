@@ -1,0 +1,61 @@
+diff --git a/src/click/_compat.py b/src/click/_compat.py
+index 90e328b..45f0ed5 100644
+--- a/src/click/_compat.py
++++ b/src/click/_compat.py
+@@ -499,6 +499,8 @@ def should_strip_ansi(
+     stream: t.IO[t.Any] | None = None, color: bool | None = None
+ ) -> bool:
+     if color is None:
++        if os.environ.get("NO_COLOR"):
++            return True
+         if stream is None:
+             stream = sys.stdin
+         elif hasattr(stream, "color"):
+diff --git a/tests/test_coord_no_color_env.py b/tests/test_coord_no_color_env.py
+new file mode 100644
+index 0000000..5a29518
+--- /dev/null
++++ b/tests/test_coord_no_color_env.py
+@@ -0,0 +1,42 @@
++import io
++
++import click
++
++
++class TtyStringIO(io.StringIO):
++    def isatty(self) -> bool:
++        return True
++
++
++STYLED = click.style("hello", fg="green")
++
++
++def test_no_color_strips_on_tty(monkeypatch):
++    monkeypatch.setenv("NO_COLOR", "1")
++    out = TtyStringIO()
++    click.echo(STYLED, file=out)
++    assert out.getvalue() == "hello
++"
++
++
++def test_without_no_color_tty_keeps_codes(monkeypatch):
++    monkeypatch.delenv("NO_COLOR", raising=False)
++    out = TtyStringIO()
++    click.echo(STYLED, file=out)
++    assert out.getvalue() == f"{STYLED}
++"
++    assert "[" in out.getvalue()
++
++
++def test_empty_no_color_behaves_as_unset(monkeypatch):
++    monkeypatch.setenv("NO_COLOR", "")
++    out = TtyStringIO()
++    click.echo(STYLED, file=out)
++    assert "[" in out.getvalue()
++
++
++def test_explicit_color_true_wins(monkeypatch):
++    monkeypatch.setenv("NO_COLOR", "1")
++    out = TtyStringIO()
++    click.echo(STYLED, file=out, color=True)
++    assert "[" in out.getvalue()

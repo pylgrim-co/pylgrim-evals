@@ -1,0 +1,95 @@
+diff --git a/src/middleware/etag/coord-vary.test.ts b/src/middleware/etag/coord-vary.test.ts
+new file mode 100644
+index 00000000..6efd7f90
+--- /dev/null
++++ b/src/middleware/etag/coord-vary.test.ts
+@@ -0,0 +1,50 @@
++import { Hono } from '../../hono'
++import { etag } from '.'
++
++describe('Etag Middleware with vary option', () => {
++  const makeApp = (vary?: string[]) => {
++    const app = new Hono()
++    app.use('/etag/*', etag(vary ? { vary } : undefined))
++    app.get('/etag/plain', (c) => c.text('body'))
++    app.get('/etag/origin', (c) => {
++      c.header('Vary', 'Origin')
++      return c.text('body')
++    })
++    app.get('/etag/dupe', (c) => {
++      c.header('Vary', 'accept-encoding')
++      return c.text('body')
++    })
++    return app
++  }
++
++  const varyNames = (res: Response) =>
++    (res.headers.get('Vary') ?? '')
++      .split(',')
++      .map((name) => name.trim().toLowerCase())
++      .filter((name) => name.length > 0)
++
++  it('Should carry the listed names in Vary next to the ETag', async () => {
++    const res = await makeApp(['Accept-Encoding']).request('/etag/plain')
++    expect(res.headers.get('ETag')).not.toBeNull()
++    expect(varyNames(res)).toContain('accept-encoding')
++  })
++
++  it('Should preserve and extend an existing Vary header', async () => {
++    const res = await makeApp(['Accept-Encoding']).request('/etag/origin')
++    const names = varyNames(res)
++    expect(names).toContain('origin')
++    expect(names).toContain('accept-encoding')
++  })
++
++  it('Should not duplicate a name already present in any case', async () => {
++    const res = await makeApp(['Accept-Encoding']).request('/etag/dupe')
++    const names = varyNames(res).filter((name) => name === 'accept-encoding')
++    expect(names).toHaveLength(1)
++  })
++
++  it('Should never touch Vary without the option', async () => {
++    const res = await makeApp().request('/etag/plain')
++    expect(res.headers.get('ETag')).not.toBeNull()
++    expect(res.headers.get('Vary')).toBeNull()
++  })
++})
+diff --git a/src/middleware/etag/index.ts b/src/middleware/etag/index.ts
+index 414b4983..310718c1 100644
+--- a/src/middleware/etag/index.ts
++++ b/src/middleware/etag/index.ts
+@@ -10,6 +10,7 @@ type ETagOptions = {
+   retainedHeaders?: string[]
+   weak?: boolean
+   generateDigest?: (body: Uint8Array<ArrayBuffer>) => ArrayBuffer | Promise<ArrayBuffer>
++  vary?: string[]
+ }
+ 
+ /**
+@@ -80,6 +81,7 @@ export const etag = (options?: ETagOptions): MiddlewareHandler => {
+   const retainedHeaders = options?.retainedHeaders ?? RETAINED_304_HEADERS
+   const weak = options?.weak ?? false
+   const generator = initializeGenerator(options?.generateDigest)
++  const vary = options?.vary ?? []
+ 
+   return async function etag(c, next) {
+     const ifNoneMatch = c.req.header('If-None-Match') ?? null
+@@ -119,6 +121,18 @@ export const etag = (options?: ETagOptions): MiddlewareHandler => {
+       })
+     } else {
+       c.res.headers.set('ETag', etag)
++
++      if (vary.length > 0) {
++        const existing = c.res.headers.get('Vary')
++        const present = existing
++          ? existing.split(',').map((name) => name.trim().toLowerCase())
++          : []
++        for (const name of vary) {
++          if (!present.includes(name.toLowerCase())) {
++            c.res.headers.append('Vary', name)
++          }
++        }
++      }
+     }
+   }
+ }

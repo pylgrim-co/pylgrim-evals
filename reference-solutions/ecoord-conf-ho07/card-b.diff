@@ -1,0 +1,75 @@
+diff --git a/src/middleware/pretty-json/coord-replacer.test.ts b/src/middleware/pretty-json/coord-replacer.test.ts
+new file mode 100644
+index 00000000..e4e3953c
+--- /dev/null
++++ b/src/middleware/pretty-json/coord-replacer.test.ts
+@@ -0,0 +1,41 @@
++import { Hono } from '../../hono'
++import { prettyJSON } from '.'
++
++describe('Pretty JSON Middleware with replacer option', () => {
++  const body = { message: 'hono', secret: 'hide-me' }
++
++  const dropSecret = (key: string, value: unknown) =>
++    key === 'secret' ? undefined : value
++
++  const upper = (_key: string, value: unknown) =>
++    typeof value === 'string' ? value.toUpperCase() : value
++
++  const makeApp = (replacer?: (key: string, value: unknown) => unknown) => {
++    const app = new Hono()
++    app.use('*', prettyJSON(replacer ? { replacer } : undefined))
++    app.get('/', (c) => c.json(body))
++    return app
++  }
++
++  it('Should drop replaced keys while keeping indentation', async () => {
++    const res = await makeApp(dropSecret).request('/?pretty')
++    expect(await res.text()).toBe(JSON.stringify({ message: 'hono' }, null, 2))
++  })
++
++  it('Should pass the original body through without the query trigger', async () => {
++    const res = await makeApp(dropSecret).request('/')
++    expect(await res.text()).toBe(JSON.stringify(body))
++  })
++
++  it('Should apply value-transforming replacers to prettified output', async () => {
++    const res = await makeApp(upper).request('/?pretty')
++    expect(await res.text()).toBe(
++      JSON.stringify({ message: 'HONO', secret: 'HIDE-ME' }, null, 2)
++    )
++  })
++
++  it('Should match today's output without a replacer', async () => {
++    const res = await makeApp().request('/?pretty')
++    expect(await res.text()).toBe(JSON.stringify(body, null, 2))
++  })
++})
+diff --git a/src/middleware/pretty-json/index.ts b/src/middleware/pretty-json/index.ts
+index 785e4a9a..b8816c49 100644
+--- a/src/middleware/pretty-json/index.ts
++++ b/src/middleware/pretty-json/index.ts
+@@ -23,6 +23,11 @@ interface PrettyOptions {
+    * @default false
+    */
+   force?: boolean
++
++  /**
++   * Replacer function forwarded to JSON.stringify for prettified output.
++   */
++  replacer?: (this: any, key: string, value: unknown) => unknown
+ }
+ 
+ /**
+@@ -50,7 +55,10 @@ export const prettyJSON = (options?: PrettyOptions): MiddlewareHandler => {
+     await next()
+     if (pretty && c.res.headers.get('Content-Type')?.startsWith('application/json')) {
+       const obj = await c.res.json()
+-      c.res = new Response(JSON.stringify(obj, null, options?.space ?? 2), c.res)
++      c.res = new Response(
++        JSON.stringify(obj, options?.replacer ?? null, options?.space ?? 2),
++        c.res
++      )
+     }
+   }
+ }

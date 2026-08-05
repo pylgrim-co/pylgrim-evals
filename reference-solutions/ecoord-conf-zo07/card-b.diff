@@ -1,0 +1,50 @@
+diff --git a/packages/zod/src/v4/classic/from-json-schema.ts b/packages/zod/src/v4/classic/from-json-schema.ts
+index 7934f337..3bdc3768 100644
+--- a/packages/zod/src/v4/classic/from-json-schema.ts
++++ b/packages/zod/src/v4/classic/from-json-schema.ts
+@@ -310,6 +310,12 @@ function convertBaseSchema(schema: JSONSchema.JSONSchema, ctx: ConversionContext
+           stringSchema = stringSchema.check(z.xid());
+         } else if (format === "ksuid") {
+           stringSchema = stringSchema.check(z.ksuid());
++        } else if (format === "hex") {
++          stringSchema = stringSchema.check(z.hex());
++        } else if (format === "md5") {
++          stringSchema = stringSchema.check(z.hash("md5"));
++        } else if (format === "sha256") {
++          stringSchema = stringSchema.check(z.hash("sha256"));
+         }
+         // Note: json-string format is not currently supported by Zod
+         // Custom formats are ignored - keep as plain string
+diff --git a/packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts b/packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts
+new file mode 100644
+index 00000000..31b8ac72
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-fjs-hash.test.ts
+@@ -0,0 +1,27 @@
++import { expect, test } from "vitest";
++import { fromJSONSchema } from "../from-json-schema.js";
++
++test("hex format accepts hex strings and rejects non-hex input", () => {
++  const schema = fromJSONSchema({ type: "string", format: "hex" });
++  expect(schema.parse("deadBEEF01")).toBe("deadBEEF01");
++  expect(() => schema.parse("xyz")).toThrow();
++});
++
++test("md5 format accepts 32-char hex digests only", () => {
++  const schema = fromJSONSchema({ type: "string", format: "md5" });
++  const digest = "d41d8cd98f00b204e9800998ecf8427e";
++  expect(schema.parse(digest)).toBe(digest);
++  expect(() => schema.parse(digest.slice(0, 31))).toThrow();
++});
++
++test("sha256 format accepts 64-char hex digests only", () => {
++  const schema = fromJSONSchema({ type: "string", format: "sha256" });
++  const digest = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
++  expect(schema.parse(digest)).toBe(digest);
++  expect(() => schema.parse(digest.slice(0, 63))).toThrow();
++});
++
++test("unmapped custom formats still convert to plain strings", () => {
++  const schema = fromJSONSchema({ type: "string", format: "my-format" });
++  expect(schema.parse("anything at all")).toBe("anything at all");
++});

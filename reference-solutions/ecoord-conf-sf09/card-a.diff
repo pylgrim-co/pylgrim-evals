@@ -1,0 +1,71 @@
+diff --git a/src/languages/transactsql/transactsql.functions.ts b/src/languages/transactsql/transactsql.functions.ts
+index c7a6ef23..70ccb767 100644
+--- a/src/languages/transactsql/transactsql.functions.ts
++++ b/src/languages/transactsql/transactsql.functions.ts
+@@ -98,6 +98,9 @@ export const functions: string[] = [
+   'CURRENT_TIMEZONE',
+   'CURRENT_TIMEZONE_ID',
+   'DATEADD',
++  'DATE_BUCKET',
++  'DATETRUNC',
++  'GENERATE_SERIES',
+   'DATEDIFF',
+   'DATEDIFF_BIG',
+   'DATEFROMPARTS',
+diff --git a/test/coord-tsql-date-functions.test.ts b/test/coord-tsql-date-functions.test.ts
+new file mode 100644
+index 00000000..70163938
+--- /dev/null
++++ b/test/coord-tsql-date-functions.test.ts
+@@ -0,0 +1,51 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('transactsql SQL Server 2022 date bucket functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'transactsql' });
++
++  it('uppercases datetrunc and date_bucket with functionCase: "upper"', () => {
++    const result = format('SELECT datetrunc(month, d), date_bucket(day, 7, d) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        DATETRUNC(month, d),
++        DATE_BUCKET(day, 7, d)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases GENERATE_SERIES with functionCase: "lower"', () => {
++    const result = format('SELECT GENERATE_SERIES(1, 10) FROM t', { functionCase: 'lower' });
++    expect(result).toBe(dedent`
++      SELECT
++        generate_series(1, 10)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing dateadd function', () => {
++    const result = format('SELECT dateadd(day, 1, d) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        DATEADD(day, 1, d)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

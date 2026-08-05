@@ -1,0 +1,79 @@
+diff --git a/src/languages/bigquery/bigquery.functions.ts b/src/languages/bigquery/bigquery.functions.ts
+index 4253fa5a..6d97ff42 100644
+--- a/src/languages/bigquery/bigquery.functions.ts
++++ b/src/languages/bigquery/bigquery.functions.ts
+@@ -203,6 +203,12 @@ export const functions: string[] = [
+   'JSON_EXTRACT_STRING_ARRAY',
+   'JSON_VALUE_ARRAY',
+   'TO_JSON_STRING',
++  'PARSE_JSON',
++  'TO_JSON',
++  'JSON_ARRAY',
++  'JSON_OBJECT',
++  'LAX_STRING',
++  'LAX_INT64',
+ 
+   // https://cloud.google.com/bigquery/docs/reference/standard-sql/mathematical_functions
+   'ABS',
+diff --git a/test/coord-bigquery-json-functions.test.ts b/test/coord-bigquery-json-functions.test.ts
+new file mode 100644
+index 00000000..22c163e4
+--- /dev/null
++++ b/test/coord-bigquery-json-functions.test.ts
+@@ -0,0 +1,56 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('bigquery json constructor and lax accessor functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'bigquery' });
++
++  it('uppercases parse_json, json_array and lax_string with functionCase: "upper"', () => {
++    const result = format('SELECT parse_json(a), json_array(b), lax_string(c) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        PARSE_JSON(a),
++        JSON_ARRAY(b),
++        LAX_STRING(c)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases TO_JSON, JSON_OBJECT and LAX_INT64 with functionCase: "lower"', () => {
++    const result = format('SELECT TO_JSON(a), JSON_OBJECT(b), LAX_INT64(c) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        to_json(a),
++        json_object(b),
++        lax_int64(c)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing array_concat function', () => {
++    const result = format('SELECT array_concat(a, b) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        ARRAY_CONCAT(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

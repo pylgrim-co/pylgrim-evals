@@ -1,0 +1,72 @@
+diff --git a/src/click/_compat.py b/src/click/_compat.py
+index 90e328b..9a7bce9 100644
+--- a/src/click/_compat.py
++++ b/src/click/_compat.py
+@@ -495,6 +495,10 @@ def _is_jupyter_kernel_output(stream: t.IO[t.Any]) -> bool:
+     return stream.__class__.__module__.startswith("ipykernel.")
+ 
+ 
++def _force_color_enabled() -> bool:
++    return bool(os.environ.get("FORCE_COLOR"))
++
++
+ def should_strip_ansi(
+     stream: t.IO[t.Any] | None = None, color: bool | None = None
+ ) -> bool:
+@@ -505,7 +509,11 @@ def should_strip_ansi(
+             # ._termui_impl.MaybeStripAnsi handles stripping ansi itself,
+             # so we don't need to strip it here
+             return False
+-        return not isatty(stream) and not _is_jupyter_kernel_output(stream)
++        return (
++            not _force_color_enabled()
++            and not isatty(stream)
++            and not _is_jupyter_kernel_output(stream)
++        )
+     return not color
+ 
+ 
+diff --git a/tests/test_coord_force_color_env.py b/tests/test_coord_force_color_env.py
+new file mode 100644
+index 0000000..4ce1613
+--- /dev/null
++++ b/tests/test_coord_force_color_env.py
+@@ -0,0 +1,38 @@
++import io
++
++import click
++
++STYLED = click.style("hello", fg="green")
++
++
++def test_force_color_keeps_codes_on_non_tty(monkeypatch):
++    monkeypatch.setenv("FORCE_COLOR", "1")
++    out = io.StringIO()
++    click.echo(STYLED, file=out)
++    assert out.getvalue() == f"{STYLED}
++"
++    assert "[" in out.getvalue()
++
++
++def test_without_force_color_non_tty_strips(monkeypatch):
++    monkeypatch.delenv("FORCE_COLOR", raising=False)
++    out = io.StringIO()
++    click.echo(STYLED, file=out)
++    assert out.getvalue() == "hello
++"
++
++
++def test_empty_force_color_behaves_as_unset(monkeypatch):
++    monkeypatch.setenv("FORCE_COLOR", "")
++    out = io.StringIO()
++    click.echo(STYLED, file=out)
++    assert out.getvalue() == "hello
++"
++
++
++def test_explicit_color_false_wins(monkeypatch):
++    monkeypatch.setenv("FORCE_COLOR", "1")
++    out = io.StringIO()
++    click.echo(STYLED, file=out, color=False)
++    assert out.getvalue() == "hello
++"

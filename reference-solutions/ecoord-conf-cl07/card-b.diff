@@ -1,0 +1,63 @@
+diff --git a/src/click/shell_completion.py b/src/click/shell_completion.py
+index 5652214..c38a1c4 100644
+--- a/src/click/shell_completion.py
++++ b/src/click/shell_completion.py
+@@ -100,6 +100,19 @@ class CompletionItem(t.Generic[_ValueT_co]):
+     def __getattr__(self, name: str) -> t.Any:
+         return self._info.get(name)
+ 
++    def __eq__(self, other: object) -> t.Any:
++        if not isinstance(other, CompletionItem):
++            return NotImplemented
++
++        return (
++            self.value == other.value
++            and self.type == other.type
++            and self.help == other.help
++        )
++
++    def __hash__(self) -> int:
++        return hash((self.value, self.type, self.help))
++
+ 
+ # Only Bash >= 4.4 has the nosort option.
+ _SOURCE_BASH = """\
+diff --git a/tests/test_coord_completion_item_eq.py b/tests/test_coord_completion_item_eq.py
+new file mode 100644
+index 0000000..44b75e7
+--- /dev/null
++++ b/tests/test_coord_completion_item_eq.py
+@@ -0,0 +1,33 @@
++from click.shell_completion import CompletionItem
++
++
++def test_equal_items():
++    a = CompletionItem("x", type="file", help="h")
++    b = CompletionItem("x", type="file", help="h")
++    assert a == b
++    assert hash(a) == hash(b)
++
++
++def test_unequal_per_field():
++    base = CompletionItem("x", type="file", help="h")
++    assert base != CompletionItem("y", type="file", help="h")
++    assert base != CompletionItem("x", type="dir", help="h")
++    assert base != CompletionItem("x", type="file", help="other")
++
++
++def test_extra_kwargs_do_not_affect_equality():
++    a = CompletionItem("x", flavor="spicy")
++    b = CompletionItem("x", flavor="mild")
++    assert a == b
++
++
++def test_foreign_type_comparison():
++    item = CompletionItem("x")
++    assert item.__eq__("x") is NotImplemented
++    assert (item == "x") is False
++    assert (item != "x") is True
++
++
++def test_set_collapses_duplicates():
++    items = {CompletionItem("x"), CompletionItem("x"), CompletionItem("y")}
++    assert len(items) == 2

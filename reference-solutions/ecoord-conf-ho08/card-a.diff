@@ -1,0 +1,79 @@
+diff --git a/src/middleware/etag/coord-skip-statuses.test.ts b/src/middleware/etag/coord-skip-statuses.test.ts
+new file mode 100644
+index 00000000..24037caa
+--- /dev/null
++++ b/src/middleware/etag/coord-skip-statuses.test.ts
+@@ -0,0 +1,41 @@
++import { Hono } from '../../hono'
++import { etag } from '.'
++
++describe('Etag Middleware with skipStatuses option', () => {
++  const makeApp = (skipStatuses?: number[]) => {
++    const app = new Hono()
++    app.use('/etag/*', etag(skipStatuses ? { skipStatuses } : undefined))
++    app.get('/etag/partial', (c) => c.body('partial content', 206))
++    app.get('/etag/full', (c) => c.text('full content'))
++    return app
++  }
++
++  it('Should not set an ETag on a skipped status', async () => {
++    const res = await makeApp([206]).request('/etag/partial')
++    expect(res.status).toBe(206)
++    expect(res.headers.get('ETag')).toBeNull()
++  })
++
++  it('Should still set an ETag on non-skipped statuses', async () => {
++    const res = await makeApp([206]).request('/etag/full')
++    expect(res.status).toBe(200)
++    expect(res.headers.get('ETag')).not.toBeNull()
++  })
++
++  it('Should not convert a skipped status to 304 on If-None-Match', async () => {
++    const app = makeApp([206])
++    const first = await app.request('/etag/full')
++    const tag = first.headers.get('ETag') as string
++    const res = await app.request('/etag/partial', {
++      headers: { 'If-None-Match': tag },
++    })
++    expect(res.status).toBe(206)
++    expect(await res.text()).toBe('partial content')
++  })
++
++  it('Should keep today's behavior without the option', async () => {
++    const res = await makeApp().request('/etag/partial')
++    expect(res.status).toBe(206)
++    expect(res.headers.get('ETag')).not.toBeNull()
++  })
++})
+diff --git a/src/middleware/etag/index.ts b/src/middleware/etag/index.ts
+index 414b4983..88c7ad6e 100644
+--- a/src/middleware/etag/index.ts
++++ b/src/middleware/etag/index.ts
+@@ -7,6 +7,7 @@ import type { MiddlewareHandler } from '../../types'
+ import { generateDigest } from './digest'
+ 
+ type ETagOptions = {
++  skipStatuses?: number[]
+   retainedHeaders?: string[]
+   weak?: boolean
+   generateDigest?: (body: Uint8Array<ArrayBuffer>) => ArrayBuffer | Promise<ArrayBuffer>
+@@ -78,6 +79,7 @@ function initializeGenerator(
+  */
+ export const etag = (options?: ETagOptions): MiddlewareHandler => {
+   const retainedHeaders = options?.retainedHeaders ?? RETAINED_304_HEADERS
++  const skipStatuses = options?.skipStatuses ?? []
+   const weak = options?.weak ?? false
+   const generator = initializeGenerator(options?.generateDigest)
+ 
+@@ -87,6 +89,11 @@ export const etag = (options?: ETagOptions): MiddlewareHandler => {
+     await next()
+ 
+     const res = c.res as Response
++
++    if (skipStatuses.includes(res.status)) {
++      return
++    }
++
+     let etag = res.headers.get('ETag')
+ 
+     if (!etag) {

@@ -1,0 +1,68 @@
+diff --git a/packages/zod/src/v4/classic/from-json-schema.ts b/packages/zod/src/v4/classic/from-json-schema.ts
+index 7934f337..ed87d3c1 100644
+--- a/packages/zod/src/v4/classic/from-json-schema.ts
++++ b/packages/zod/src/v4/classic/from-json-schema.ts
+@@ -515,7 +515,17 @@ function convertBaseSchema(schema: JSONSchema.JSONSchema, ctx: ConversionContext
+           arraySchema = arraySchema.max(schema.maxItems);
+         }
+ 
+-        zodSchema = arraySchema;
++        if (schema.uniqueItems === true) {
++          // JSON.stringify-based comparison: a documented approximation of
++          // JSON Schema's deep equality, exact for primitives and stable
++          // for plain objects.
++          zodSchema = arraySchema.refine(
++            (arr) => new Set(arr.map((el) => JSON.stringify(el))).size === arr.length,
++            { message: "Array items must be unique" }
++          );
++        } else {
++          zodSchema = arraySchema;
++        }
+       } else {
+         // No items specified - array of any
+         zodSchema = z.array(z.any());
+diff --git a/packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts b/packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts
+new file mode 100644
+index 00000000..3f2a6ec4
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-fjs-unique-items.test.ts
+@@ -0,0 +1,39 @@
++import { expect, test } from "vitest";
++import { fromJSONSchema } from "../from-json-schema.js";
++
++test("uniqueItems rejects duplicate primitives", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    items: { type: "number" },
++    uniqueItems: true,
++  });
++  expect(schema.parse([1, 2, 3])).toEqual([1, 2, 3]);
++  expect(() => schema.parse([1, 2, 1])).toThrow();
++});
++
++test("uniqueItems rejects duplicate plain objects", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    items: { type: "object" },
++    uniqueItems: true,
++  });
++  expect(() => schema.parse([{ a: 1 }, { a: 1 }])).toThrow();
++  expect(schema.parse([{ a: 1 }, { a: 2 }])).toEqual([{ a: 1 }, { a: 2 }]);
++});
++
++test("without uniqueItems duplicates still parse", () => {
++  const schema = fromJSONSchema({ type: "array", items: { type: "number" } });
++  expect(schema.parse([1, 1, 1])).toEqual([1, 1, 1]);
++});
++
++test("uniqueItems composes with minItems", () => {
++  const schema = fromJSONSchema({
++    type: "array",
++    items: { type: "number" },
++    uniqueItems: true,
++    minItems: 2,
++  });
++  expect(schema.parse([1, 2])).toEqual([1, 2]);
++  expect(() => schema.parse([1])).toThrow();
++  expect(() => schema.parse([1, 1])).toThrow();
++});

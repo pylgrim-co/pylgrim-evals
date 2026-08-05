@@ -1,0 +1,77 @@
+diff --git a/src/middleware/immer.ts b/src/middleware/immer.ts
+index 6b2e32e..e3846b3 100644
+--- a/src/middleware/immer.ts
++++ b/src/middleware/immer.ts
+@@ -75,6 +75,16 @@ const immerImpl: ImmerImpl = (initializer) => (set, get, store) => {
+   type T = ReturnType<typeof initializer>
+ 
+   store.setState = (updater, replace, ...args) => {
++    if (
++      updater === null ||
++      (updater !== undefined &&
++        typeof updater !== 'function' &&
++        typeof updater !== 'object')
++    ) {
++      throw new TypeError(
++        'zustand immer middleware: setState expects an object or an updater function',
++      )
++    }
+     const nextState = (
+       typeof updater === 'function' ? produce(updater as any) : updater
+     ) as ((s: T) => T) | T | Partial<T>
+diff --git a/tests/coord/immer-primitive-guard.test.ts b/tests/coord/immer-primitive-guard.test.ts
+new file mode 100644
+index 0000000..8ea63e6
+--- /dev/null
++++ b/tests/coord/immer-primitive-guard.test.ts
+@@ -0,0 +1,50 @@
++import { expect, it } from 'vitest'
++import { immer } from 'zustand/middleware/immer'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number }
++
++const makeStore = () => createStore(immer<State>(() => ({ count: 0 })))
++
++it.each([
++  ['a number', 5],
++  ['a string', 'oops'],
++  ['a boolean', true],
++  ['null', null],
++])('setState with %s throws TypeError and leaves state unchanged', (_label, value) => {
++  const store = makeStore()
++  expect(() => store.setState(value as never)).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++})
++
++it('a draft-mutating function updater still works', () => {
++  const store = makeStore()
++  store.setState((draft) => {
++    draft.count += 2
++  })
++  expect(store.getState().count).toBe(2)
++})
++
++it('a plain-object partial still merges', () => {
++  const store = makeStore()
++  store.setState({ count: 7 })
++  expect(store.getState().count).toBe(7)
++})
++
++it('setState(undefined) is not rejected by the guard', () => {
++  const store = makeStore()
++  expect(() => store.setState(undefined as never)).not.toThrow()
++})
++
++it('the set received inside the initializer rejects primitives the same way', () => {
++  let boom: (() => void) | undefined
++  const store = createStore(
++    immer<State>((set) => {
++      boom = () => set(5 as never)
++      return { count: 0 }
++    }),
++  )
++  expect(boom).toBeDefined()
++  expect(() => boom!()).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++})

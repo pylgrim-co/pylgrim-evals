@@ -1,0 +1,63 @@
+diff --git a/src/click/testing.py b/src/click/testing.py
+index 19fae4a..4ee14ca 100644
+--- a/src/click/testing.py
++++ b/src/click/testing.py
+@@ -309,6 +309,13 @@ class Result:
+             "\r\n", "\n"
+         )
+ 
++    @property
++    def ok(self) -> bool:
++        """Whether the invocation completed with exit code 0 and no
++        captured exception.
++        """
++        return self.exit_code == 0 and self.exception is None
++
+     def __repr__(self) -> str:
+         exc_str = repr(self.exception) if self.exception else "okay"
+         return f"<{type(self).__name__} {exc_str}>"
+diff --git a/tests/test_coord_result_ok.py b/tests/test_coord_result_ok.py
+new file mode 100644
+index 0000000..64cf53a
+--- /dev/null
++++ b/tests/test_coord_result_ok.py
+@@ -0,0 +1,39 @@
++import click
++from click.testing import CliRunner
++
++
++@click.command()
++def ok_cli():
++    click.echo("fine")
++
++
++@click.command()
++def boom_cli():
++    raise ValueError("boom")
++
++
++@click.command()
++def exit_cli():
++    ctx = click.get_current_context()
++    ctx.exit(2)
++
++
++def test_ok_true_on_success():
++    result = CliRunner().invoke(ok_cli)
++    assert result.ok is True
++
++
++def test_ok_false_on_captured_exception():
++    result = CliRunner().invoke(boom_cli)
++    assert result.exit_code == 1
++    assert result.ok is False
++
++
++def test_ok_false_on_nonzero_exit():
++    result = CliRunner().invoke(exit_cli)
++    assert result.exit_code == 2
++    assert result.ok is False
++
++
++def test_ok_is_bool():
++    assert isinstance(CliRunner().invoke(ok_cli).ok, bool)

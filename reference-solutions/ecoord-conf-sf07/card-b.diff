@@ -1,0 +1,71 @@
+diff --git a/src/languages/bigquery/bigquery.functions.ts b/src/languages/bigquery/bigquery.functions.ts
+index 4253fa5a..1669f726 100644
+--- a/src/languages/bigquery/bigquery.functions.ts
++++ b/src/languages/bigquery/bigquery.functions.ts
+@@ -226,6 +226,9 @@ export const functions: string[] = [
+   'SAFE_NEGATE',
+   'SAFE_ADD',
+   'SAFE_SUBTRACT',
++  'COSINE_DISTANCE',
++  'EUCLIDEAN_DISTANCE',
++  'EDIT_DISTANCE',
+   'MOD',
+   'ROUND',
+   'TRUNC',
+diff --git a/test/coord-bigquery-distance-functions.test.ts b/test/coord-bigquery-distance-functions.test.ts
+new file mode 100644
+index 00000000..12cf6f42
+--- /dev/null
++++ b/test/coord-bigquery-distance-functions.test.ts
+@@ -0,0 +1,51 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('bigquery vector and edit distance functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'bigquery' });
++
++  it('uppercases cosine_distance and euclidean_distance with functionCase: "upper"', () => {
++    const result = format('SELECT cosine_distance(a, b), euclidean_distance(a, b) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        COSINE_DISTANCE(a, b),
++        EUCLIDEAN_DISTANCE(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases EDIT_DISTANCE with functionCase: "lower"', () => {
++    const result = format('SELECT EDIT_DISTANCE(a, b) FROM t', { functionCase: 'lower' });
++    expect(result).toBe(dedent`
++      SELECT
++        edit_distance(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing array_length function', () => {
++    const result = format('SELECT array_length(a) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        ARRAY_LENGTH(a)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

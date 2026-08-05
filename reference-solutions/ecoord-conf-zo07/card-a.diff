@@ -1,0 +1,57 @@
+diff --git a/packages/zod/src/v4/classic/from-json-schema.ts b/packages/zod/src/v4/classic/from-json-schema.ts
+index 7934f337..2cbddfcd 100644
+--- a/packages/zod/src/v4/classic/from-json-schema.ts
++++ b/packages/zod/src/v4/classic/from-json-schema.ts
+@@ -268,6 +268,9 @@ function convertBaseSchema(schema: JSONSchema.JSONSchema, ctx: ConversionContext
+           stringSchema = stringSchema.check(z.email());
+         } else if (format === "uri" || format === "uri-reference") {
+           stringSchema = stringSchema.check(z.url());
++        } else if (format === "hostname" || format === "idn-hostname") {
++          // idn-hostname is approximated by the same ASCII hostname check
++          stringSchema = stringSchema.check(z.hostname());
+         } else if (format === "uuid" || format === "guid") {
+           stringSchema = stringSchema.check(z.uuid());
+         } else if (format === "date-time") {
+diff --git a/packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts b/packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts
+new file mode 100644
+index 00000000..a044011b
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-fjs-hostname.test.ts
+@@ -0,0 +1,37 @@
++import { expect, test } from "vitest";
++import { fromJSONSchema } from "../from-json-schema.js";
++
++test("hostname format accepts valid hostnames", () => {
++  const schema = fromJSONSchema({ type: "string", format: "hostname" });
++  expect(schema.parse("example.com")).toBe("example.com");
++  expect(schema.parse("sub.example-site.org")).toBe("sub.example-site.org");
++});
++
++test("hostname format rejects invalid hostnames", () => {
++  const schema = fromJSONSchema({ type: "string", format: "hostname" });
++  expect(() => schema.parse("exa mple.com")).toThrow();
++  expect(() => schema.parse("-leading.example.com")).toThrow();
++});
++
++test("idn-hostname maps to the same check", () => {
++  const schema = fromJSONSchema({ type: "string", format: "idn-hostname" });
++  expect(schema.parse("example.com")).toBe("example.com");
++  expect(() => schema.parse("exa mple.com")).toThrow();
++});
++
++test("unmapped custom formats still convert to plain strings", () => {
++  const schema = fromJSONSchema({ type: "string", format: "my-format" });
++  expect(schema.parse("anything at all")).toBe("anything at all");
++});
++
++test("length constraints combine with the hostname format", () => {
++  const schema = fromJSONSchema({
++    type: "string",
++    format: "hostname",
++    minLength: 5,
++    maxLength: 15,
++  });
++  expect(schema.parse("example.com")).toBe("example.com");
++  expect(() => schema.parse("a.io")).toThrow();
++  expect(() => schema.parse("much-too-long-hostname.example.com")).toThrow();
++});

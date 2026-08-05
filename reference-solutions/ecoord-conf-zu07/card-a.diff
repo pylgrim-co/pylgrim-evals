@@ -1,0 +1,98 @@
+diff --git a/src/middleware/redux.ts b/src/middleware/redux.ts
+index 33dbee1..52626e6 100644
+--- a/src/middleware/redux.ts
++++ b/src/middleware/redux.ts
+@@ -5,6 +5,17 @@ type Write<T, U> = Omit<T, keyof U> & U
+ 
+ type Action = { type: string }
+ 
++function assertAction(action: unknown): void {
++  if (typeof action !== 'object' || action === null) {
++    throw new TypeError(
++      'zustand redux middleware: action must be an object with a string type property',
++    )
++  }
++  if (typeof (action as { type?: unknown }).type !== 'string') {
++    throw new TypeError('zustand redux middleware: action.type must be a string')
++  }
++}
++
+ type StoreRedux<A> = {
+   dispatch: (a: A) => A
+   dispatchFromDevtools: true
+@@ -40,6 +51,7 @@ const reduxImpl: ReduxImpl = (reducer, initial) => (set, _get, api) => {
+   type S = typeof initial
+   type A = Parameters<typeof reducer>[1]
+   ;(api as any).dispatch = (action: A) => {
++    assertAction(action)
+     ;(set as NamedSet<S>)((state: S) => reducer(state, action), false, action)
+     return action
+   }
+diff --git a/tests/coord/redux-action-guard.test.ts b/tests/coord/redux-action-guard.test.ts
+new file mode 100644
+index 0000000..4c14042
+--- /dev/null
++++ b/tests/coord/redux-action-guard.test.ts
+@@ -0,0 +1,62 @@
++import { expect, it, vi } from 'vitest'
++import { redux } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number }
++type Action = { type: string; by?: number }
++
++const reducer = vi.fn((state: State, action: Action): State => {
++  if (action.type === 'inc') {
++    return { count: state.count + (action.by ?? 1) }
++  }
++  return state
++})
++
++const makeStore = () => {
++  reducer.mockClear()
++  return createStore(redux(reducer, { count: 0 }))
++}
++
++it('a valid action updates state through the reducer and is returned', () => {
++  const store = makeStore()
++  const action = { type: 'inc', by: 2 }
++  const returned = store.dispatch(action)
++  expect(returned).toBe(action)
++  expect(store.getState().count).toBe(2)
++  expect(reducer).toHaveBeenCalledTimes(1)
++})
++
++it('dispatch(null) throws TypeError and leaves state unchanged', () => {
++  const store = makeStore()
++  expect(() => store.dispatch(null as never)).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++  expect(reducer).not.toHaveBeenCalled()
++})
++
++it('dispatch(42) throws TypeError and leaves state unchanged', () => {
++  const store = makeStore()
++  expect(() => store.dispatch(42 as never)).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++  expect(reducer).not.toHaveBeenCalled()
++})
++
++it('dispatch({}) without a type throws TypeError', () => {
++  const store = makeStore()
++  expect(() => store.dispatch({} as never)).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++  expect(reducer).not.toHaveBeenCalled()
++})
++
++it('dispatch with a non-string type throws TypeError', () => {
++  const store = makeStore()
++  expect(() => store.dispatch({ type: 5 } as never)).toThrow(TypeError)
++  expect(store.getState().count).toBe(0)
++  expect(reducer).not.toHaveBeenCalled()
++})
++
++it('a valid dispatch after a rejected dispatch still works', () => {
++  const store = makeStore()
++  expect(() => store.dispatch(null as never)).toThrow(TypeError)
++  store.dispatch({ type: 'inc' })
++  expect(store.getState().count).toBe(1)
++})

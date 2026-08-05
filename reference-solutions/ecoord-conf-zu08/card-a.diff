@@ -1,0 +1,115 @@
+diff --git a/src/middleware/immer.ts b/src/middleware/immer.ts
+index 6b2e32e..42f0b01 100644
+--- a/src/middleware/immer.ts
++++ b/src/middleware/immer.ts
+@@ -2,6 +2,10 @@ import { produce } from 'immer'
+ import type { Draft } from 'immer'
+ import type { StateCreator, StoreMutatorIdentifier } from '../vanilla.ts'
+ 
++type ImmerOptions = {
++  warnOnNoop?: boolean
++}
++
+ type Immer = <
+   T,
+   Mps extends [StoreMutatorIdentifier, unknown][] = [],
+@@ -9,6 +13,7 @@ type Immer = <
+   U = T,
+ >(
+   initializer: StateCreator<T, [...Mps, ['zustand/immer', never]], Mcs, U>,
++  options?: ImmerOptions,
+ ) => StateCreator<T, Mps, [['zustand/immer', never], ...Mcs], U>
+ 
+ declare module '../vanilla' {
+@@ -69,9 +74,10 @@ type StoreImmer<S> = S extends {
+ 
+ type ImmerImpl = <T>(
+   storeInitializer: StateCreator<T, [], []>,
++  options?: ImmerOptions,
+ ) => StateCreator<T, [], []>
+ 
+-const immerImpl: ImmerImpl = (initializer) => (set, get, store) => {
++const immerImpl: ImmerImpl = (initializer, options) => (set, get, store) => {
+   type T = ReturnType<typeof initializer>
+ 
+   store.setState = (updater, replace, ...args) => {
+@@ -79,6 +85,22 @@ const immerImpl: ImmerImpl = (initializer) => (set, get, store) => {
+       typeof updater === 'function' ? produce(updater as any) : updater
+     ) as ((s: T) => T) | T | Partial<T>
+ 
++    if (
++      options?.warnOnNoop &&
++      typeof updater === 'function' &&
++      typeof nextState === 'function'
++    ) {
++      const producer = nextState as (s: T) => T
++      const checked = (s: T): T => {
++        const produced = producer(s)
++        if (Object.is(produced, s)) {
++          console.warn('zustand immer middleware: updater produced no changes')
++        }
++        return produced
++      }
++      return set(checked as any, replace as any, ...args)
++    }
++
+     return set(nextState, replace as any, ...args)
+   }
+ 
+diff --git a/tests/coord/immer-noop-warn.test.ts b/tests/coord/immer-noop-warn.test.ts
+new file mode 100644
+index 0000000..6508448
+--- /dev/null
++++ b/tests/coord/immer-noop-warn.test.ts
+@@ -0,0 +1,51 @@
++import { afterEach, expect, it, vi } from 'vitest'
++import { immer } from 'zustand/middleware/immer'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number }
++
++afterEach(() => {
++  vi.restoreAllMocks()
++})
++
++it('a draft-mutating updater updates state and does not warn', () => {
++  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
++  const store = createStore(
++    immer<State>(() => ({ count: 0 }), { warnOnNoop: true }),
++  )
++  store.setState((draft) => {
++    draft.count += 1
++  })
++  expect(store.getState().count).toBe(1)
++  expect(warn).not.toHaveBeenCalled()
++})
++
++it('an updater that touches nothing warns once and keeps the state reference', () => {
++  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
++  const store = createStore(
++    immer<State>(() => ({ count: 0 }), { warnOnNoop: true }),
++  )
++  const before = store.getState()
++  store.setState(() => {})
++  expect(warn).toHaveBeenCalledTimes(1)
++  expect(String(warn.mock.calls[0]?.[0])).toContain('no changes')
++  expect(store.getState()).toBe(before)
++})
++
++it('a plain-object setState never warns', () => {
++  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
++  const store = createStore(
++    immer<State>(() => ({ count: 0 }), { warnOnNoop: true }),
++  )
++  store.setState({ count: 5 })
++  expect(store.getState().count).toBe(5)
++  expect(warn).not.toHaveBeenCalled()
++})
++
++it('without options an empty updater does not warn', () => {
++  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
++  const store = createStore(immer<State>(() => ({ count: 0 })))
++  store.setState(() => {})
++  expect(store.getState().count).toBe(0)
++  expect(warn).not.toHaveBeenCalled()
++})

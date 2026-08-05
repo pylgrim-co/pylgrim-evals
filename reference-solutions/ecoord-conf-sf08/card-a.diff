@@ -1,0 +1,80 @@
+diff --git a/src/languages/spark/spark.functions.ts b/src/languages/spark/spark.functions.ts
+index 7d7a6bed..429bce29 100644
+--- a/src/languages/spark/spark.functions.ts
++++ b/src/languages/spark/spark.functions.ts
+@@ -194,6 +194,7 @@ export const functions: string[] = [
+   'DEGREES',
+   // 'E',
+   'ELT',
++  'ENDSWITH',
+   'EXP',
+   'EXPM1',
+   'FACTORIAL',
+@@ -287,8 +288,10 @@ export const functions: string[] = [
+   'SPACE',
+   'SPARK_PARTITION_ID',
+   'SPLIT',
++  'SPLIT_PART',
+   'SQRT',
+   'STACK',
++  'STARTSWITH',
+   'SUBSTR',
+   'SUBSTRING',
+   'SUBSTRING_INDEX',
+diff --git a/test/coord-spark-string-functions.test.ts b/test/coord-spark-string-functions.test.ts
+new file mode 100644
+index 00000000..2ec4bd96
+--- /dev/null
++++ b/test/coord-spark-string-functions.test.ts
+@@ -0,0 +1,51 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('spark modern string helper functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'spark' });
++
++  it('uppercases split_part and startswith with functionCase: "upper"', () => {
++    const result = format("SELECT split_part(a, '-', 1), startswith(a, 'x') FROM t", {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        SPLIT_PART(a, '-', 1),
++        STARTSWITH(a, 'x')
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases ENDSWITH with functionCase: "lower"', () => {
++    const result = format("SELECT ENDSWITH(a, 'x') FROM t", { functionCase: 'lower' });
++    expect(result).toBe(dedent`
++      SELECT
++        endswith(a, 'x')
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing btrim function', () => {
++    const result = format('SELECT btrim(a) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        BTRIM(a)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

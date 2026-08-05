@@ -1,0 +1,64 @@
+diff --git a/packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts b/packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts
+new file mode 100644
+index 00000000..bebe7e64
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-registry-remove-by-id.test.ts
+@@ -0,0 +1,38 @@
++import { expect, test } from "vitest";
++import * as z from "zod/v4";
++
++test("removeById evicts the schema registered under the id", () => {
++  const reg = z.registry();
++  const user = z.string();
++  reg.add(user, { id: "user" });
++  reg.removeById("user");
++  expect(reg.has(user)).toBe(false);
++  expect(reg.get(user)).toBeUndefined();
++});
++
++test("unknown ids are a safe no-op returning the registry", () => {
++  const reg = z.registry();
++  expect(() => reg.removeById("nope")).not.toThrow();
++  expect(reg.removeById("nope")).toBe(reg);
++});
++
++test("removing one id leaves other registrations untouched", () => {
++  const reg = z.registry();
++  const user = z.string();
++  const post = z.number();
++  reg.add(user, { id: "user" });
++  reg.add(post, { id: "post" });
++  reg.removeById("user");
++  expect(reg.has(post)).toBe(true);
++  expect(reg.get(post)).toEqual({ id: "post" });
++});
++
++test("removeById chains like add and remove", () => {
++  const reg = z.registry();
++  const user = z.string();
++  const post = z.number();
++  reg.add(user, { id: "user" }).add(post, { id: "post" });
++  reg.removeById("user").removeById("post");
++  expect(reg.has(user)).toBe(false);
++  expect(reg.has(post)).toBe(false);
++});
+diff --git a/packages/zod/src/v4/core/registries.ts b/packages/zod/src/v4/core/registries.ts
+index 6d04ea15..6588a64b 100644
+--- a/packages/zod/src/v4/core/registries.ts
++++ b/packages/zod/src/v4/core/registries.ts
+@@ -74,6 +74,15 @@ export class $ZodRegistry<Meta extends MetadataType = MetadataType, Schema exten
+   has(schema: Schema): boolean {
+     return this._map.has(schema);
+   }
++
++  removeById(id: string): this {
++    const schema = this._idmap.get(id);
++    if (schema) {
++      this._idmap.delete(id);
++      this._map.delete(schema);
++    }
++    return this;
++  }
+ }
+ 
+ export interface JSONSchemaMeta {

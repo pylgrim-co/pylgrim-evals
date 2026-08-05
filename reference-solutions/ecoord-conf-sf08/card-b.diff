@@ -1,0 +1,74 @@
+diff --git a/src/languages/spark/spark.functions.ts b/src/languages/spark/spark.functions.ts
+index 7d7a6bed..642ac3ca 100644
+--- a/src/languages/spark/spark.functions.ts
++++ b/src/languages/spark/spark.functions.ts
+@@ -61,9 +61,12 @@ export const functions: string[] = [
+ 
+   // http://spark.apache.org/docs/latest/sql-ref-functions-builtin.html#array-functions
+   'ARRAY',
++  'ARRAY_APPEND',
++  'ARRAY_COMPACT',
+   'ARRAY_CONTAINS',
+   'ARRAY_DISTINCT',
+   'ARRAY_EXCEPT',
++  'ARRAY_INSERT',
+   'ARRAY_INTERSECT',
+   'ARRAY_JOIN',
+   'ARRAY_MAX',
+diff --git a/test/coord-spark-array-functions.test.ts b/test/coord-spark-array-functions.test.ts
+new file mode 100644
+index 00000000..f0eae9f2
+--- /dev/null
++++ b/test/coord-spark-array-functions.test.ts
+@@ -0,0 +1,51 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('spark array manipulation functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'spark' });
++
++  it('uppercases array_append and array_compact with functionCase: "upper"', () => {
++    const result = format('SELECT array_append(a, x), array_compact(a) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        ARRAY_APPEND(a, x),
++        ARRAY_COMPACT(a)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases ARRAY_INSERT with functionCase: "lower"', () => {
++    const result = format('SELECT ARRAY_INSERT(a, 1, x) FROM t', { functionCase: 'lower' });
++    expect(result).toBe(dedent`
++      SELECT
++        array_insert(a, 1, x)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing collect_list function', () => {
++    const result = format('SELECT collect_list(a) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        COLLECT_LIST(a)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

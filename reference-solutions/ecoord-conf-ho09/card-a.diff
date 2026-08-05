@@ -1,0 +1,85 @@
+diff --git a/src/middleware/request-id/coord-validator.test.ts b/src/middleware/request-id/coord-validator.test.ts
+new file mode 100644
+index 00000000..629af558
+--- /dev/null
++++ b/src/middleware/request-id/coord-validator.test.ts
+@@ -0,0 +1,47 @@
++import { Hono } from '../../hono'
++import { requestId } from '.'
++
++const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
++const uuidValidator = (reqId: string) => UUID_RE.test(reqId)
++const INCOMING_UUID = '01234567-89ab-cdef-0123-456789abcdef'
++
++describe('Request ID Middleware with validator option', () => {
++  const makeApp = (options?: Parameters<typeof requestId>[0]) => {
++    const app = new Hono()
++    app.use('*', requestId(options))
++    app.get('/', (c) => c.text(c.get('requestId')))
++    return app
++  }
++
++  it('Should replace an incoming id the validator rejects', async () => {
++    const res = await makeApp({ validator: uuidValidator }).request('/', {
++      headers: { 'X-Request-Id': 'not-a-uuid' },
++    })
++    const body = await res.text()
++    expect(body).not.toBe('not-a-uuid')
++    expect(body).toMatch(UUID_RE)
++  })
++
++  it('Should keep an incoming id the validator accepts', async () => {
++    const res = await makeApp({ validator: uuidValidator }).request('/', {
++      headers: { 'X-Request-Id': INCOMING_UUID },
++    })
++    expect(await res.text()).toBe(INCOMING_UUID)
++    expect(res.headers.get('X-Request-Id')).toBe(INCOMING_UUID)
++  })
++
++  it('Should regenerate over-length ids even when the validator accepts', async () => {
++    const res = await makeApp({
++      limitLength: 10,
++      validator: () => true,
++    }).request('/', { headers: { 'X-Request-Id': 'longer-than-ten-chars' } })
++    expect(await res.text()).not.toBe('longer-than-ten-chars')
++  })
++
++  it('Should keep the default character-class acceptance without the option', async () => {
++    const res = await makeApp().request('/', {
++      headers: { 'X-Request-Id': 'under_score-id' },
++    })
++    expect(await res.text()).toBe('under_score-id')
++  })
++})
+diff --git a/src/middleware/request-id/request-id.ts b/src/middleware/request-id/request-id.ts
+index 04d78965..636c5a10 100644
+--- a/src/middleware/request-id/request-id.ts
++++ b/src/middleware/request-id/request-id.ts
+@@ -12,6 +12,7 @@ export type RequestIdVariables = {
+ 
+ export type RequestIdOptions = {
+   limitLength?: number
++  validator?: (reqId: string) => boolean
+   headerName?: string
+   generator?: (c: Context) => string
+ }
+@@ -40,13 +41,18 @@ export type RequestIdOptions = {
+  */
+ export const requestId = ({
+   limitLength = 255,
++  validator,
+   headerName = 'X-Request-Id',
+   generator = () => crypto.randomUUID(),
+ }: RequestIdOptions = {}): MiddlewareHandler => {
+   return async function requestId(c, next) {
+     // If `headerName` is empty string, req.header will return the object
+     let reqId = headerName ? c.req.header(headerName) : undefined
+-    if (!reqId || reqId.length > limitLength || /[^\w\-=]/.test(reqId)) {
++    if (
++      !reqId ||
++      reqId.length > limitLength ||
++      (validator ? !validator(reqId) : /[^\w\-=]/.test(reqId))
++    ) {
+       reqId = generator(c)
+     }
+ 

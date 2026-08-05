@@ -1,0 +1,105 @@
+diff --git a/src/middleware/redux.ts b/src/middleware/redux.ts
+index 33dbee1..b90e46a 100644
+--- a/src/middleware/redux.ts
++++ b/src/middleware/redux.ts
+@@ -14,6 +14,10 @@ type ReduxState<A> = {
+   dispatch: StoreRedux<A>['dispatch']
+ }
+ 
++type ReduxOptions<A> = {
++  onAction?: (a: A) => void
++}
++
+ type WithRedux<S, A> = Write<S, StoreRedux<A>>
+ 
+ type Redux = <
+@@ -23,6 +27,7 @@ type Redux = <
+ >(
+   reducer: (state: T, action: A) => T,
+   initialState: T,
++  options?: ReduxOptions<A>,
+ ) => StateCreator<Write<T, ReduxState<A>>, Cms, [['zustand/redux', A]]>
+ 
+ declare module '../vanilla' {
+@@ -34,13 +39,15 @@ declare module '../vanilla' {
+ type ReduxImpl = <T, A extends Action>(
+   reducer: (state: T, action: A) => T,
+   initialState: T,
++  options?: ReduxOptions<A>,
+ ) => StateCreator<T & ReduxState<A>, [], []>
+ 
+-const reduxImpl: ReduxImpl = (reducer, initial) => (set, _get, api) => {
++const reduxImpl: ReduxImpl = (reducer, initial, options) => (set, _get, api) => {
+   type S = typeof initial
+   type A = Parameters<typeof reducer>[1]
+   ;(api as any).dispatch = (action: A) => {
+     ;(set as NamedSet<S>)((state: S) => reducer(state, action), false, action)
++    options?.onAction?.(action)
+     return action
+   }
+   ;(api as any).dispatchFromDevtools = true
+diff --git a/tests/coord/redux-on-action.test.ts b/tests/coord/redux-on-action.test.ts
+new file mode 100644
+index 0000000..23f6c8c
+--- /dev/null
++++ b/tests/coord/redux-on-action.test.ts
+@@ -0,0 +1,59 @@
++import { expect, it, vi } from 'vitest'
++import { redux } from 'zustand/middleware'
++import { createStore } from 'zustand/vanilla'
++
++type State = { count: number }
++type Action = { type: string; by?: number }
++
++const reducer = (state: State, action: Action): State => {
++  if (action.type === 'inc') {
++    return { count: state.count + (action.by ?? 1) }
++  }
++  return state
++}
++
++it('onAction receives each dispatched action in order', () => {
++  const seen: Action[] = []
++  const store = createStore(
++    redux(reducer, { count: 0 }, { onAction: (a) => seen.push(a) }),
++  )
++  store.dispatch({ type: 'inc' })
++  store.dispatch({ type: 'inc', by: 3 })
++  expect(seen).toEqual([{ type: 'inc' }, { type: 'inc', by: 3 }])
++})
++
++it('getState() inside the callback observes the post-action state', () => {
++  const observed: number[] = []
++  const store = createStore(
++    redux(reducer, { count: 0 }, {
++      onAction: () => observed.push(store.getState().count),
++    }),
++  )
++  store.dispatch({ type: 'inc' })
++  store.dispatch({ type: 'inc' })
++  expect(observed).toEqual([1, 2])
++})
++
++it('dispatch still returns the action when onAction is provided', () => {
++  const store = createStore(
++    redux(reducer, { count: 0 }, { onAction: vi.fn() }),
++  )
++  const action = { type: 'inc' }
++  expect(store.dispatch(action)).toBe(action)
++})
++
++it('without options the middleware behaves exactly as before', () => {
++  const store = createStore(redux(reducer, { count: 0 }))
++  const action = { type: 'inc', by: 2 }
++  expect(store.dispatch(action)).toBe(action)
++  expect(store.getState().count).toBe(2)
++})
++
++it('multiple dispatches invoke the callback once each', () => {
++  const onAction = vi.fn()
++  const store = createStore(redux(reducer, { count: 0 }, { onAction }))
++  store.dispatch({ type: 'inc' })
++  store.dispatch({ type: 'noop' })
++  store.dispatch({ type: 'inc' })
++  expect(onAction).toHaveBeenCalledTimes(3)
++})
