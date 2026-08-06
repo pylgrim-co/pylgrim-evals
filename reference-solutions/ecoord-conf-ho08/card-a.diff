@@ -1,6 +1,6 @@
 diff --git a/src/middleware/etag/coord-skip-statuses.test.ts b/src/middleware/etag/coord-skip-statuses.test.ts
 new file mode 100644
-index 00000000..24037caa
+index 00000000..b1f2a474
 --- /dev/null
 +++ b/src/middleware/etag/coord-skip-statuses.test.ts
 @@ -0,0 +1,41 @@
@@ -39,7 +39,7 @@ index 00000000..24037caa
 +    expect(await res.text()).toBe('partial content')
 +  })
 +
-+  it('Should keep today's behavior without the option', async () => {
++  it("Should keep today's behavior without the option", async () => {
 +    const res = await makeApp().request('/etag/partial')
 +    expect(res.status).toBe(206)
 +    expect(res.headers.get('ETag')).not.toBeNull()

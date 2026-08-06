@@ -13,10 +13,10 @@ index 90e328b..45f0ed5 100644
          elif hasattr(stream, "color"):
 diff --git a/tests/test_coord_no_color_env.py b/tests/test_coord_no_color_env.py
 new file mode 100644
-index 0000000..5a29518
+index 0000000..1d294a2
 --- /dev/null
 +++ b/tests/test_coord_no_color_env.py
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,40 @@
 +import io
 +
 +import click
@@ -34,28 +34,26 @@ index 0000000..5a29518
 +    monkeypatch.setenv("NO_COLOR", "1")
 +    out = TtyStringIO()
 +    click.echo(STYLED, file=out)
-+    assert out.getvalue() == "hello
-+"
++    assert out.getvalue() == "hello\n"
 +
 +
 +def test_without_no_color_tty_keeps_codes(monkeypatch):
 +    monkeypatch.delenv("NO_COLOR", raising=False)
 +    out = TtyStringIO()
 +    click.echo(STYLED, file=out)
-+    assert out.getvalue() == f"{STYLED}
-+"
-+    assert "[" in out.getvalue()
++    assert out.getvalue() == f"{STYLED}\n"
++    assert "\x1b[" in out.getvalue()
 +
 +
 +def test_empty_no_color_behaves_as_unset(monkeypatch):
 +    monkeypatch.setenv("NO_COLOR", "")
 +    out = TtyStringIO()
 +    click.echo(STYLED, file=out)
-+    assert "[" in out.getvalue()
++    assert "\x1b[" in out.getvalue()
 +
 +
 +def test_explicit_color_true_wins(monkeypatch):
 +    monkeypatch.setenv("NO_COLOR", "1")
 +    out = TtyStringIO()
 +    click.echo(STYLED, file=out, color=True)
-+    assert "[" in out.getvalue()
++    assert "\x1b[" in out.getvalue()

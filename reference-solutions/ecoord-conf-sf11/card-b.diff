@@ -17,17 +17,16 @@ index feb03caf..21c07c90 100644
    'SUBSTRING',
 diff --git a/test/coord-sql-numeric-functions.test.ts b/test/coord-sql-numeric-functions.test.ts
 new file mode 100644
-index 00000000..b0f28458
+index 00000000..ade0e673
 --- /dev/null
 +++ b/test/coord-sql-numeric-functions.test.ts
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,54 @@
 +import dedent from 'dedent-js';
 +
 +import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
 +
 +describe('sql dialect SQL:2016 numeric functions', () => {
-+  const format: FormatFn = (query, cfg = {}) =>
-+    originalFormat(query, { ...cfg, language: 'sql' });
++  const format: FormatFn = (query, cfg = {}) => originalFormat(query, { ...cfg, language: 'sql' });
 +
 +  it('uppercases log, log10 and sinh with functionCase: "upper"', () => {
 +    const result = format('SELECT log(a), log10(b), sinh(c) FROM t', {

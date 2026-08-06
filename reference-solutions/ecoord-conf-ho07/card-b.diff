@@ -1,6 +1,6 @@
 diff --git a/src/middleware/pretty-json/coord-replacer.test.ts b/src/middleware/pretty-json/coord-replacer.test.ts
 new file mode 100644
-index 00000000..e4e3953c
+index 00000000..f4fefc94
 --- /dev/null
 +++ b/src/middleware/pretty-json/coord-replacer.test.ts
 @@ -0,0 +1,41 @@
@@ -40,7 +40,7 @@ index 00000000..e4e3953c
 +    )
 +  })
 +
-+  it('Should match today's output without a replacer', async () => {
++  it("Should match today's output without a replacer", async () => {
 +    const res = await makeApp().request('/?pretty')
 +    expect(await res.text()).toBe(JSON.stringify(body, null, 2))
 +  })
