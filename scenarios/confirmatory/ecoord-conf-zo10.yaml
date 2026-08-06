@@ -1,0 +1,183 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zo10
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add a near-twin convenience wrapper over safeParse
+    to the SAME 82-line function registry
+    packages/zod/src/v4/classic/parse.ts — a file that is nothing but a
+    flat run of exported parse/encode wrappers, re-exported wholesale
+    through classic/external.ts. The acceptance criteria overlap almost
+    verbatim ("delegates to the classic safeParse", "never throws on
+    validation failure", "reaches consumers as z.<name>"), and the
+    default path for both cards is identical: append the new export at
+    the file tail after safeDecodeAsync, stacking the two insertions
+    adjacently and colliding — with the twin semantics further tempting
+    one shared "run safeParse and branch" helper. A region-disjoint
+    pair still exists: parseOrDefault is a peer of the sync parse
+    quartet and can sit directly after safeParseAsync, before the
+    "Codec functions" comment, while isValid lands at the file tail,
+    the entire codec block staying stable between the two insertions.
+    Collision is evitable per §3 rule 1 but the tail-append gravity is
+    maximal. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-zo10-a
+    kind: coord
+    title: classic zod gains parseOrDefault
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      "Parse this or fall back to a default" is one of the most common
+      zod call sites — config loading, env parsing, cache reads — and
+      today every codebase hand-rolls the same four lines around
+      safeParse. The classic wrapper registry
+      (packages/zod/src/v4/classic/parse.ts) is where the parse-family
+      conveniences live.
+
+      Add a parseOrDefault export to
+      packages/zod/src/v4/classic/parse.ts: parseOrDefault(schema,
+      value, fallback) returns the parsed (transformed) data when the
+      value validates, and returns the fallback unchanged when
+      validation fails. It must delegate to the classic safeParse in the
+      same file, must never throw on validation failure, and must be
+      synchronous. The function must reach consumers as z.parseOrDefault
+      through the existing classic re-exports without touching
+      external.ts. The existing exports in the file must be untouched.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts
+      covering: a valid value returns the parsed data (use a schema with
+      a transform to show it is the output, not the input); an invalid
+      value returns the fallback exactly (same reference for an object
+      fallback); an invalid value does not throw; z.parseOrDefault is
+      reachable from the package root import used by the house tests.
+      Stay inside packages/zod/src/v4/classic/parse.ts plus your new
+      test file. Do not touch the core package, the mini package, or
+      external.ts. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/parse.ts
+        - parseOrDefault delegates to the classic safeParse, is synchronous, and never throws on validation failure
+        - A valid value returns the parsed output; an invalid value returns the fallback unchanged
+        - Reaches consumers as z.parseOrDefault via the existing re-exports; external.ts is untouched
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - parseOrDefault(schema, validValue, fallback) returns the parsed output data
+          - parseOrDefault(schema, invalidValue, fallback) returns the fallback unchanged and does not throw
+          - The fallback is returned by reference, not cloned
+          - z.parseOrDefault is reachable through the classic package root
+          - New tests in packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts cover the valid-transform, invalid-fallback, no-throw, and root-reachability cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/parse.ts"
+          - "packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/mini/**"
+          - "packages/zod/src/v4/locales/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo10-b
+    kind: coord
+    title: classic zod gains isValid
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      "Does this value pass?" is the boolean question behind guards,
+      filters, and assertion helpers, and today it is spelled
+      safeParse(schema, value).success at every call site — or worse,
+      try/catch around parse. The classic wrapper registry
+      (packages/zod/src/v4/classic/parse.ts) is where the parse-family
+      conveniences live.
+
+      Add an isValid export to packages/zod/src/v4/classic/parse.ts:
+      isValid(schema, value) returns true when the value validates
+      against the schema and false when it does not. It must delegate to
+      the classic safeParse in the same file, must never throw on
+      validation failure, and must be synchronous. The function must
+      reach consumers as z.isValid through the existing classic
+      re-exports without touching external.ts. The existing exports in
+      the file must be untouched.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-is-valid.test.ts covering:
+      a valid value returns true; an invalid value returns false without
+      throwing; a schema with a refinement returns false for a value the
+      refinement rejects; filtering an array with isValid keeps only the
+      valid entries; z.isValid is reachable from the package root import
+      used by the house tests. Stay inside
+      packages/zod/src/v4/classic/parse.ts plus your new test file. Do
+      not touch the core package, the mini package, or external.ts. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in packages/zod/src/v4/classic/parse.ts
+        - isValid delegates to the classic safeParse, is synchronous, and never throws on validation failure
+        - Returns true for validating values and false otherwise, including refinement failures
+        - Reaches consumers as z.isValid via the existing re-exports; external.ts is untouched
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-is-valid.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - isValid(schema, validValue) returns true
+          - isValid(schema, invalidValue) returns false and does not throw
+          - Refinement failures return false
+          - Filtering with isValid keeps only valid entries
+          - z.isValid is reachable through the classic package root
+          - New tests in packages/zod/src/v4/classic/tests/coord-is-valid.test.ts cover the valid, invalid, refinement, filter, and root-reachability cases
+        scope_paths:
+          - "packages/zod/src/v4/classic/parse.ts"
+          - "packages/zod/src/v4/classic/tests/coord-is-valid.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/mini/**"
+          - "packages/zod/src/v4/locales/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-is-valid.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

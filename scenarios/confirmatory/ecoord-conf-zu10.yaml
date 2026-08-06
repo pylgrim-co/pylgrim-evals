@@ -1,0 +1,171 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zu10
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add argument validation that throws TypeError to the
+    SAME 64-line file src/react.ts — one guards the useStore hook, the
+    other guards create/createImpl twenty-odd lines below — and the
+    acceptance criteria are near-twins ("throws TypeError when given a
+    non-function", "valid calls behave exactly as before"). The default
+    path collides twice over: the obvious move for both cards is one
+    shared assert helper hoisted beside the existing `identity` helper
+    (the same insertion point), and an agent generalizing either guard
+    naturally sweeps the whole tiny file. A region-disjoint pair still
+    exists: the hook guard lives inline at the head of the useStore
+    implementation body while the creation guard lives inline at the head
+    of createImpl at the file tail, with the UseBoundStore/Create type
+    block untouched between them. Collision is evitable per §3 rule 1 but
+    the shared-helper gravity in a file this small is maximal. Measured
+    score computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-zu10-a
+    kind: coord
+    title: useStore rejects invalid stores and selectors with a TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      Passing the wrong thing to useStore (src/react.ts) fails far from
+      the call site: useStore({}) crashes inside useSyncExternalStore with
+      a message about subscribe not being a function, and
+      useStore(store, 42) crashes inside a useCallback when the "selector"
+      is invoked. Neither error names useStore or the offending argument.
+
+      Add argument validation to the useStore implementation in
+      src/react.ts: when the first argument is missing or lacks
+      subscribe, getState, or getInitialState functions, throw a TypeError
+      with a clear message naming useStore; when a selector argument is
+      provided but is not a function, throw a TypeError as well. The
+      validation must run before any React hook is called. Valid calls —
+      with or without a selector — must behave exactly as before,
+      including the default identity selector.
+
+      Add tests in a new file tests/coord/use-store-arg-guard.test.tsx
+      covering: rendering a component that calls useStore with a plain
+      object throws TypeError; useStore(store, 42 as any) throws
+      TypeError; a valid store with a selector renders the selected
+      slice; a valid store without a selector renders the whole state.
+      Stay inside src/react.ts plus your new test file. Do not touch the
+      vanilla core, the middleware tree, or the traditional entry point.
+      No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/react.ts
+        - Invalid store apis and non-function selectors throw TypeError before any React hook runs
+        - Valid useStore calls behave exactly as before, including the default identity selector
+        - New tests only, in tests/coord/use-store-arg-guard.test.tsx; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - useStore with a first argument lacking subscribe, getState, or getInitialState functions throws TypeError
+          - useStore with a defined non-function selector throws TypeError
+          - The TypeError is thrown before any React hook is invoked
+          - Valid calls with and without a selector render exactly as before
+          - New tests in tests/coord/use-store-arg-guard.test.tsx cover the bad-api, bad-selector, valid-selector, and no-selector cases
+        scope_paths:
+          - "src/react.ts"
+          - "tests/coord/use-store-arg-guard.test.tsx"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/traditional.ts"
+          - "src/shallow.ts"
+          - "src/react/shallow.ts"
+          - "src/vanilla/shallow.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/use-store-arg-guard.test.tsx"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu10-b
+    kind: coord
+    title: create rejects non-function initializers with a TypeError
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      create (src/react.ts) accepts anything: create(42) forwards the
+      number into createStore and the failure surfaces later as a cryptic
+      "createState is not a function" somewhere inside the vanilla store,
+      and create(null) silently returns the curried form as if no
+      argument had been passed, hiding the bug entirely.
+
+      Add argument validation to the creation path in src/react.ts: when
+      create — or the curried form returned by create() — receives an
+      initializer that is defined (including null) but not a function,
+      throw a TypeError with a clear message naming create. create() with
+      no argument must still return the curried function, and valid
+      function initializers must behave exactly as before, returning the
+      bound hook with the store api attached.
+
+      Add tests in a new file tests/coord/create-arg-guard.test.ts
+      covering: create(42 as any), create('x' as any), and
+      create(null as any) each throw TypeError; the curried form
+      create()(42 as any) also throws TypeError; create() returns a
+      function; a valid initializer produces a working bound store whose
+      getState returns the initial state. Stay inside src/react.ts plus
+      your new test file. Do not touch the vanilla core, the middleware
+      tree, or the traditional entry point. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/react.ts
+        - A defined non-function initializer (including null) throws TypeError on both the direct and curried paths
+        - create() with no argument still returns the curried function
+        - Valid initializers behave exactly as before
+        - New tests only, in tests/coord/create-arg-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - create with a number, string, or null argument throws TypeError
+          - The curried form create()(badValue) throws TypeError for defined non-function values
+          - create() with no argument returns the curried function
+          - A valid initializer returns a bound store hook with the store api attached and a working getState
+          - New tests in tests/coord/create-arg-guard.test.ts cover the direct-bad-value, curried-bad-value, no-argument, and valid cases
+        scope_paths:
+          - "src/react.ts"
+          - "tests/coord/create-arg-guard.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/traditional.ts"
+          - "src/shallow.ts"
+          - "src/react/shallow.ts"
+          - "src/vanilla/shallow.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/create-arg-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

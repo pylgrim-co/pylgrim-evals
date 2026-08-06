@@ -1,0 +1,184 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-ho10
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items must edit the SAME 35-line file
+    src/middleware/powered-by/index.ts, whose entire substance is one
+    tiny PoweredByOptions type and one factory whose returned closure
+    sets a single header line — and both cards' acceptance criteria
+    revolve around the same serverName option and the same X-Powered-By
+    header value. The default path collides: card A's append mode
+    naturally rewrites the one headers.set line, and card B's lazy home
+    for validation is the very same closure (checking serverName on
+    every request right where it is read), while both cards read the
+    same options?.serverName expression. A region-disjoint pair still
+    exists: the append logic lives inside the closure plus one option
+    added inside the type block, while the validation lives at the
+    factory head before the returned closure (as a call to a module
+    helper placed below the factory), the return statement and closure
+    opening staying stable between the hunks. Collision is evitable per
+    §3 rule 1 but in a file this small the whole file is the shared
+    region. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho10-a
+    kind: coord
+    title: poweredBy gains an append option that preserves existing headers
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The poweredBy middleware (src/middleware/powered-by/index.ts)
+      always overwrites X-Powered-By. Behind a proxy or an upstream
+      framework that already sets the header, the platform's value is
+      silently destroyed — operators expect the conventional
+      comma-separated chain instead.
+
+      Extend PoweredByOptions in src/middleware/powered-by/index.ts with
+      an `append?: boolean` option. When append is true and the response
+      already carries an X-Powered-By header, the middleware must set the
+      header to the existing value, a comma and a space, then its own
+      value (the serverName option or the default "Hono"). When append is
+      true and no header exists, the value is set as today. When append
+      is absent or false, behavior must be byte-for-byte identical to
+      today: the header is overwritten. The serverName default must stay
+      "Hono".
+
+      Add tests in a new file
+      src/middleware/powered-by/coord-append-option.test.ts covering:
+      with append true, a handler-set X-Powered-By "Express" becomes
+      "Express, Hono"; with append true and a custom serverName the
+      appended value uses it; with append true and no pre-existing header
+      the header is just the value; without the option an existing header
+      is overwritten as today. Stay inside
+      src/middleware/powered-by/index.ts plus your new test file. Do not
+      touch other middleware, the Context class, or the utils tree. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/powered-by/index.ts
+        - append true preserves an existing X-Powered-By value as "existing, own-value"
+        - append absent or false keeps today's overwrite behavior exactly
+        - The serverName default stays "Hono"
+        - New tests only, in src/middleware/powered-by/coord-append-option.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - With append true an existing X-Powered-By value is preserved and the middleware's value is appended after a comma and space
+          - With append true and a custom serverName the appended value is the serverName
+          - With append true and no existing header the header equals the value alone
+          - Without append an existing header is overwritten, as before
+          - New tests in src/middleware/powered-by/coord-append-option.test.ts cover the append-existing, append-custom-name, append-empty, and default-overwrite cases
+        scope_paths:
+          - "src/middleware/powered-by/index.ts"
+          - "src/middleware/powered-by/coord-append-option.test.ts"
+        out_of_scope:
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "src/hono-base.ts"
+          - "src/helper/**"
+          - "src/middleware/logger/**"
+          - "src/middleware/secure-headers/**"
+          - "src/middleware/etag/**"
+          - "src/middleware/request-id/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/powered-by/coord-append-option.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho10-b
+    kind: coord
+    title: poweredBy validates serverName at construction time
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      The poweredBy middleware (src/middleware/powered-by/index.ts)
+      writes options.serverName into the X-Powered-By response header
+      without any checks. A serverName that is empty, whitespace-only,
+      or — worse — contains a carriage return or newline flows straight
+      into headers.set, and the failure surfaces per-request deep inside
+      the runtime instead of at the app.use call site where the option
+      was written.
+
+      Add construction-time validation to the poweredBy factory in
+      src/middleware/powered-by/index.ts: when a serverName option is
+      provided and is not a string, is empty or whitespace-only, or
+      contains a carriage return or line feed, throw a TypeError with a
+      clear message naming poweredBy — at the moment the factory is
+      called, before any request is handled. Valid serverName values and
+      calls without options must behave exactly as today, and the
+      per-request path must not gain a validation cost.
+
+      Add tests in a new file
+      src/middleware/powered-by/coord-server-name-guard.test.ts covering:
+      poweredBy({ serverName: '' }) throws TypeError at the factory call;
+      whitespace-only and CRLF-containing values throw TypeError; a
+      non-string value (42 as any) throws TypeError; poweredBy() and a
+      valid custom serverName still set the header as before. Stay inside
+      src/middleware/powered-by/index.ts plus your new test file. Do not
+      touch other middleware, the Context class, or the utils tree. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/powered-by/index.ts
+        - Invalid serverName values throw TypeError when the factory is called, before any request
+        - Valid serverName values and option-free calls behave exactly as before
+        - The per-request path gains no validation cost
+        - New tests only, in src/middleware/powered-by/coord-server-name-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An empty or whitespace-only serverName throws TypeError at factory-call time
+          - A serverName containing CR or LF throws TypeError at factory-call time
+          - A non-string serverName throws TypeError at factory-call time
+          - poweredBy() and a valid custom serverName set the X-Powered-By header exactly as before
+          - New tests in src/middleware/powered-by/coord-server-name-guard.test.ts cover the empty, whitespace, header-injection, non-string, and valid cases
+        scope_paths:
+          - "src/middleware/powered-by/index.ts"
+          - "src/middleware/powered-by/coord-server-name-guard.test.ts"
+        out_of_scope:
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "src/hono-base.ts"
+          - "src/helper/**"
+          - "src/middleware/logger/**"
+          - "src/middleware/secure-headers/**"
+          - "src/middleware/etag/**"
+          - "src/middleware/request-id/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/powered-by/coord-server-name-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

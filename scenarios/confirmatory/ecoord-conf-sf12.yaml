@@ -1,0 +1,187 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-sf12
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items extend SingleStore's vector-workload support in the
+    SAME single flat alphabetized array in
+    src/languages/singlestoredb/singlestoredb.functions.ts, with twin
+    acceptance criteria ("recognized as reserved function names in the
+    singlestoredb dialect so functionCase applies") and prompts that
+    cite the same vector-functions documentation page. The default path
+    collides: the catalog is one uncommented alphabetical run, so the
+    lazy move for both cards is appending their batch at the array tail,
+    stacking the two insertions adjacently — and the tidy alphabetical
+    homes tempt a second collision, since card A's VECTOR_MUL and
+    VECTOR_ELEMENTS_SUM sort directly against the existing VECTOR_SUB
+    line where a careless card-B agent also gravitates for anything
+    vector-named. A region-disjoint pair still exists: card A's three
+    names interleave in-place in the S and V alphabetical runs
+    (SCALAR_VECTOR_MUL after SCALAR, the two VECTOR_* names before
+    VECTOR_SUB) while card B's JSON_ARRAY_PACK and JSON_ARRAY_UNPACK
+    land in the J run more than a hundred stable lines earlier.
+    Collision is evitable per §3 rule 1 but the tail-append gravity is
+    maximal. Measured score computed by scripts/scenario-check.sh; the
+    authored label is re-checked against that measurement before
+    freeze.
+cards:
+  - id: ecoord-conf-sf12-a
+    kind: coord
+    title: singlestoredb dialect recognizes the vector arithmetic functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      SingleStore's vector functions page documents elementwise
+      arithmetic — VECTOR_MUL, VECTOR_ELEMENTS_SUM, and
+      SCALAR_VECTOR_MUL — but the singlestoredb dialect's catalog
+      (src/languages/singlestoredb/singlestoredb.functions.ts) only
+      carries DOT_PRODUCT, EUCLIDEAN_DISTANCE, and VECTOR_SUB: formatted
+      vector queries leave the arithmetic names untouched by
+      functionCase while their siblings are case-converted.
+
+      Add VECTOR_MUL, VECTOR_ELEMENTS_SUM, and SCALAR_VECTOR_MUL to the
+      functions array in
+      src/languages/singlestoredb/singlestoredb.functions.ts so each is
+      recognized as a reserved function name in the singlestoredb
+      dialect: functionCase 'upper' and 'lower' must convert them like
+      any other catalog function, and unrelated identifiers must stay
+      untouched. Existing entries must not be removed or reordered.
+      Match the file's single-quoted, one-name-per-line style.
+
+      Add tests in a new file
+      test/coord-singlestore-vector-arithmetic.test.ts following the
+      house dedent style covering: vector_mul and scalar_vector_mul
+      uppercase under functionCase 'upper'; VECTOR_ELEMENTS_SUM
+      lowercase under functionCase 'lower'; the existing vector_sub
+      function still case-converts; a non-catalog identifier is left
+      untouched. Stay inside
+      src/languages/singlestoredb/singlestoredb.functions.ts plus your
+      new test file. Do not touch other dialects, the formatter core, or
+      the lexer. No new dependencies, no CI or docs changes. The repo's
+      prepare hook runs prettier and the full jest suite, so keep the
+      diff prettier-clean and every existing test green.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/singlestoredb/singlestoredb.functions.ts, adding the three names to the functions array
+        - VECTOR_MUL, VECTOR_ELEMENTS_SUM, and SCALAR_VECTOR_MUL are case-converted by functionCase in the singlestoredb dialect
+        - No existing entry is removed or reordered; the diff is prettier-clean
+        - New tests only, in test/coord-singlestore-vector-arithmetic.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - functionCase 'upper' renders vector_mul, vector_elements_sum, and scalar_vector_mul uppercase in the singlestoredb dialect
+          - functionCase 'lower' renders them lowercase
+          - Existing catalog functions still case-convert unchanged
+          - Non-catalog identifiers are untouched by functionCase
+          - New tests in test/coord-singlestore-vector-arithmetic.test.ts cover the upper, lower, existing-function, and unrelated-identifier cases
+        scope_paths:
+          - "src/languages/singlestoredb/singlestoredb.functions.ts"
+          - "test/coord-singlestore-vector-arithmetic.test.ts"
+        out_of_scope:
+          - "src/languages/singlestoredb/singlestoredb.formatter.ts"
+          - "src/languages/singlestoredb/singlestoredb.keywords.ts"
+          - "src/languages/mysql/**"
+          - "src/languages/mariadb/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-singlestore-vector-arithmetic.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf12-b
+    kind: coord
+    title: singlestoredb dialect recognizes the vector JSON packing functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      SingleStore's vector functions page documents the JSON packing
+      pair — JSON_ARRAY_PACK, which converts a JSON array literal into
+      the binary vector format, and JSON_ARRAY_UNPACK, which converts it
+      back — but the singlestoredb dialect's catalog
+      (src/languages/singlestoredb/singlestoredb.functions.ts) predates
+      them: formatted vector queries leave the packing names untouched
+      by functionCase while the neighboring JSON_ARRAY_PUSH_* family is
+      case-converted.
+
+      Add JSON_ARRAY_PACK and JSON_ARRAY_UNPACK to the functions array
+      in src/languages/singlestoredb/singlestoredb.functions.ts so both
+      are recognized as reserved function names in the singlestoredb
+      dialect: functionCase 'upper' and 'lower' must convert them like
+      any other catalog function, and unrelated identifiers must stay
+      untouched. Existing entries must not be removed or reordered.
+      Match the file's single-quoted, one-name-per-line style.
+
+      Add tests in a new file
+      test/coord-singlestore-vector-packing.test.ts following the house
+      dedent style covering: json_array_pack and json_array_unpack
+      uppercase under functionCase 'upper'; the same two lowercase under
+      functionCase 'lower'; the existing json_array_push_double function
+      still case-converts; a non-catalog identifier is left untouched.
+      Stay inside
+      src/languages/singlestoredb/singlestoredb.functions.ts plus your
+      new test file. Do not touch other dialects, the formatter core, or
+      the lexer. No new dependencies, no CI or docs changes. The repo's
+      prepare hook runs prettier and the full jest suite, so keep the
+      diff prettier-clean and every existing test green.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/singlestoredb/singlestoredb.functions.ts, adding the two names to the functions array
+        - JSON_ARRAY_PACK and JSON_ARRAY_UNPACK are case-converted by functionCase in the singlestoredb dialect
+        - No existing entry is removed or reordered; the diff is prettier-clean
+        - New tests only, in test/coord-singlestore-vector-packing.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - functionCase 'upper' renders json_array_pack and json_array_unpack uppercase in the singlestoredb dialect
+          - functionCase 'lower' renders them lowercase
+          - Existing catalog functions still case-convert unchanged
+          - Non-catalog identifiers are untouched by functionCase
+          - New tests in test/coord-singlestore-vector-packing.test.ts cover the upper, lower, existing-function, and unrelated-identifier cases
+        scope_paths:
+          - "src/languages/singlestoredb/singlestoredb.functions.ts"
+          - "test/coord-singlestore-vector-packing.test.ts"
+        out_of_scope:
+          - "src/languages/singlestoredb/singlestoredb.formatter.ts"
+          - "src/languages/singlestoredb/singlestoredb.keywords.ts"
+          - "src/languages/mysql/**"
+          - "src/languages/mariadb/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-singlestore-vector-packing.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

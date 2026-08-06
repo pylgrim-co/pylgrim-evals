@@ -1,0 +1,181 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-sf10
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add MariaDB JSON functions to the SAME contiguous
+    JSON_* run of the single flat array in
+    src/languages/mariadb/mariadb.functions.ts — all four new names sort
+    into one ~28-line alphabetical block (JSON_ARRAY .. JSON_VALUE), so
+    the tidy insertion points for the two cards sit interleaved on
+    directly adjacent registry lines, and the lazy path (append at the
+    array tail) stacks both cards' entries in the same spot. The
+    acceptance criteria are near-verbatim twins ("recognized as reserved
+    function names in the mariadb dialect so functionCase applies").
+    This is the cal-zo02 adjacent-registry-line shape. A region-disjoint
+    pair still exists: card A's JSON_EQUALS and JSON_NORMALIZE homes
+    (after JSON_DETAILED and after JSON_MERGE_PRESERVE) and card B's
+    JSON_OVERLAPS and JSON_SCHEMA_VALID homes (after JSON_OBJECT and
+    after JSON_REPLACE) are four distinct single-line insertions with
+    stable catalog lines between every pair of hunks. Collision is
+    evitable per §3 rule 1 but the same-run gravity is maximal. Measured
+    score computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf10-a
+    kind: coord
+    title: mariadb dialect recognizes JSON_EQUALS and JSON_NORMALIZE
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      MariaDB 10.7 added JSON_EQUALS and JSON_NORMALIZE for
+      canonicalizing and comparing JSON documents, but the mariadb
+      dialect's function catalog
+      (src/languages/mariadb/mariadb.functions.ts) predates them:
+      formatted queries leave the two names untouched by functionCase
+      while every neighboring JSON_* function is case-converted, which
+      makes mixed-case query files inconsistent.
+
+      Add JSON_EQUALS and JSON_NORMALIZE to the functions array in
+      src/languages/mariadb/mariadb.functions.ts so both are recognized
+      as reserved function names in the mariadb dialect: functionCase
+      'upper' and 'lower' must convert them like any other catalog
+      function, and unrelated identifiers must stay untouched. Existing
+      entries must not be removed or reordered. Match the file's
+      single-quoted, one-name-per-line style.
+
+      Add tests in a new file test/coord-mariadb-json-equality.test.ts
+      following the house dedent style covering: json_equals and
+      json_normalize uppercase under functionCase 'upper'; the same two
+      lowercase under functionCase 'lower'; the existing json_valid
+      function still case-converts; a non-catalog identifier is left
+      untouched. Stay inside
+      src/languages/mariadb/mariadb.functions.ts plus your new test
+      file. Do not touch other dialects, the formatter core, or the
+      lexer. No new dependencies, no CI or docs changes. The repo's
+      prepare hook runs prettier and the full jest suite, so keep the
+      diff prettier-clean and every existing test green.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/mariadb/mariadb.functions.ts, adding the two names to the functions array
+        - JSON_EQUALS and JSON_NORMALIZE are case-converted by functionCase in the mariadb dialect
+        - No existing entry is removed or reordered; the diff is prettier-clean
+        - New tests only, in test/coord-mariadb-json-equality.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - functionCase 'upper' renders json_equals and json_normalize as JSON_EQUALS and JSON_NORMALIZE in the mariadb dialect
+          - functionCase 'lower' renders them lowercase
+          - Existing catalog functions still case-convert unchanged
+          - Non-catalog identifiers are untouched by functionCase
+          - New tests in test/coord-mariadb-json-equality.test.ts cover the upper, lower, existing-function, and unrelated-identifier cases
+        scope_paths:
+          - "src/languages/mariadb/mariadb.functions.ts"
+          - "test/coord-mariadb-json-equality.test.ts"
+        out_of_scope:
+          - "src/languages/mariadb/mariadb.formatter.ts"
+          - "src/languages/mariadb/mariadb.keywords.ts"
+          - "src/languages/mariadb/likeMariaDb.ts"
+          - "src/languages/mysql/**"
+          - "src/languages/tidb/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-mariadb-json-equality.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf10-b
+    kind: coord
+    title: mariadb dialect recognizes JSON_OVERLAPS and JSON_SCHEMA_VALID
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      MariaDB 10.9 added JSON_OVERLAPS and 11.1 added JSON_SCHEMA_VALID,
+      but the mariadb dialect's function catalog
+      (src/languages/mariadb/mariadb.functions.ts) predates them:
+      formatted queries leave the two names untouched by functionCase
+      while every neighboring JSON_* function is case-converted, which
+      makes mixed-case query files inconsistent.
+
+      Add JSON_OVERLAPS and JSON_SCHEMA_VALID to the functions array in
+      src/languages/mariadb/mariadb.functions.ts so both are recognized
+      as reserved function names in the mariadb dialect: functionCase
+      'upper' and 'lower' must convert them like any other catalog
+      function, and unrelated identifiers must stay untouched. Existing
+      entries must not be removed or reordered. Match the file's
+      single-quoted, one-name-per-line style.
+
+      Add tests in a new file test/coord-mariadb-json-validation.test.ts
+      following the house dedent style covering: json_overlaps and
+      json_schema_valid uppercase under functionCase 'upper'; the same
+      two lowercase under functionCase 'lower'; the existing
+      json_contains function still case-converts; a non-catalog
+      identifier is left untouched. Stay inside
+      src/languages/mariadb/mariadb.functions.ts plus your new test
+      file. Do not touch other dialects, the formatter core, or the
+      lexer. No new dependencies, no CI or docs changes. The repo's
+      prepare hook runs prettier and the full jest suite, so keep the
+      diff prettier-clean and every existing test green.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/mariadb/mariadb.functions.ts, adding the two names to the functions array
+        - JSON_OVERLAPS and JSON_SCHEMA_VALID are case-converted by functionCase in the mariadb dialect
+        - No existing entry is removed or reordered; the diff is prettier-clean
+        - New tests only, in test/coord-mariadb-json-validation.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - functionCase 'upper' renders json_overlaps and json_schema_valid as JSON_OVERLAPS and JSON_SCHEMA_VALID in the mariadb dialect
+          - functionCase 'lower' renders them lowercase
+          - Existing catalog functions still case-convert unchanged
+          - Non-catalog identifiers are untouched by functionCase
+          - New tests in test/coord-mariadb-json-validation.test.ts cover the upper, lower, existing-function, and unrelated-identifier cases
+        scope_paths:
+          - "src/languages/mariadb/mariadb.functions.ts"
+          - "test/coord-mariadb-json-validation.test.ts"
+        out_of_scope:
+          - "src/languages/mariadb/mariadb.formatter.ts"
+          - "src/languages/mariadb/mariadb.keywords.ts"
+          - "src/languages/mariadb/likeMariaDb.ts"
+          - "src/languages/mysql/**"
+          - "src/languages/tidb/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-mariadb-json-validation.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true

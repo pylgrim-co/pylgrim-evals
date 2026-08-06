@@ -1,0 +1,183 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zo11
+study: e-coord
+status: confirmatory
+repo: zod
+pinned_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items register a regional-English locale alias in the SAME
+    one-export-per-line barrel packages/zod/src/v4/locales/index.ts, and
+    both aliases (en-US, en-GB) sort to the IDENTICAL insertion point:
+    directly after the existing `export { default as en }` line, where
+    the fr/fr-CA precedent pulls both cards. The features are perfect
+    twins — a tiny module re-exporting the en error map under a regional
+    tag plus one barrel line — and the acceptance criteria are
+    near-verbatim copies of each other ("resolves through z.locales",
+    "produces messages identical to en"). This is the sharpest
+    adjacent-registry-line collision in the set: the two cards' default
+    barrel edits are inserts at the very same line boundary. A
+    region-disjoint pair still exists because the barrel does not
+    mechanically enforce ordering: one card's line sits alphabetically
+    after en (in place) while the other card's line is appended at the
+    end of the export list after zh-TW, with the implementation modules
+    living in separate new files. Collision is evitable per §3 rule 1
+    but the same-line-boundary gravity is maximal. Measured score
+    computed by scripts/scenario-check.sh; the authored label is
+    re-checked against that measurement before freeze.
+cards:
+  - id: ecoord-conf-zo11-a
+    kind: coord
+    title: add an en-US locale alias
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Apps that negotiate locales from browser or OS settings receive
+      regional tags like "en-US", but zod's locale registry
+      (packages/zod/src/v4/locales/) only ships bare "en": a lookup
+      table keyed by the user's tag comes back undefined and callers
+      each write their own en-US-to-en fallback. The registry already
+      has a regional precedent — fr-CA ships beside fr.
+
+      Add an en-US locale to the registry: a new module
+      packages/zod/src/v4/locales/en-US.ts whose default export reuses
+      the en locale's error map (a re-export or a thin delegating
+      factory — do not fork the translation strings), and a line in the
+      barrel packages/zod/src/v4/locales/index.ts exporting it as enUS,
+      following the frCA naming precedent for regional tags. Configuring
+      zod with the alias must produce error messages byte-identical to
+      the en locale. Existing locale exports must be untouched.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-locale-en-us.test.ts
+      covering: z.locales.enUS is a function; z.config(z.locales.enUS())
+      makes a failed string parse produce the same message as
+      z.config(z.locales.en()) for the same failure; the en export
+      itself still works; restore the default locale after the test.
+      Stay inside the two locale files plus your new test file. Do not
+      touch other locales, the core package, or the classic package. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation limited to a new packages/zod/src/v4/locales/en-US.ts and one export line in packages/zod/src/v4/locales/index.ts
+        - The en-US locale reuses the en error map; translation strings are not forked
+        - Error messages under the alias are byte-identical to en
+        - Existing locale exports are untouched
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-locale-en-us.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - z.locales.enUS resolves to a locale factory
+          - Configuring zod with enUS produces error messages identical to en for the same failure
+          - The en locale export is unchanged
+          - New tests in packages/zod/src/v4/classic/tests/coord-locale-en-us.test.ts cover the resolution, message-parity, and en-unchanged cases and restore the default locale
+        scope_paths:
+          - "packages/zod/src/v4/locales/en-US.ts"
+          - "packages/zod/src/v4/locales/index.ts"
+          - "packages/zod/src/v4/classic/tests/coord-locale-en-us.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/locales/en.ts"
+          - "packages/zod/src/v4/locales/fr-CA.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/parse.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-locale-en-us.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zo11-b
+    kind: coord
+    title: add an en-GB locale alias
+    base_sha: 912f0f51b0ced654d0069741e7160834dca742ee
+    prompt: |
+      Apps that negotiate locales from browser or OS settings receive
+      regional tags like "en-GB", but zod's locale registry
+      (packages/zod/src/v4/locales/) only ships bare "en": a lookup
+      table keyed by the user's tag comes back undefined and callers
+      each write their own en-GB-to-en fallback. The registry already
+      has a regional precedent — fr-CA ships beside fr.
+
+      Add an en-GB locale to the registry: a new module
+      packages/zod/src/v4/locales/en-GB.ts whose default export reuses
+      the en locale's error map (a re-export or a thin delegating
+      factory — do not fork the translation strings), and a line in the
+      barrel packages/zod/src/v4/locales/index.ts exporting it as enGB,
+      following the frCA naming precedent for regional tags. Configuring
+      zod with the alias must produce error messages byte-identical to
+      the en locale. Existing locale exports must be untouched.
+
+      Add tests in a new file
+      packages/zod/src/v4/classic/tests/coord-locale-en-gb.test.ts
+      covering: z.locales.enGB is a function; z.config(z.locales.enGB())
+      makes a failed string parse produce the same message as
+      z.config(z.locales.en()) for the same failure; the en export
+      itself still works; restore the default locale after the test.
+      Stay inside the two locale files plus your new test file. Do not
+      touch other locales, the core package, or the classic package. No
+      new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation limited to a new packages/zod/src/v4/locales/en-GB.ts and one export line in packages/zod/src/v4/locales/index.ts
+        - The en-GB locale reuses the en error map; translation strings are not forked
+        - Error messages under the alias are byte-identical to en
+        - Existing locale exports are untouched
+        - New tests only, in packages/zod/src/v4/classic/tests/coord-locale-en-gb.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - z.locales.enGB resolves to a locale factory
+          - Configuring zod with enGB produces error messages identical to en for the same failure
+          - The en locale export is unchanged
+          - New tests in packages/zod/src/v4/classic/tests/coord-locale-en-gb.test.ts cover the resolution, message-parity, and en-unchanged cases and restore the default locale
+        scope_paths:
+          - "packages/zod/src/v4/locales/en-GB.ts"
+          - "packages/zod/src/v4/locales/index.ts"
+          - "packages/zod/src/v4/classic/tests/coord-locale-en-gb.test.ts"
+        out_of_scope:
+          - "packages/zod/src/v4/locales/en.ts"
+          - "packages/zod/src/v4/locales/fr-CA.ts"
+          - "packages/zod/src/v4/classic/schemas.ts"
+          - "packages/zod/src/v4/classic/external.ts"
+          - "packages/zod/src/v4/classic/parse.ts"
+          - "packages/zod/src/v4/classic/checks.ts"
+          - "packages/zod/src/v4/classic/errors.ts"
+          - "packages/zod/src/v4/core/**"
+          - "packages/zod/src/v4/mini/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run --project zod packages/zod/src/v4/classic/tests/coord-locale-en-gb.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

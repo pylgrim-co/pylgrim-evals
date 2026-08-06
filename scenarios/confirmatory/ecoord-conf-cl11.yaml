@@ -1,0 +1,170 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-cl11
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items land in the SAME two adjacent methods that close the
+    TextWrapper class in src/click/_textwrap.py — extra_indent and
+    indent_only, under thirty lines together at the class tail — and
+    both cards' acceptance criteria describe the same behavior class
+    (how indentation is applied to help-text lines). The default path
+    collides: both cards' natural move is to rework the class-tail
+    indentation block in one sweep, and the obvious shared refactor (a
+    single helper that normalizes/applies an indent, used by both
+    methods) serves both cards from the same new lines. A
+    region-disjoint pair still exists: the integer-indent coercion is a
+    small insertion at the head of extra_indent's body while the
+    blank-line fix is an in-place edit inside indent_only's loop, the
+    method boundary (decorator, signature, and yield/finally block)
+    keeping the two hunks several stable lines apart. Collision is
+    evitable per §3 rule 1 but the adjacent-method gravity in a class
+    tail this small is maximal. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-cl11-a
+    kind: coord
+    title: TextWrapper.indent_only leaves blank lines unindented
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      TextWrapper.indent_only (src/click/_textwrap.py) prefixes every
+      line with the current indent — including blank lines. Multi-line
+      help text with paragraph breaks therefore renders lines that are
+      nothing but trailing whitespace, which linters flag in captured
+      output and which makes doctest-style comparisons fail invisibly.
+
+      Change indent_only in src/click/_textwrap.py so that blank lines —
+      empty or whitespace-only — are emitted as empty strings with no
+      indent applied, while non-blank lines keep exactly today's
+      behavior: the initial indent on the first line and the subsequent
+      indent on every later line. The joined result must still use
+      newline separators and must not gain or lose lines.
+
+      Add tests in a new file tests/test_coord_indent_only_blank_lines.py
+      covering: a two-paragraph text separated by an empty line indents
+      both paragraphs but leaves the separator line completely empty; a
+      whitespace-only interior line becomes empty; single-line text still
+      gets the initial indent; first-versus-subsequent indents still
+      differ when configured differently. Stay inside
+      src/click/_textwrap.py plus your new test file. Do not touch other
+      click modules. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/_textwrap.py, limited to indent_only behavior
+        - Blank and whitespace-only lines are emitted empty, with no indent and no trailing whitespace
+        - Non-blank lines keep the exact current initial/subsequent indent behavior
+        - The line count and newline joining are unchanged
+        - New tests only, in tests/test_coord_indent_only_blank_lines.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An empty separator line between paragraphs stays completely empty in the output
+          - A whitespace-only line is emitted as an empty string
+          - Non-blank lines receive the initial indent on the first line and the subsequent indent afterwards, as before
+          - The output has the same number of lines as the input
+          - New tests in tests/test_coord_indent_only_blank_lines.py cover the empty-separator, whitespace-only, single-line, and differing-indents cases
+        scope_paths:
+          - "src/click/_textwrap.py"
+          - "tests/test_coord_indent_only_blank_lines.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/formatting.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_indent_only_blank_lines.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl11-b
+    kind: coord
+    title: TextWrapper.extra_indent accepts an integer number of spaces
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      TextWrapper.extra_indent (src/click/_textwrap.py) only takes a
+      string, so every caller that wants "indent by four more spaces"
+      writes the ' ' * 4 dance by hand, and a caller that passes the int
+      directly gets a TypeError from string concatenation deep inside
+      the context manager.
+
+      Change extra_indent in src/click/_textwrap.py so that an integer
+      argument is treated as that many spaces: extra_indent(4) behaves
+      exactly like extra_indent(' ' * 4). String arguments keep today's
+      behavior unchanged. The context manager must still add the indent
+      to both initial_indent and subsequent_indent on entry and restore
+      both previous values on exit, including when the body raises.
+
+      Add tests in a new file tests/test_coord_extra_indent_int.py
+      covering: extra_indent(4) produces the same wrapping as
+      extra_indent('    '); a string argument still works unchanged;
+      both indents are restored after the with block; both indents are
+      restored when the body raises an exception. Stay inside
+      src/click/_textwrap.py plus your new test file. Do not touch other
+      click modules. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/_textwrap.py, limited to extra_indent behavior
+        - An integer argument is converted to that many spaces; strings behave exactly as before
+        - initial_indent and subsequent_indent are both extended on entry and restored on exit, including on exception
+        - New tests only, in tests/test_coord_extra_indent_int.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - extra_indent(4) behaves identically to extra_indent(' ' * 4)
+          - String arguments behave exactly as before
+          - Both indent attributes are restored after normal exit
+          - Both indent attributes are restored when the with-body raises
+          - New tests in tests/test_coord_extra_indent_int.py cover the int-equivalence, string-unchanged, restore-on-exit, and restore-on-exception cases
+        scope_paths:
+          - "src/click/_textwrap.py"
+          - "tests/test_coord_extra_indent_int.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/formatting.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_extra_indent_int.py"
+      deterministic_checks: []
+    source:
+      authored: true

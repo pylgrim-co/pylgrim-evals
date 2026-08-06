@@ -1,0 +1,187 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-cl10
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add a brand-new shell to click's completion support,
+    and every registered shell flows through the SAME three-line
+    _available_shells dict literal in src/click/shell_completion.py — the
+    cal-zu02 twin-feature-plus-shared-registry shape. The cards are
+    near-twins (a ShellComplete subclass with a name, a source_template
+    module constant, a format_completion override, and a registry entry),
+    their acceptance criteria overlap almost verbatim, and the default
+    path collides three times over: both cards append their _SOURCE_*
+    constant after _SOURCE_FISH, both append their class after
+    FishComplete, and both insert their dict entry between the "fish" and
+    "zsh" lines because both shell names sort there alphabetically. A
+    region-disjoint pair still exists: one card's class and constant sit
+    after the zsh block with its registry line inserted alphabetically,
+    while the other card's class and constant append after the fish block
+    with its registry line appended after "zsh" at the dict tail — one
+    in-place insert versus one append, several stable lines apart at
+    every touch point. Collision is evitable per §3 rule 1 but the
+    shared-registry gravity is maximal. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-cl10-a
+    kind: coord
+    title: add PowerShell shell completion support
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click ships completion classes for bash, zsh, and fish
+      (src/click/shell_completion.py), but PowerShell users — the default
+      shell on Windows — get nothing: get_completion_class("powershell")
+      returns None and there is no source script to install.
+
+      Add a PowerShellComplete class to src/click/shell_completion.py
+      following the house pattern of the existing shells: a module-level
+      _SOURCE_POWERSHELL template string containing a
+      Register-ArgumentCompleter based script that invokes the program
+      with the %(complete_var)s environment variable set to
+      "powershell_complete" and interpolates %(prog_name)s and
+      %(complete_func)s like the other templates; a ShellComplete
+      subclass with name = "powershell" and source_template =
+      _SOURCE_POWERSHELL; a format_completion method returning the
+      completion value, and the value plus a tab plus the help text when
+      help is present. Register the class in the _available_shells dict
+      so get_completion_class("powershell") resolves. The existing bash,
+      zsh, and fish registrations must be untouched.
+
+      Add tests in a new file tests/test_coord_powershell_completion.py
+      covering: get_completion_class("powershell") returns the class and
+      its name attribute is "powershell"; an instance's source() output
+      contains the prog name, the complete_var name, and
+      "powershell_complete"; format_completion with and without help
+      returns the documented shapes; bash, zsh, and fish still resolve
+      via get_completion_class. Stay inside src/click/shell_completion.py
+      plus your new test file. Do not touch other click modules. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/shell_completion.py
+        - PowerShellComplete follows the existing shell-class pattern (name, source_template, format_completion) and registers in _available_shells
+        - The source template interpolates complete_var, prog_name, and complete_func and uses the powershell_complete instruction
+        - Existing bash, zsh, and fish registrations are untouched
+        - New tests only, in tests/test_coord_powershell_completion.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - get_completion_class("powershell") returns a ShellComplete subclass named "powershell"
+          - source() renders the template with the prog name, the complete_var, and the powershell_complete instruction
+          - format_completion returns the value alone without help, and value TAB help with help
+          - bash, zsh, and fish completion classes still resolve unchanged
+          - New tests in tests/test_coord_powershell_completion.py cover the registration, source-rendering, format-completion, and existing-shells cases
+        scope_paths:
+          - "src/click/shell_completion.py"
+          - "tests/test_coord_powershell_completion.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/decorators.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_powershell_completion.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl10-b
+    kind: coord
+    title: add Nushell shell completion support
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      click ships completion classes for bash, zsh, and fish
+      (src/click/shell_completion.py), but Nushell users get nothing:
+      get_completion_class("nushell") returns None and there is no
+      source script to install.
+
+      Add a NushellComplete class to src/click/shell_completion.py
+      following the house pattern of the existing shells: a module-level
+      _SOURCE_NUSHELL template string containing an external completer
+      definition that invokes the program with the %(complete_var)s
+      environment variable set to "nushell_complete" and interpolates
+      %(prog_name)s and %(complete_func)s like the other templates; a
+      ShellComplete subclass with name = "nushell" and source_template =
+      _SOURCE_NUSHELL; a format_completion method returning the
+      completion value, and the value plus a tab plus the help text when
+      help is present. Register the class in the _available_shells dict
+      so get_completion_class("nushell") resolves. The existing bash,
+      zsh, and fish registrations must be untouched.
+
+      Add tests in a new file tests/test_coord_nushell_completion.py
+      covering: get_completion_class("nushell") returns the class and its
+      name attribute is "nushell"; an instance's source() output contains
+      the prog name, the complete_var name, and "nushell_complete";
+      format_completion with and without help returns the documented
+      shapes; bash, zsh, and fish still resolve via get_completion_class.
+      Stay inside src/click/shell_completion.py plus your new test file.
+      Do not touch other click modules. No new dependencies, no CI or
+      docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/shell_completion.py
+        - NushellComplete follows the existing shell-class pattern (name, source_template, format_completion) and registers in _available_shells
+        - The source template interpolates complete_var, prog_name, and complete_func and uses the nushell_complete instruction
+        - Existing bash, zsh, and fish registrations are untouched
+        - New tests only, in tests/test_coord_nushell_completion.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - get_completion_class("nushell") returns a ShellComplete subclass named "nushell"
+          - source() renders the template with the prog name, the complete_var, and the nushell_complete instruction
+          - format_completion returns the value alone without help, and value TAB help with help
+          - bash, zsh, and fish completion classes still resolve unchanged
+          - New tests in tests/test_coord_nushell_completion.py cover the registration, source-rendering, format-completion, and existing-shells cases
+        scope_paths:
+          - "src/click/shell_completion.py"
+          - "tests/test_coord_nushell_completion.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/decorators.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_nushell_completion.py"
+      deterministic_checks: []
+    source:
+      authored: true

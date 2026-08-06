@@ -1,0 +1,176 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-zu11
+study: e-coord
+status: confirmatory
+repo: zustand
+pinned_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add near-twin equality-function validation throwing
+    TypeError to the SAME 88-line file src/traditional.ts: one card
+    guards the equalityFn/selector arguments of useStoreWithEqualityFn,
+    the other guards the defaultEqualityFn/initializer arguments of
+    createWithEqualityFn — and createWithEqualityFnImpl forwards its
+    defaultEqualityFn into the very hook the other card is guarding, so
+    both cards' criteria describe the same "a non-function equality
+    function throws TypeError" behavior class. The default path collides:
+    one shared assert helper hoisted beside the existing `identity`
+    helper serves both cards, and validating "the equality function" once
+    where the impl calls the hook satisfies both cards' happy reading in
+    the same lines. A region-disjoint pair still exists: the hook guard
+    sits inline at the head of the useStoreWithEqualityFn implementation
+    body (mid-file) while the factory guard sits inline at the head of
+    createWithEqualityFnImpl (file tail), the type blocks between them
+    untouched. Collision is evitable per §3 rule 1 but the shared-helper
+    gravity is maximal. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-zu11-a
+    kind: coord
+    title: useStoreWithEqualityFn validates selector and equality arguments
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      useStoreWithEqualityFn (src/traditional.ts) forwards whatever it is
+      given into use-sync-external-store: a non-function selector or
+      equalityFn produces a crash deep inside the shim with no mention of
+      the hook or which argument was wrong.
+
+      Add argument validation to the useStoreWithEqualityFn
+      implementation in src/traditional.ts: when a selector argument is
+      provided but is not a function, or an equalityFn argument is
+      provided but is not a function, throw a TypeError with a clear
+      message naming useStoreWithEqualityFn and the offending argument.
+      The validation must run before the shim hook is called. Valid calls
+      — with or without selector and equalityFn — must behave exactly as
+      before, including the default identity selector.
+
+      Add tests in a new file
+      tests/coord/use-store-equality-arg-guard.test.tsx covering:
+      rendering with a non-function selector throws TypeError; rendering
+      with a valid selector but a non-function equalityFn throws
+      TypeError; a valid store with selector and Object.is renders the
+      selected slice; a valid store with no selector renders the whole
+      state. Stay inside src/traditional.ts plus your new test file. Do
+      not touch the vanilla core, the middleware tree, or the react entry
+      point. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/traditional.ts
+        - A defined non-function selector or equalityFn throws TypeError before the shim hook runs
+        - Valid calls behave exactly as before, including the default identity selector
+        - New tests only, in tests/coord/use-store-equality-arg-guard.test.tsx; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - useStoreWithEqualityFn with a defined non-function selector throws TypeError
+          - useStoreWithEqualityFn with a defined non-function equalityFn throws TypeError
+          - The TypeError is thrown before use-sync-external-store is invoked
+          - Valid calls with and without selector and equalityFn render exactly as before
+          - New tests in tests/coord/use-store-equality-arg-guard.test.tsx cover the bad-selector, bad-equality, valid-selector, and no-selector cases
+        scope_paths:
+          - "src/traditional.ts"
+          - "tests/coord/use-store-equality-arg-guard.test.tsx"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/react.ts"
+          - "src/shallow.ts"
+          - "src/react/shallow.ts"
+          - "src/vanilla/shallow.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/use-store-equality-arg-guard.test.tsx"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-zu11-b
+    kind: coord
+    title: createWithEqualityFn validates its initializer and default equality function
+    base_sha: a1f685ca744e56a982b1c5029620e0925c3ee996
+    prompt: |
+      createWithEqualityFn (src/traditional.ts) silently accepts garbage:
+      createWithEqualityFn(42) blows up later inside createStore, and a
+      non-function defaultEqualityFn is stored and only detonates on the
+      first render that uses it, far from the creation site.
+
+      Add argument validation to the creation path in src/traditional.ts:
+      when createWithEqualityFn — or the curried form returned by
+      createWithEqualityFn() — receives an initializer that is defined
+      (including null) but not a function, or a defaultEqualityFn that is
+      provided but not a function, throw a TypeError with a clear message
+      naming createWithEqualityFn. createWithEqualityFn() with no
+      arguments must still return the curried function, and valid calls
+      must behave exactly as before, including forwarding the default
+      equality function to the bound hook.
+
+      Add tests in a new file
+      tests/coord/create-with-equality-arg-guard.test.ts covering:
+      createWithEqualityFn(42 as any) and createWithEqualityFn(null as
+      any) throw TypeError; a valid initializer with a non-function
+      defaultEqualityFn (42 as any) throws TypeError; the curried form
+      createWithEqualityFn()(42 as any) throws TypeError; a valid
+      initializer produces a working bound store whose getState returns
+      the initial state. Stay inside src/traditional.ts plus your new
+      test file. Do not touch the vanilla core, the middleware tree, or
+      the react entry point. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/traditional.ts
+        - A defined non-function initializer (including null) throws TypeError on both the direct and curried paths
+        - A provided non-function defaultEqualityFn throws TypeError at creation time
+        - createWithEqualityFn() with no arguments still returns the curried function; valid calls behave exactly as before
+        - New tests only, in tests/coord/create-with-equality-arg-guard.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - createWithEqualityFn with a number or null initializer throws TypeError
+          - A provided non-function defaultEqualityFn throws TypeError at creation time, not at first render
+          - The curried form createWithEqualityFn()(badValue) throws TypeError for defined non-function values
+          - A valid initializer returns a bound store hook with the store api attached and a working getState
+          - New tests in tests/coord/create-with-equality-arg-guard.test.ts cover the bad-initializer, bad-equality, curried-bad-value, and valid cases
+        scope_paths:
+          - "src/traditional.ts"
+          - "tests/coord/create-with-equality-arg-guard.test.ts"
+        out_of_scope:
+          - "src/vanilla.ts"
+          - "src/middleware.ts"
+          - "src/middleware/**"
+          - "src/react.ts"
+          - "src/shallow.ts"
+          - "src/react/shallow.ts"
+          - "src/vanilla/shallow.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm vitest run tests/coord/create-with-equality-arg-guard.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

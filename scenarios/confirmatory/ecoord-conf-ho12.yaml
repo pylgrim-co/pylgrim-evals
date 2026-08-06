@@ -1,0 +1,182 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-ho12
+study: e-coord
+status: confirmatory
+repo: hono
+pinned_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add a near-twin context-access helper to the SAME
+    59-line module src/middleware/context-storage/index.ts, and both
+    helpers can only be built on the module-private asyncLocalStorage
+    instance that the file's existing exports already share — the
+    cal-zu02 twin-export shape compressed into one tiny file. The
+    acceptance criteria overlap almost verbatim ("uses the same
+    AsyncLocalStorage instance the middleware binds", "does not affect
+    getContext/tryGetContext"), and the default path for both cards is
+    identical: append the new export at the file tail after getContext,
+    stacking the two insertions adjacently and colliding. A
+    region-disjoint pair still exists: hasContext is a read-side peer of
+    tryGetContext and can sit directly after it (before getContext),
+    while runInContext is an entry-point peer of the middleware and
+    lands at the file tail, the getContext block staying stable between
+    the two insertions. Collision is evitable per §3 rule 1 but the
+    tail-append gravity is maximal. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-ho12-a
+    kind: coord
+    title: context storage gains a hasContext() probe
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      Code that may run inside or outside a request (shared services,
+      log enrichers) has no cheap way to ask whether the context-storage
+      middleware is active: getContext throws, and
+      tryGetContext forces callers to materialize the context object
+      just to test for it.
+
+      Add a hasContext export to
+      src/middleware/context-storage/index.ts: a function returning a
+      boolean — true when called within a request handled by the
+      contextStorage middleware, false otherwise — that never throws.
+      It must consult the same module-private AsyncLocalStorage instance
+      the middleware binds; do not create a second storage. The
+      existing contextStorage, getContext, and tryGetContext exports
+      must behave exactly as before.
+
+      Add tests in a new file
+      src/middleware/context-storage/coord-has-context.test.ts covering:
+      hasContext() returns true inside a handler running under the
+      middleware; it returns false when called outside any request; it
+      returns false when the middleware is not installed; and
+      getContext/tryGetContext still work as before alongside it. Stay
+      inside src/middleware/context-storage/index.ts plus your new test
+      file. Do not touch other middleware, the Context class, or the
+      utils tree. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/context-storage/index.ts
+        - hasContext returns a boolean, never throws, and uses the module's existing AsyncLocalStorage instance
+        - contextStorage, getContext, and tryGetContext behave exactly as before
+        - New tests only, in src/middleware/context-storage/coord-has-context.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - hasContext() is true inside a request handled by the contextStorage middleware
+          - hasContext() is false outside a request and never throws
+          - hasContext() is false when the middleware is not installed
+          - getContext and tryGetContext behave exactly as before
+          - New tests in src/middleware/context-storage/coord-has-context.test.ts cover the inside-request, outside-request, no-middleware, and unchanged-peers cases
+        scope_paths:
+          - "src/middleware/context-storage/index.ts"
+          - "src/middleware/context-storage/coord-has-context.test.ts"
+        out_of_scope:
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "src/hono-base.ts"
+          - "src/helper/**"
+          - "src/middleware/logger/**"
+          - "src/middleware/powered-by/**"
+          - "src/middleware/request-id/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/context-storage/coord-has-context.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-ho12-b
+    kind: coord
+    title: context storage gains a runInContext() entry point
+    base_sha: d6b1d32a697ef9ba9f5036753fe9bde1121c0ff9
+    prompt: |
+      Tests and background jobs that want to exercise code depending on
+      getContext have no supported way to bind a context outside a real
+      request: the AsyncLocalStorage instance is module-private, so
+      callers resort to spinning up a whole Hono app per test just to
+      get a bound context.
+
+      Add a runInContext export to
+      src/middleware/context-storage/index.ts: runInContext(context, fn)
+      runs fn with the module's AsyncLocalStorage bound to the given
+      context and returns fn's result, including promise results —
+      getContext() and tryGetContext() called inside fn (and inside
+      awaited continuations of an async fn) must see the given context.
+      Outside the call, bindings are unaffected: code running after
+      runInContext returns sees no context. It must use the same
+      module-private AsyncLocalStorage instance the middleware binds; do
+      not create a second storage. The existing contextStorage,
+      getContext, and tryGetContext exports must behave exactly as
+      before.
+
+      Add tests in a new file
+      src/middleware/context-storage/coord-run-in-context.test.ts
+      covering: getContext() inside a synchronous fn returns the given
+      context object; an async fn that awaits still sees the context
+      after the await and runInContext resolves to its return value;
+      tryGetContext() returns undefined after runInContext completes;
+      and the middleware path still binds contexts as before. Stay
+      inside src/middleware/context-storage/index.ts plus your new test
+      file. Do not touch other middleware, the Context class, or the
+      utils tree. No new dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/middleware/context-storage/index.ts
+        - runInContext binds the module's existing AsyncLocalStorage to the given context for the duration of fn, sync or async, and returns fn's result
+        - Bindings do not leak outside the call
+        - contextStorage, getContext, and tryGetContext behave exactly as before
+        - New tests only, in src/middleware/context-storage/coord-run-in-context.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - getContext() inside a synchronous fn passed to runInContext returns the given context
+          - An async fn sees the context across awaits and runInContext resolves to its return value
+          - tryGetContext() is undefined once runInContext has completed
+          - The middleware path binds contexts exactly as before
+          - New tests in src/middleware/context-storage/coord-run-in-context.test.ts cover the sync, async, no-leak, and middleware-unchanged cases
+        scope_paths:
+          - "src/middleware/context-storage/index.ts"
+          - "src/middleware/context-storage/coord-run-in-context.test.ts"
+        out_of_scope:
+          - "src/context.ts"
+          - "src/hono.ts"
+          - "src/hono-base.ts"
+          - "src/helper/**"
+          - "src/middleware/logger/**"
+          - "src/middleware/powered-by/**"
+          - "src/middleware/request-id/**"
+          - "src/utils/**"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "bun run vitest --run --project main src/middleware/context-storage/coord-run-in-context.test.ts"
+      deterministic_checks: []
+    source:
+      authored: true

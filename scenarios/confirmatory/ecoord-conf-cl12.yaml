@@ -1,0 +1,186 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-cl12
+study: e-coord
+status: confirmatory
+repo: click
+pinned_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items rework the SAME ~45-line Editor.edit method in
+    src/click/_termui_impl.py — the tempfile-write / invoke-editor /
+    read-back sequence is the only place either card's behavior can
+    land, and both cards' acceptance criteria orbit the same temporary
+    file (its name for one card, its saved content for the other). The
+    default path collides: card A's extension normalization gravitates
+    to the mkstemp call and card B's save detection gravitates to the
+    timestamp comparison eight lines below, and the lazy move for either
+    agent is to rewrite the whole try block in one sweep — exactly where
+    the other card lands. A region-disjoint pair still exists: the
+    extension fix is a small normalization at the head of edit before
+    data is prepared (or an equivalent single-line change at the mkstemp
+    call) while the save-detection fix inserts a captured content
+    snapshot beside the existing timestamp capture and edits only the
+    require_save condition, the edit_files invocation line staying
+    stable between the two hunks. Collision is evitable per §3 rule 1
+    but the same-method gravity is maximal. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-cl12-a
+    kind: coord
+    title: Editor normalizes extensions without a leading dot
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      Editor (src/click/_termui_impl.py) passes its extension straight
+      into tempfile.mkstemp as the suffix: click.edit(text,
+      extension="md") creates a file like "editor-abc123md" — no dot, no
+      syntax highlighting in the user's editor, and confusing filenames
+      in error output. Every caller must remember the leading dot.
+
+      Change the Editor class in src/click/_termui_impl.py so the
+      extension used for the temporary file always carries a leading
+      dot: an extension given as "md" produces a file ending in ".md",
+      an extension already starting with a dot is used unchanged, and an
+      empty extension keeps producing no suffix at all. The stored
+      attribute may be normalized at construction or the value may be
+      normalized where the temp file is created — either way,
+      Editor(extension="md").edit(...) and Editor(extension=".md")
+      .edit(...) must produce identically-suffixed files. No other
+      behavior of edit may change.
+
+      Add tests in a new file tests/test_coord_editor_extension_dot.py
+      that stub out the actual editor invocation (patch
+      Editor.edit_files to capture the filename it receives) and cover:
+      extension "md" yields a temp file ending in ".md"; extension
+      ".txt" (the default) still ends in ".txt"; an empty extension ""
+      yields no added suffix; the edited text round-trips unchanged when
+      the stub leaves the file alone and require_save is False. Stay
+      inside src/click/_termui_impl.py plus your new test file. Do not
+      touch other click modules. No new dependencies, no CI or docs
+      changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/_termui_impl.py, limited to the Editor class
+        - Extensions without a leading dot gain one; dotted extensions and the empty extension behave as before
+        - Editor(extension="md") and Editor(extension=".md") produce identically-suffixed temp files
+        - No other behavior of edit changes
+        - New tests only, in tests/test_coord_editor_extension_dot.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - An extension of "md" produces a temporary file ending in ".md"
+          - An extension of ".txt" produces a temporary file ending in ".txt", as before
+          - An empty extension adds no suffix
+          - The edit round-trip is otherwise unchanged
+          - New tests in tests/test_coord_editor_extension_dot.py cover the dotless, dotted, empty-extension, and round-trip cases with edit_files stubbed
+        scope_paths:
+          - "src/click/_termui_impl.py"
+          - "tests/test_coord_editor_extension_dot.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/shell_completion.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_editor_extension_dot.py"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-cl12-b
+    kind: coord
+    title: Editor.edit detects saves even when the file mtime is unchanged
+    base_sha: 16fc00e2f4a2717a521084f193709a6058afc693
+    prompt: |
+      Editor.edit (src/click/_termui_impl.py) decides "the user saved"
+      purely by comparing the temp file's mtime against the value
+      captured before the editor ran. On filesystems with coarse
+      timestamp resolution — FAT32's two seconds, some network mounts —
+      a fast save leaves the mtime identical and click.edit returns None
+      even though the user changed the text. The code already nudges the
+      mtime two seconds into the past to soften this, but a same-mtime
+      rewrite still goes undetected.
+
+      Change the Editor.edit save-detection in
+      src/click/_termui_impl.py: in addition to the existing mtime
+      comparison, compare the file's content against the bytes that were
+      originally written. When require_save is set, treat the edit as
+      saved if the mtime changed OR the content differs from what was
+      written; only return None when both the mtime and the content are
+      unchanged. require_save=False behavior and the returned
+      text/bytes decoding must stay exactly as today.
+
+      Add tests in a new file tests/test_coord_editor_mtime_save.py that
+      stub the editor invocation (patch Editor.edit_files) and cover: a
+      stub that rewrites the file with new content and then resets the
+      mtime to its pre-edit value still gets the new text returned; a
+      stub that leaves the file untouched still returns None under
+      require_save; a stub that changes content normally (mtime moves)
+      returns the new text; require_save=False still returns the text
+      when nothing changed. Stay inside src/click/_termui_impl.py plus
+      your new test file. Do not touch other click modules. No new
+      dependencies, no CI or docs changes.
+    intent:
+      constraints:
+        - Implementation change only in src/click/_termui_impl.py, limited to the Editor class
+        - A content change is detected as a save even when the mtime is unchanged
+        - An untouched file still returns None under require_save
+        - require_save=False behavior and text/bytes decoding are unchanged
+        - New tests only, in tests/test_coord_editor_mtime_save.py; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - New content with a reset (unchanged) mtime is returned as a save under require_save
+          - An untouched file returns None under require_save, as before
+          - A normal save with a changed mtime still returns the new text
+          - require_save=False still returns the text when nothing changed
+          - New tests in tests/test_coord_editor_mtime_save.py cover the same-mtime-save, untouched, normal-save, and no-require-save cases with edit_files stubbed
+        scope_paths:
+          - "src/click/_termui_impl.py"
+          - "tests/test_coord_editor_mtime_save.py"
+        out_of_scope:
+          - "src/click/core.py"
+          - "src/click/types.py"
+          - "src/click/parser.py"
+          - "src/click/testing.py"
+          - "src/click/termui.py"
+          - "src/click/utils.py"
+          - "src/click/shell_completion.py"
+          - "src/click/_compat.py"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "uv run pytest -q tests/test_coord_editor_mtime_save.py"
+      deterministic_checks: []
+    source:
+      authored: true

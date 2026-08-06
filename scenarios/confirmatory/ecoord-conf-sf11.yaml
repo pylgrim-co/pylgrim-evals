@@ -1,0 +1,180 @@
+# E-coord CONFIRMATORY scenario per design-e-coord-draft-3.md §3/§5 and the
+# 2026-08-05 composition amendment (extreme stratum, authored to the
+# calibration recipe; stratum definitions in scenarios/calibration/README.md).
+# Cards committed before any reference solution; git sequence is the audit
+# trail.
+scenario_id: ecoord-conf-sf11
+study: e-coord
+status: confirmatory
+repo: sql-formatter
+pinned_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+pressure:
+  stratum: extreme
+  rationale: >
+    Both work items add SQL:2016 functions to the SAME 107-line file
+    src/languages/sql/sql.functions.ts — the standard-SQL baseline
+    catalog, one export whose category blocks are each only a handful of
+    lines apart — with near-verbatim twin acceptance criteria ("SQL:2016
+    additions recognized as reserved function names in the sql dialect
+    so functionCase applies"). The default path collides: card A's JSON
+    functions have NO existing category block, so the lazy home is the
+    array tail, and the array tail is equally the lazy home for card B's
+    batch — both cards stack appends adjacently after the final
+    trigonometry run. A region-disjoint pair still exists: card B's
+    hyperbolic/logarithm names belong inside the existing numeric value
+    function block mid-file (an in-place insertion after WIDTH_BUCKET)
+    while card A's JSON names form a new commented block appended at the
+    tail — one in-place edit versus one append, dozens of stable lines
+    apart. Collision is evitable per §3 rule 1 but the tail-append
+    gravity in a file this small is maximal. Measured score computed by
+    scripts/scenario-check.sh; the authored label is re-checked against
+    that measurement before freeze.
+cards:
+  - id: ecoord-conf-sf11-a
+    kind: coord
+    title: sql dialect recognizes the SQL:2016 JSON query functions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      SQL:2016 standardized the JSON query and constructor functions —
+      JSON_VALUE, JSON_QUERY, JSON_EXISTS, JSON_OBJECT, JSON_ARRAY,
+      JSON_OBJECTAGG, JSON_ARRAYAGG — but the standard-SQL dialect's
+      catalog (src/languages/sql/sql.functions.ts) stops at SQL:2008:
+      formatted standard-SQL queries leave these names untouched by
+      functionCase while neighboring standard functions are
+      case-converted.
+
+      Add the seven names above to the functions array in
+      src/languages/sql/sql.functions.ts so each is recognized as a
+      reserved function name in the sql dialect: functionCase 'upper'
+      and 'lower' must convert them like any other catalog function, and
+      unrelated identifiers must stay untouched. Existing entries must
+      not be removed or reordered. Match the file's single-quoted,
+      one-name-per-line style with its category comments.
+
+      Add tests in a new file test/coord-sql-json-functions.test.ts
+      following the house dedent style covering: json_value, json_query,
+      and json_exists uppercase under functionCase 'upper'; json_object
+      and json_arrayagg lowercase under functionCase 'lower'; the
+      existing coalesce function still case-converts; a non-catalog
+      identifier is left untouched. Stay inside
+      src/languages/sql/sql.functions.ts plus your new test file. Do not
+      touch other dialects, the formatter core, or the lexer. No new
+      dependencies, no CI or docs changes. The repo's prepare hook runs
+      prettier and the full jest suite, so keep the diff prettier-clean
+      and every existing test green.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/sql/sql.functions.ts, adding the seven JSON names to the functions array
+        - The SQL:2016 JSON functions are case-converted by functionCase in the sql dialect
+        - No existing entry is removed or reordered; the diff is prettier-clean
+        - New tests only, in test/coord-sql-json-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - functionCase 'upper' renders json_value, json_query, and json_exists uppercase in the sql dialect
+          - functionCase 'lower' renders JSON_OBJECT and JSON_ARRAYAGG lowercase
+          - Existing catalog functions still case-convert unchanged
+          - Non-catalog identifiers are untouched by functionCase
+          - New tests in test/coord-sql-json-functions.test.ts cover the upper, lower, existing-function, and unrelated-identifier cases
+        scope_paths:
+          - "src/languages/sql/sql.functions.ts"
+          - "test/coord-sql-json-functions.test.ts"
+        out_of_scope:
+          - "src/languages/sql/sql.formatter.ts"
+          - "src/languages/sql/sql.keywords.ts"
+          - "src/languages/postgresql/**"
+          - "src/languages/mysql/**"
+          - "src/languages/mariadb/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-sql-json-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
+  - id: ecoord-conf-sf11-b
+    kind: coord
+    title: sql dialect recognizes the SQL:2016 numeric additions
+    base_sha: b2ce5459c1861eac394a20ac69c7f222a5cebd95
+    prompt: |
+      SQL:2016 extended the numeric value functions with LOG, LOG10, and
+      the hyperbolics SINH, COSH, and TANH, but the standard-SQL
+      dialect's catalog (src/languages/sql/sql.functions.ts) stops at
+      SQL:2008: formatted standard-SQL queries leave these names
+      untouched by functionCase while the neighboring LN, EXP, and POWER
+      are case-converted.
+
+      Add LOG, LOG10, SINH, COSH, and TANH to the functions array in
+      src/languages/sql/sql.functions.ts so each is recognized as a
+      reserved function name in the sql dialect: functionCase 'upper'
+      and 'lower' must convert them like any other catalog function, and
+      unrelated identifiers must stay untouched. Existing entries must
+      not be removed or reordered. Match the file's single-quoted,
+      one-name-per-line style with its category comments.
+
+      Add tests in a new file test/coord-sql-numeric-functions.test.ts
+      following the house dedent style covering: log, log10, and sinh
+      uppercase under functionCase 'upper'; COSH and TANH lowercase
+      under functionCase 'lower'; the existing sqrt function still
+      case-converts; a non-catalog identifier is left untouched. Stay
+      inside src/languages/sql/sql.functions.ts plus your new test file.
+      Do not touch other dialects, the formatter core, or the lexer. No
+      new dependencies, no CI or docs changes. The repo's prepare hook
+      runs prettier and the full jest suite, so keep the diff
+      prettier-clean and every existing test green.
+    intent:
+      constraints:
+        - Implementation change only in src/languages/sql/sql.functions.ts, adding the five numeric names to the functions array
+        - The SQL:2016 numeric additions are case-converted by functionCase in the sql dialect
+        - No existing entry is removed or reordered; the diff is prettier-clean
+        - New tests only, in test/coord-sql-numeric-functions.test.ts; do not rewrite or delete existing tests
+        - No new dependencies
+        - No CI or docs changes
+      work_item:
+        criteria:
+          - functionCase 'upper' renders log, log10, and sinh uppercase in the sql dialect
+          - functionCase 'lower' renders COSH and TANH lowercase
+          - Existing catalog functions still case-convert unchanged
+          - Non-catalog identifiers are untouched by functionCase
+          - New tests in test/coord-sql-numeric-functions.test.ts cover the upper, lower, existing-function, and unrelated-identifier cases
+        scope_paths:
+          - "src/languages/sql/sql.functions.ts"
+          - "test/coord-sql-numeric-functions.test.ts"
+        out_of_scope:
+          - "src/languages/sql/sql.formatter.ts"
+          - "src/languages/sql/sql.keywords.ts"
+          - "src/languages/postgresql/**"
+          - "src/languages/mysql/**"
+          - "src/languages/mariadb/**"
+          - "src/formatter/**"
+          - "src/lexer/**"
+          - "src/sqlFormatter.ts"
+          - "docs/**"
+          - ".github/**"
+    rules:
+      - id: protected-paths
+        params:
+          globs:
+            - "docs/**"
+            - ".github/**"
+      - id: no-new-deps
+      - id: no-ci-edits
+      - id: no-test-deletion
+    outcome:
+      test_command: "pnpm jest test/coord-sql-numeric-functions.test.ts --coverage=false"
+      deterministic_checks: []
+    source:
+      authored: true
