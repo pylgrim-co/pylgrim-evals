@@ -1,0 +1,45 @@
+diff --git a/packages/zod/src/v4/classic/parse.ts b/packages/zod/src/v4/classic/parse.ts
+index 7df7b290..5cb126bc 100644
+--- a/packages/zod/src/v4/classic/parse.ts
++++ b/packages/zod/src/v4/classic/parse.ts
+@@ -80,3 +80,7 @@ export const safeDecodeAsync: <T extends core.$ZodType>(
+   value: core.input<T>,
+   _ctx?: core.ParseContext<core.$ZodIssue>
+ ) => Promise<ZodSafeParseResult<core.output<T>>> = /* @__PURE__ */ core._safeDecodeAsync(ZodRealError) as any;
++
++export function isValid<T extends core.$ZodType>(schema: T, value: unknown): boolean {
++  return safeParse(schema, value).success;
++}
+diff --git a/packages/zod/src/v4/classic/tests/coord-is-valid.test.ts b/packages/zod/src/v4/classic/tests/coord-is-valid.test.ts
+new file mode 100644
+index 00000000..925e6d58
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-is-valid.test.ts
+@@ -0,0 +1,27 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("returns true for a valid value", () => {
++  expect(z.isValid(z.string(), "hello")).toBe(true);
++});
++
++test("returns false for an invalid value without throwing", () => {
++  expect(() => z.isValid(z.string(), 123)).not.toThrow();
++  expect(z.isValid(z.string(), 123)).toBe(false);
++});
++
++test("returns false when a refinement rejects the value", () => {
++  const even = z.number().refine((n) => n % 2 === 0);
++  expect(z.isValid(even, 3)).toBe(false);
++  expect(z.isValid(even, 4)).toBe(true);
++});
++
++test("filters an array down to valid entries", () => {
++  const values = ["a", 1, "b", null, "c"];
++  expect(values.filter((v) => z.isValid(z.string(), v))).toEqual(["a", "b", "c"]);
++});
++
++test("is reachable from the package root", () => {
++  expect(typeof z.isValid).toBe("function");
++});

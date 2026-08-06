@@ -1,0 +1,62 @@
+diff --git a/src/click/_textwrap.py b/src/click/_textwrap.py
+index 82840f2..574b175 100644
+--- a/src/click/_textwrap.py
++++ b/src/click/_textwrap.py
+@@ -178,6 +178,10 @@ class TextWrapper(textwrap.TextWrapper):
+         rv = []
+ 
+         for idx, line in enumerate(text.splitlines()):
++            if not line.strip():
++                rv.append("")
++                continue
++
+             indent = self.initial_indent
+ 
+             if idx > 0:
+diff --git a/tests/test_coord_indent_only_blank_lines.py b/tests/test_coord_indent_only_blank_lines.py
+new file mode 100644
+index 0000000..8fcca07
+--- /dev/null
++++ b/tests/test_coord_indent_only_blank_lines.py
+@@ -0,0 +1,41 @@
++from click._textwrap import TextWrapper
++
++
++def make_wrapper(initial="  ", subsequent="    "):
++    wrapper = TextWrapper()
++    wrapper.initial_indent = initial
++    wrapper.subsequent_indent = subsequent
++    return wrapper
++
++
++def test_empty_separator_line_stays_empty():
++    wrapper = make_wrapper()
++    result = wrapper.indent_only("first paragraph\n\nsecond paragraph")
++    lines = result.split("\n")
++    assert lines[0] == "  first paragraph"
++    assert lines[1] == ""
++    assert lines[2] == "    second paragraph"
++
++
++def test_whitespace_only_line_becomes_empty():
++    wrapper = make_wrapper()
++    result = wrapper.indent_only("first\n   \nsecond")
++    lines = result.split("\n")
++    assert lines[1] == ""
++
++
++def test_single_line_gets_initial_indent():
++    wrapper = make_wrapper()
++    assert wrapper.indent_only("only line") == "  only line"
++
++
++def test_first_and_subsequent_indents_differ():
++    wrapper = make_wrapper(initial=">", subsequent="+")
++    result = wrapper.indent_only("one\ntwo\nthree")
++    assert result == ">one\n+two\n+three"
++
++
++def test_line_count_is_preserved():
++    wrapper = make_wrapper()
++    text = "a\n\nb\n\nc"
++    assert len(wrapper.indent_only(text).split("\n")) == len(text.split("\n"))

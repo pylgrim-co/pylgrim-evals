@@ -1,0 +1,51 @@
+diff --git a/src/utils/color.ts b/src/utils/color.ts
+index 6e4d1e95..c1db9013 100644
+--- a/src/utils/color.ts
++++ b/src/utils/color.ts
+@@ -19,8 +19,7 @@ export function getColorEnabled(): boolean {
+     typeof Deno?.noColor === 'boolean'
+       ? (Deno.noColor as boolean)
+       : process !== undefined
+-        ? // eslint-disable-next-line no-unsafe-optional-chaining
+-          'NO_COLOR' in process?.env
++        ? (process?.env?.NO_COLOR ?? '') !== ''
+         : false
+ 
+   return !isNoColor
+diff --git a/src/utils/coord-color-empty-no-color.test.ts b/src/utils/coord-color-empty-no-color.test.ts
+new file mode 100644
+index 00000000..2c0fe150
+--- /dev/null
++++ b/src/utils/coord-color-empty-no-color.test.ts
+@@ -0,0 +1,31 @@
++import { getColorEnabled, getColorEnabledAsync } from './color'
++
++describe('getColorEnabled() with an empty NO_COLOR', () => {
++  afterEach(() => {
++    vi.unstubAllEnvs()
++  })
++
++  it('Should keep color enabled when NO_COLOR is the empty string', () => {
++    vi.stubEnv('NO_COLOR', '')
++    expect(getColorEnabled()).toBe(true)
++  })
++
++  it('Should disable color when NO_COLOR is "1"', () => {
++    vi.stubEnv('NO_COLOR', '1')
++    expect(getColorEnabled()).toBe(false)
++  })
++
++  it('Should disable color when NO_COLOR is "0" (any non-empty value counts)', () => {
++    vi.stubEnv('NO_COLOR', '0')
++    expect(getColorEnabled()).toBe(false)
++  })
++
++  it('Should keep color enabled when NO_COLOR is unset', () => {
++    expect(getColorEnabled()).toBe(true)
++  })
++
++  it('Should mirror the behavior in getColorEnabledAsync outside Cloudflare', async () => {
++    vi.stubEnv('NO_COLOR', '')
++    expect(await getColorEnabledAsync()).toBe(true)
++  })
++})

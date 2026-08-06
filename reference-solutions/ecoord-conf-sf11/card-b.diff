@@ -1,0 +1,78 @@
+diff --git a/src/languages/sql/sql.functions.ts b/src/languages/sql/sql.functions.ts
+index feb03caf..21c07c90 100644
+--- a/src/languages/sql/sql.functions.ts
++++ b/src/languages/sql/sql.functions.ts
+@@ -28,6 +28,12 @@ export const functions: string[] = [
+   'CEIL',
+   'CEILING',
+   'WIDTH_BUCKET',
++  // SQL:2016 additions
++  'LOG',
++  'LOG10',
++  'SINH',
++  'COSH',
++  'TANH',
+ 
+   // https://jakewheat.github.io/sql-overview/sql-2008-foundation-grammar.html#_6_29_string_value_function
+   'SUBSTRING',
+diff --git a/test/coord-sql-numeric-functions.test.ts b/test/coord-sql-numeric-functions.test.ts
+new file mode 100644
+index 00000000..b0f28458
+--- /dev/null
++++ b/test/coord-sql-numeric-functions.test.ts
+@@ -0,0 +1,55 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('sql dialect SQL:2016 numeric functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'sql' });
++
++  it('uppercases log, log10 and sinh with functionCase: "upper"', () => {
++    const result = format('SELECT log(a), log10(b), sinh(c) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        LOG(a),
++        LOG10(b),
++        SINH(c)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases COSH and TANH with functionCase: "lower"', () => {
++    const result = format('SELECT COSH(a), TANH(b) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        cosh(a),
++        tanh(b)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing sqrt function', () => {
++    const result = format('SELECT sqrt(a) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        SQRT(a)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

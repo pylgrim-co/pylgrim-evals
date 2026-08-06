@@ -1,0 +1,72 @@
+diff --git a/src/middleware/powered-by/coord-append-option.test.ts b/src/middleware/powered-by/coord-append-option.test.ts
+new file mode 100644
+index 00000000..9ece79e4
+--- /dev/null
++++ b/src/middleware/powered-by/coord-append-option.test.ts
+@@ -0,0 +1,36 @@
++import { Hono } from '../../hono'
++import { poweredBy } from '.'
++
++describe('Powered by Middleware with append option', () => {
++  it('Should append to an existing X-Powered-By header', async () => {
++    const app = new Hono()
++    app.use('*', poweredBy({ append: true }))
++    app.get('/', (c) => c.body('hi', 200, { 'X-Powered-By': 'Express' }))
++    const res = await app.request('/')
++    expect(res.headers.get('X-Powered-By')).toBe('Express, Hono')
++  })
++
++  it('Should append the custom serverName', async () => {
++    const app = new Hono()
++    app.use('*', poweredBy({ append: true, serverName: 'Foo' }))
++    app.get('/', (c) => c.body('hi', 200, { 'X-Powered-By': 'Express' }))
++    const res = await app.request('/')
++    expect(res.headers.get('X-Powered-By')).toBe('Express, Foo')
++  })
++
++  it('Should set the value alone when no header exists', async () => {
++    const app = new Hono()
++    app.use('*', poweredBy({ append: true }))
++    app.get('/', (c) => c.text('hi'))
++    const res = await app.request('/')
++    expect(res.headers.get('X-Powered-By')).toBe('Hono')
++  })
++
++  it('Should overwrite an existing header without the option', async () => {
++    const app = new Hono()
++    app.use('*', poweredBy())
++    app.get('/', (c) => c.body('hi', 200, { 'X-Powered-By': 'Express' }))
++    const res = await app.request('/')
++    expect(res.headers.get('X-Powered-By')).toBe('Hono')
++  })
++})
+diff --git a/src/middleware/powered-by/index.ts b/src/middleware/powered-by/index.ts
+index fb9a608a..8e509931 100644
+--- a/src/middleware/powered-by/index.ts
++++ b/src/middleware/powered-by/index.ts
+@@ -10,6 +10,12 @@ type PoweredByOptions = {
+    * @default Hono
+    */
+   serverName?: string
++  /**
++   * When true, append the value to an existing X-Powered-By header
++   * instead of overwriting it.
++   * @default false
++   */
++  append?: boolean
+ }
+ 
+ /**
+@@ -30,6 +36,11 @@ type PoweredByOptions = {
+ export const poweredBy = (options?: PoweredByOptions): MiddlewareHandler => {
+   return async function poweredBy(c, next) {
+     await next()
+-    c.res.headers.set('X-Powered-By', options?.serverName ?? 'Hono')
++    const value = options?.serverName ?? 'Hono'
++    const existing = c.res.headers.get('X-Powered-By')
++    c.res.headers.set(
++      'X-Powered-By',
++      options?.append && existing ? `${existing}, ${value}` : value
++    )
+   }
+ }

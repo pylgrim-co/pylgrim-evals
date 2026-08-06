@@ -1,0 +1,65 @@
+diff --git a/src/middleware/powered-by/coord-server-name-guard.test.ts b/src/middleware/powered-by/coord-server-name-guard.test.ts
+new file mode 100644
+index 00000000..cce9160a
+--- /dev/null
++++ b/src/middleware/powered-by/coord-server-name-guard.test.ts
+@@ -0,0 +1,33 @@
++import { Hono } from '../../hono'
++import { poweredBy } from '.'
++
++describe('Powered by Middleware serverName validation', () => {
++  it('Should throw TypeError for an empty serverName at factory time', () => {
++    expect(() => poweredBy({ serverName: '' })).toThrow(TypeError)
++  })
++
++  it('Should throw TypeError for a whitespace-only serverName', () => {
++    expect(() => poweredBy({ serverName: '   ' })).toThrow(TypeError)
++  })
++
++  it('Should throw TypeError for CR or LF in serverName', () => {
++    expect(() => poweredBy({ serverName: 'Hono\r\nX-Evil: 1' })).toThrow(TypeError)
++    expect(() => poweredBy({ serverName: 'Hono\nX-Evil: 1' })).toThrow(TypeError)
++  })
++
++  it('Should throw TypeError for a non-string serverName', () => {
++    expect(() => poweredBy({ serverName: 42 as any })).toThrow(TypeError)
++  })
++
++  it('Should set the header as before for valid options', async () => {
++    const app = new Hono()
++    app.use('/default/*', poweredBy())
++    app.get('/default', (c) => c.text('root'))
++    app.use('/custom/*', poweredBy({ serverName: 'Foo' }))
++    app.get('/custom', (c) => c.text('root'))
++    const resDefault = await app.request('/default')
++    expect(resDefault.headers.get('X-Powered-By')).toBe('Hono')
++    const resCustom = await app.request('/custom')
++    expect(resCustom.headers.get('X-Powered-By')).toBe('Foo')
++  })
++})
+diff --git a/src/middleware/powered-by/index.ts b/src/middleware/powered-by/index.ts
+index fb9a608a..e7a2e3cc 100644
+--- a/src/middleware/powered-by/index.ts
++++ b/src/middleware/powered-by/index.ts
+@@ -28,8 +28,21 @@ type PoweredByOptions = {
+  * ```
+  */
+ export const poweredBy = (options?: PoweredByOptions): MiddlewareHandler => {
++  if (options?.serverName !== undefined) {
++    assertServerName(options.serverName)
++  }
+   return async function poweredBy(c, next) {
+     await next()
+     c.res.headers.set('X-Powered-By', options?.serverName ?? 'Hono')
+   }
+ }
++
++const assertServerName = (serverName: unknown): void => {
++  if (
++    typeof serverName !== 'string' ||
++    serverName.trim() === '' ||
++    /[\r\n]/.test(serverName)
++  ) {
++    throw new TypeError('poweredBy: serverName must be a non-empty single-line string')
++  }
++}

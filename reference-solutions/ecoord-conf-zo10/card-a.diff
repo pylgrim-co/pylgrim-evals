@@ -1,0 +1,49 @@
+diff --git a/packages/zod/src/v4/classic/parse.ts b/packages/zod/src/v4/classic/parse.ts
+index 7df7b290..701e47e9 100644
+--- a/packages/zod/src/v4/classic/parse.ts
++++ b/packages/zod/src/v4/classic/parse.ts
+@@ -32,6 +32,15 @@ export const safeParseAsync: <T extends core.$ZodType>(
+   _ctx?: core.ParseContext<core.$ZodIssue>
+ ) => Promise<ZodSafeParseResult<core.output<T>>> = /* @__PURE__ */ core._safeParseAsync(ZodRealError) as any;
+ 
++export function parseOrDefault<T extends core.$ZodType, D>(
++  schema: T,
++  value: unknown,
++  fallback: D
++): core.output<T> | D {
++  const result = safeParse(schema, value);
++  return result.success ? result.data : fallback;
++}
++
+ // Codec functions
+ export const encode: <T extends core.$ZodType>(
+   schema: T,
+diff --git a/packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts b/packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts
+new file mode 100644
+index 00000000..9d0a5ffa
+--- /dev/null
++++ b/packages/zod/src/v4/classic/tests/coord-parse-or-default.test.ts
+@@ -0,0 +1,23 @@
++import { expect, test } from "vitest";
++
++import * as z from "zod/v4";
++
++test("returns the parsed output for a valid value", () => {
++  const schema = z.string().transform((s) => s.length);
++  expect(z.parseOrDefault(schema, "hello", -1)).toBe(5);
++});
++
++test("returns the fallback unchanged for an invalid value", () => {
++  const fallback = { reason: "unset" };
++  const result = z.parseOrDefault(z.object({ id: z.number() }), "nope", fallback);
++  expect(result).toBe(fallback);
++});
++
++test("does not throw for an invalid value", () => {
++  expect(() => z.parseOrDefault(z.number(), "not a number", 0)).not.toThrow();
++  expect(z.parseOrDefault(z.number(), "not a number", 0)).toBe(0);
++});
++
++test("is reachable from the package root", () => {
++  expect(typeof z.parseOrDefault).toBe("function");
++});

@@ -1,0 +1,118 @@
+diff --git a/src/click/shell_completion.py b/src/click/shell_completion.py
+index 5652214..eb26610 100644
+--- a/src/click/shell_completion.py
++++ b/src/click/shell_completion.py
+@@ -184,6 +184,25 @@ else
+ fi
+ """
+ 
++_SOURCE_POWERSHELL = """\
++$%(complete_func)s = {
++    param($wordToComplete, $commandAst, $cursorPosition)
++    $env:COMP_WORDS = $commandAst.ToString()
++    $env:COMP_INCOMPLETE = "$wordToComplete"
++    $env:%(complete_var)s = "powershell_complete"
++    %(prog_name)s | ForEach-Object {
++        $value, $help = $_ -split "`t", 2
++        if ($null -eq $help) { $help = $value }
++        [System.Management.Automation.CompletionResult]::new(
++            $value, $value, 'ParameterValue', $help)
++    }
++    Remove-Item Env:%(complete_var)s
++    Remove-Item Env:COMP_WORDS
++    Remove-Item Env:COMP_INCOMPLETE
++}
++Register-ArgumentCompleter -Native -CommandName %(prog_name)s -ScriptBlock $%(complete_func)s
++"""
++
+ _SOURCE_FISH = """\
+ function %(complete_func)s;
+     set -l response (env %(complete_var)s=fish_complete COMP_WORDS=(commandline -cp) \
+@@ -419,6 +438,31 @@ class ZshComplete(ShellComplete):
+         return f"{item.type}\n{value}\n{help_}"
+ 
+ 
++class PowerShellComplete(ShellComplete):
++    """Shell completion for PowerShell."""
++
++    name: t.ClassVar[str] = "powershell"
++    source_template: t.ClassVar[str] = _SOURCE_POWERSHELL
++
++    def get_completion_args(self) -> tuple[list[str], str]:
++        cwords = split_arg_string(os.environ["COMP_WORDS"])
++        args = cwords[1:]
++        incomplete = os.environ.get("COMP_INCOMPLETE", "")
++
++        # PowerShell passes the whole command line; drop the partial
++        # word from the complete args so it is only the incomplete value.
++        if incomplete and args and args[-1] == incomplete:
++            args.pop()
++
++        return args, incomplete
++
++    def format_completion(self, item: CompletionItem[str]) -> str:
++        if item.help:
++            return f"{item.value}\t{item.help}"
++
++        return item.value
++
++
+ class FishComplete(ShellComplete):
+     """Shell completion for Fish."""
+ 
+@@ -459,6 +503,7 @@ class FishComplete(ShellComplete):
+ _available_shells: t.Final[dict[str, type[ShellComplete]]] = {
+     "bash": BashComplete,
+     "fish": FishComplete,
++    "powershell": PowerShellComplete,
+     "zsh": ZshComplete,
+ }
+ 
+diff --git a/tests/test_coord_powershell_completion.py b/tests/test_coord_powershell_completion.py
+new file mode 100644
+index 0000000..1d54934
+--- /dev/null
++++ b/tests/test_coord_powershell_completion.py
+@@ -0,0 +1,42 @@
++import click
++from click.shell_completion import (
++    BashComplete,
++    CompletionItem,
++    FishComplete,
++    PowerShellComplete,
++    ZshComplete,
++    get_completion_class,
++)
++
++
++def _make(prog_name="mycli"):
++    cli = click.Command("mycli", params=[click.Option(["--name"])])
++    return PowerShellComplete(cli, {}, prog_name, "_MYCLI_COMPLETE")
++
++
++def test_powershell_is_registered():
++    cls = get_completion_class("powershell")
++    assert cls is PowerShellComplete
++    assert cls.name == "powershell"
++
++
++def test_source_renders_prog_and_complete_var():
++    complete = _make()
++    source = complete.source()
++    assert "mycli" in source
++    assert "_MYCLI_COMPLETE" in source
++    assert "powershell_complete" in source
++
++
++def test_format_completion_shapes():
++    complete = _make()
++    plain = CompletionItem("value")
++    assert complete.format_completion(plain) == "value"
++    described = CompletionItem("value", help="does a thing")
++    assert complete.format_completion(described) == "value\tdoes a thing"
++
++
++def test_existing_shells_still_resolve():
++    assert get_completion_class("bash") is BashComplete
++    assert get_completion_class("zsh") is ZshComplete
++    assert get_completion_class("fish") is FishComplete

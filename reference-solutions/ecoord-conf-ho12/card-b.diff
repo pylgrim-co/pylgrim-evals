@@ -1,0 +1,57 @@
+diff --git a/src/middleware/context-storage/coord-run-in-context.test.ts b/src/middleware/context-storage/coord-run-in-context.test.ts
+new file mode 100644
+index 00000000..b394cd72
+--- /dev/null
++++ b/src/middleware/context-storage/coord-run-in-context.test.ts
+@@ -0,0 +1,39 @@
++import { Hono } from '../../hono'
++import type { Context } from '../../context'
++import { contextStorage, getContext, runInContext, tryGetContext } from '.'
++
++describe('Context Storage Middleware runInContext()', () => {
++  const fakeContext = { var: { message: 'bound' } } as unknown as Context
++
++  it('Should bind the context for a synchronous fn', () => {
++    const seen = runInContext(fakeContext, () => getContext())
++    expect(seen).toBe(fakeContext)
++  })
++
++  it('Should keep the context across awaits and resolve to the return value', async () => {
++    const result = await runInContext(fakeContext, async () => {
++      await Promise.resolve()
++      expect(getContext()).toBe(fakeContext)
++      return 'done'
++    })
++    expect(result).toBe('done')
++  })
++
++  it('Should not leak the binding outside the call', () => {
++    runInContext(fakeContext, () => undefined)
++    expect(tryGetContext()).toBeUndefined()
++  })
++
++  it('Should leave the middleware path binding contexts as before', async () => {
++    type Env = { Variables: { message: string } }
++    const app = new Hono<Env>()
++    app.use(contextStorage())
++    app.use(async (c, next) => {
++      c.set('message', 'middleware')
++      await next()
++    })
++    app.get('/', (c) => c.text(getContext<Env>().var.message))
++    const res = await app.request('/')
++    expect(await res.text()).toBe('middleware')
++  })
++})
+diff --git a/src/middleware/context-storage/index.ts b/src/middleware/context-storage/index.ts
+index e20fcec5..9a1cf7cf 100644
+--- a/src/middleware/context-storage/index.ts
++++ b/src/middleware/context-storage/index.ts
+@@ -57,3 +57,7 @@ export const getContext = <E extends Env = Env>(): Context<E> => {
+   }
+   return context
+ }
++
++export const runInContext = <T, E extends Env = Env>(context: Context<E>, fn: () => T): T => {
++  return asyncLocalStorage.run(context as unknown as Context, fn)
++}

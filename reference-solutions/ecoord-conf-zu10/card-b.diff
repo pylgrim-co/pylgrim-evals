@@ -1,0 +1,52 @@
+diff --git a/src/react.ts b/src/react.ts
+index 7b2b07b..f8f898c 100644
+--- a/src/react.ts
++++ b/src/react.ts
+@@ -51,6 +51,9 @@ type Create = {
+ }
+ 
+ const createImpl = <T>(createState: StateCreator<T, [], []>) => {
++  if (typeof createState !== 'function') {
++    throw new TypeError('create: the initializer must be a function')
++  }
+   const api = createStore(createState)
+ 
+   const useBoundStore: any = (selector?: any) => useStore(api, selector)
+@@ -61,4 +64,4 @@ const createImpl = <T>(createState: StateCreator<T, [], []>) => {
+ }
+ 
+ export const create = (<T>(createState: StateCreator<T, [], []> | undefined) =>
+-  createState ? createImpl(createState) : createImpl) as Create
++  createState === undefined ? createImpl : createImpl(createState)) as Create
+diff --git a/tests/coord/create-arg-guard.test.ts b/tests/coord/create-arg-guard.test.ts
+new file mode 100644
+index 0000000..0683802
+--- /dev/null
++++ b/tests/coord/create-arg-guard.test.ts
+@@ -0,0 +1,26 @@
++import { expect, it } from 'vitest'
++import { create } from 'zustand'
++
++it('throws TypeError for a number, string, or null initializer', () => {
++  expect(() => create(42 as any)).toThrow(TypeError)
++  expect(() => create('x' as any)).toThrow(TypeError)
++  expect(() => create(null as any)).toThrow(TypeError)
++})
++
++it('throws TypeError on the curried path for defined non-function values', () => {
++  expect(() => create()(42 as any)).toThrow(TypeError)
++})
++
++it('returns the curried function when called with no argument', () => {
++  const curried = create()
++  expect(typeof curried).toBe('function')
++  const useBoundStore = curried(() => ({ ready: true }))
++  expect(useBoundStore.getState().ready).toBe(true)
++})
++
++it('creates a working bound store for a valid initializer', () => {
++  const useBoundStore = create(() => ({ count: 3 }))
++  expect(useBoundStore.getState().count).toBe(3)
++  useBoundStore.setState({ count: 4 })
++  expect(useBoundStore.getState().count).toBe(4)
++})

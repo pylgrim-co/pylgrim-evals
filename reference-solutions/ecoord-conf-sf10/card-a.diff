@@ -1,0 +1,80 @@
+diff --git a/src/languages/mariadb/mariadb.functions.ts b/src/languages/mariadb/mariadb.functions.ts
+index 56388393..e0e8ad8f 100644
+--- a/src/languages/mariadb/mariadb.functions.ts
++++ b/src/languages/mariadb/mariadb.functions.ts
+@@ -123,6 +123,7 @@ export const functions: string[] = [
+   'JSON_CONTAINS_PATH',
+   'JSON_DEPTH',
+   'JSON_DETAILED',
++  'JSON_EQUALS',
+   'JSON_EXISTS',
+   'JSON_EXTRACT',
+   'JSON_INSERT',
+@@ -132,6 +133,7 @@ export const functions: string[] = [
+   'JSON_MERGE',
+   'JSON_MERGE_PATCH',
+   'JSON_MERGE_PRESERVE',
++  'JSON_NORMALIZE',
+   'JSON_QUERY',
+   'JSON_QUOTE',
+   'JSON_OBJECT',
+diff --git a/test/coord-mariadb-json-equality.test.ts b/test/coord-mariadb-json-equality.test.ts
+new file mode 100644
+index 00000000..3156fb3d
+--- /dev/null
++++ b/test/coord-mariadb-json-equality.test.ts
+@@ -0,0 +1,54 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('mariadb json equality and normalization functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'mariadb' });
++
++  it('uppercases json_equals and json_normalize with functionCase: "upper"', () => {
++    const result = format('SELECT json_equals(a, b), json_normalize(c) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_EQUALS(a, b),
++        JSON_NORMALIZE(c)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases JSON_EQUALS and JSON_NORMALIZE with functionCase: "lower"', () => {
++    const result = format('SELECT JSON_EQUALS(a, b), JSON_NORMALIZE(c) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        json_equals(a, b),
++        json_normalize(c)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing json_valid function', () => {
++    const result = format('SELECT json_valid(a) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_VALID(a)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

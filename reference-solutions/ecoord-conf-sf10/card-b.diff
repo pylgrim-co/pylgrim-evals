@@ -1,0 +1,75 @@
+diff --git a/src/languages/mariadb/mariadb.functions.ts b/src/languages/mariadb/mariadb.functions.ts
+index 56388393..488f0e8e 100644
+--- a/src/languages/mariadb/mariadb.functions.ts
++++ b/src/languages/mariadb/mariadb.functions.ts
+@@ -135,8 +135,10 @@ export const functions: string[] = [
+   'JSON_QUERY',
+   'JSON_QUOTE',
+   'JSON_OBJECT',
++  'JSON_OVERLAPS',
+   'JSON_REMOVE',
+   'JSON_REPLACE',
++  'JSON_SCHEMA_VALID',
+   'JSON_SET',
+   'JSON_SEARCH',
+   'JSON_TYPE',
+diff --git a/test/coord-mariadb-json-validation.test.ts b/test/coord-mariadb-json-validation.test.ts
+new file mode 100644
+index 00000000..f1dc2752
+--- /dev/null
++++ b/test/coord-mariadb-json-validation.test.ts
+@@ -0,0 +1,54 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('mariadb json overlap and schema validation functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'mariadb' });
++
++  it('uppercases json_overlaps and json_schema_valid with functionCase: "upper"', () => {
++    const result = format('SELECT json_overlaps(a, b), json_schema_valid(s, j) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_OVERLAPS(a, b),
++        JSON_SCHEMA_VALID(s, j)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases JSON_OVERLAPS and JSON_SCHEMA_VALID with functionCase: "lower"', () => {
++    const result = format('SELECT JSON_OVERLAPS(a, b), JSON_SCHEMA_VALID(s, j) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        json_overlaps(a, b),
++        json_schema_valid(s, j)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing json_contains function', () => {
++    const result = format('SELECT json_contains(a, b) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_CONTAINS(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

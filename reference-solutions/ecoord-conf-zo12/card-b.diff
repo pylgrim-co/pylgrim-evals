@@ -1,0 +1,46 @@
+diff --git a/packages/zod/src/v4/mini/parse.ts b/packages/zod/src/v4/mini/parse.ts
+index d4d1ee2f..92b15648 100644
+--- a/packages/zod/src/v4/mini/parse.ts
++++ b/packages/zod/src/v4/mini/parse.ts
+@@ -12,3 +12,9 @@ export {
+   safeEncodeAsync,
+   safeDecodeAsync,
+ } from "../core/index.js";
++
++import { type $ZodType as _$ZodType, safeParse as _miniSafeParse } from "../core/index.js";
++
++export function isValid<T extends _$ZodType>(schema: T, value: unknown): boolean {
++  return _miniSafeParse(schema, value).success;
++}
+diff --git a/packages/zod/src/v4/mini/tests/coord-is-valid.test.ts b/packages/zod/src/v4/mini/tests/coord-is-valid.test.ts
+new file mode 100644
+index 00000000..ca9824e2
+--- /dev/null
++++ b/packages/zod/src/v4/mini/tests/coord-is-valid.test.ts
+@@ -0,0 +1,26 @@
++import { expect, test } from "vitest";
++import * as z from "zod/mini";
++
++test("returns true for a valid value", () => {
++  expect(z.isValid(z.string(), "hello")).toBe(true);
++});
++
++test("returns false for an invalid value without throwing", () => {
++  expect(() => z.isValid(z.string(), 123)).not.toThrow();
++  expect(z.isValid(z.string(), 123)).toBe(false);
++});
++
++test("returns false when a check rejects the value", () => {
++  const positive = z.number().check(z.gt(0));
++  expect(z.isValid(positive, -1)).toBe(false);
++  expect(z.isValid(positive, 1)).toBe(true);
++});
++
++test("filters an array down to valid entries", () => {
++  const values = ["a", 1, "b", null, "c"];
++  expect(values.filter((v) => z.isValid(z.string(), v))).toEqual(["a", "b", "c"]);
++});
++
++test("is reachable from zod/mini", () => {
++  expect(typeof z.isValid).toBe("function");
++});

@@ -1,0 +1,80 @@
+diff --git a/src/languages/singlestoredb/singlestoredb.functions.ts b/src/languages/singlestoredb/singlestoredb.functions.ts
+index 5f30b550..a1bfe54e 100644
+--- a/src/languages/singlestoredb/singlestoredb.functions.ts
++++ b/src/languages/singlestoredb/singlestoredb.functions.ts
+@@ -215,6 +215,7 @@ export const functions: string[] = [
+   'RPAD',
+   'RTRIM',
+   'SCALAR',
++  'SCALAR_VECTOR_MUL',
+   'SCHEMA',
+   'SEC_TO_TIME',
+   'SHA1',
+@@ -272,6 +273,8 @@ export const functions: string[] = [
+   'VARIANCE',
+   'VAR_POP',
+   'VAR_SAMP',
++  'VECTOR_ELEMENTS_SUM',
++  'VECTOR_MUL',
+   'VECTOR_SUB',
+   'VERSION',
+   'WEEK',
+diff --git a/test/coord-singlestore-vector-arithmetic.test.ts b/test/coord-singlestore-vector-arithmetic.test.ts
+new file mode 100644
+index 00000000..0aa8e52a
+--- /dev/null
++++ b/test/coord-singlestore-vector-arithmetic.test.ts
+@@ -0,0 +1,53 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('singlestoredb vector arithmetic functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'singlestoredb' });
++
++  it('uppercases vector_mul and scalar_vector_mul with functionCase: "upper"', () => {
++    const result = format('SELECT vector_mul(a, b), scalar_vector_mul(s, v) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        VECTOR_MUL(a, b),
++        SCALAR_VECTOR_MUL(s, v)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases VECTOR_ELEMENTS_SUM with functionCase: "lower"', () => {
++    const result = format('SELECT VECTOR_ELEMENTS_SUM(v) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        vector_elements_sum(v)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing vector_sub function', () => {
++    const result = format('SELECT vector_sub(a, b) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        VECTOR_SUB(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

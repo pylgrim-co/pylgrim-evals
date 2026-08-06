@@ -1,0 +1,58 @@
+diff --git a/src/middleware/context-storage/coord-has-context.test.ts b/src/middleware/context-storage/coord-has-context.test.ts
+new file mode 100644
+index 00000000..4e3efc31
+--- /dev/null
++++ b/src/middleware/context-storage/coord-has-context.test.ts
+@@ -0,0 +1,37 @@
++import { Hono } from '../../hono'
++import { contextStorage, getContext, hasContext, tryGetContext } from '.'
++
++describe('Context Storage Middleware hasContext()', () => {
++  it('Should return true inside a request handled by the middleware', async () => {
++    const app = new Hono()
++    app.use(contextStorage())
++    app.get('/', (c) => c.json({ has: hasContext() }))
++    const res = await app.request('/')
++    expect(await res.json()).toEqual({ has: true })
++  })
++
++  it('Should return false outside any request and never throw', () => {
++    expect(hasContext()).toBe(false)
++  })
++
++  it('Should return false when the middleware is not installed', async () => {
++    const app = new Hono()
++    app.get('/', (c) => c.json({ has: hasContext() }))
++    const res = await app.request('/')
++    expect(await res.json()).toEqual({ has: false })
++  })
++
++  it('Should leave getContext and tryGetContext working as before', async () => {
++    type Env = { Variables: { message: string } }
++    const app = new Hono<Env>()
++    app.use(contextStorage())
++    app.use(async (c, next) => {
++      c.set('message', 'hello')
++      await next()
++    })
++    app.get('/', (c) => c.text(getContext<Env>().var.message))
++    const res = await app.request('/')
++    expect(await res.text()).toBe('hello')
++    expect(tryGetContext()).toBeUndefined()
++  })
++})
+diff --git a/src/middleware/context-storage/index.ts b/src/middleware/context-storage/index.ts
+index e20fcec5..300817ee 100644
+--- a/src/middleware/context-storage/index.ts
++++ b/src/middleware/context-storage/index.ts
+@@ -50,6 +50,10 @@ export const tryGetContext = <E extends Env = Env>(): Context<E> | undefined =>
+   return asyncLocalStorage.getStore() as Context<E> | undefined
+ }
+ 
++export const hasContext = (): boolean => {
++  return asyncLocalStorage.getStore() !== undefined
++}
++
+ export const getContext = <E extends Env = Env>(): Context<E> => {
+   const context = tryGetContext<E>()
+   if (!context) {

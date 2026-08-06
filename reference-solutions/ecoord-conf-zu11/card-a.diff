@@ -1,0 +1,77 @@
+diff --git a/src/traditional.ts b/src/traditional.ts
+index 8298399..cfec10d 100644
+--- a/src/traditional.ts
++++ b/src/traditional.ts
+@@ -33,6 +33,14 @@ export function useStoreWithEqualityFn<TState, StateSlice>(
+   selector: (state: TState) => StateSlice = identity as any,
+   equalityFn?: (a: StateSlice, b: StateSlice) => boolean,
+ ) {
++  if (typeof selector !== 'function') {
++    throw new TypeError('useStoreWithEqualityFn: the selector must be a function')
++  }
++  if (equalityFn !== undefined && typeof equalityFn !== 'function') {
++    throw new TypeError(
++      'useStoreWithEqualityFn: the equality function must be a function',
++    )
++  }
+   const slice = useSyncExternalStoreWithSelector(
+     api.subscribe,
+     api.getState,
+diff --git a/tests/coord/use-store-equality-arg-guard.test.tsx b/tests/coord/use-store-equality-arg-guard.test.tsx
+new file mode 100644
+index 0000000..93af403
+--- /dev/null
++++ b/tests/coord/use-store-equality-arg-guard.test.tsx
+@@ -0,0 +1,52 @@
++import { render, screen } from '@testing-library/react'
++import { afterEach, beforeEach, expect, it, vi } from 'vitest'
++import { useStoreWithEqualityFn } from 'zustand/traditional'
++import { createStore } from 'zustand/vanilla'
++
++const consoleError = console.error
++
++beforeEach(() => {
++  console.error = vi.fn()
++})
++
++afterEach(() => {
++  console.error = consoleError
++})
++
++it('throws TypeError when the selector is not a function', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const Component = () => {
++    useStoreWithEqualityFn(store, 42 as any)
++    return null
++  }
++  expect(() => render(<Component />)).toThrow(TypeError)
++})
++
++it('throws TypeError when the equality function is not a function', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const Component = () => {
++    useStoreWithEqualityFn(store, (s) => s.count, 'shallow' as any)
++    return null
++  }
++  expect(() => render(<Component />)).toThrow(TypeError)
++})
++
++it('renders the selected slice with a valid selector and equality function', async () => {
++  const store = createStore(() => ({ count: 9 }))
++  const Component = () => {
++    const count = useStoreWithEqualityFn(store, (s) => s.count, Object.is)
++    return <div>count: {count}</div>
++  }
++  render(<Component />)
++  expect(await screen.findByText('count: 9')).toBeDefined()
++})
++
++it('renders the whole state without a selector', async () => {
++  const store = createStore(() => ({ label: 'whole' }))
++  const Component = () => {
++    const state = useStoreWithEqualityFn(store)
++    return <div>label: {state.label}</div>
++  }
++  render(<Component />)
++  expect(await screen.findByText('label: whole')).toBeDefined()
++})

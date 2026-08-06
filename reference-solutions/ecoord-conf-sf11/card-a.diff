@@ -1,0 +1,79 @@
+diff --git a/src/languages/sql/sql.functions.ts b/src/languages/sql/sql.functions.ts
+index feb03caf..30681f7e 100644
+--- a/src/languages/sql/sql.functions.ts
++++ b/src/languages/sql/sql.functions.ts
+@@ -104,4 +104,13 @@ export const functions: string[] = [
+   'ASIN',
+   'ACOS',
+   'ATAN',
++
++  // SQL:2016 JSON functions
++  'JSON_OBJECT',
++  'JSON_ARRAY',
++  'JSON_OBJECTAGG',
++  'JSON_ARRAYAGG',
++  'JSON_VALUE',
++  'JSON_QUERY',
++  'JSON_EXISTS',
+ ];
+diff --git a/test/coord-sql-json-functions.test.ts b/test/coord-sql-json-functions.test.ts
+new file mode 100644
+index 00000000..a1d15ba5
+--- /dev/null
++++ b/test/coord-sql-json-functions.test.ts
+@@ -0,0 +1,55 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('sql dialect SQL:2016 json functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'sql' });
++
++  it('uppercases json_value, json_query and json_exists with functionCase: "upper"', () => {
++    const result = format('SELECT json_value(a, b), json_query(c, d), json_exists(e, f) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_VALUE(a, b),
++        JSON_QUERY(c, d),
++        JSON_EXISTS(e, f)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases JSON_OBJECT and JSON_ARRAYAGG with functionCase: "lower"', () => {
++    const result = format('SELECT JSON_OBJECT(a), JSON_ARRAYAGG(b) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        json_object(a),
++        json_arrayagg(b)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing coalesce function', () => {
++    const result = format('SELECT coalesce(a, b) FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        COALESCE(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

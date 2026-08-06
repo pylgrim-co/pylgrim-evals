@@ -1,0 +1,55 @@
+diff --git a/src/utils/color.ts b/src/utils/color.ts
+index 6e4d1e95..3d016a91 100644
+--- a/src/utils/color.ts
++++ b/src/utils/color.ts
+@@ -15,6 +15,10 @@ export function getColorEnabled(): boolean {
+   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   const { process, Deno } = globalThis as any
+ 
++  if (process !== undefined && process?.env?.FORCE_COLOR) {
++    return true
++  }
++
+   const isNoColor =
+     typeof Deno?.noColor === 'boolean'
+       ? (Deno.noColor as boolean)
+diff --git a/src/utils/coord-color-force.test.ts b/src/utils/coord-color-force.test.ts
+new file mode 100644
+index 00000000..ec07e0b1
+--- /dev/null
++++ b/src/utils/coord-color-force.test.ts
+@@ -0,0 +1,34 @@
++import { getColorEnabled, getColorEnabledAsync } from './color'
++
++describe('getColorEnabled() with FORCE_COLOR', () => {
++  afterEach(() => {
++    vi.unstubAllEnvs()
++  })
++
++  it('Should return true when FORCE_COLOR is set to a non-empty value', () => {
++    vi.stubEnv('FORCE_COLOR', '1')
++    expect(getColorEnabled()).toBe(true)
++  })
++
++  it('Should beat NO_COLOR when both are set', () => {
++    vi.stubEnv('NO_COLOR', '1')
++    vi.stubEnv('FORCE_COLOR', '1')
++    expect(getColorEnabled()).toBe(true)
++  })
++
++  it('Should not force color when FORCE_COLOR is empty', () => {
++    vi.stubEnv('NO_COLOR', '1')
++    vi.stubEnv('FORCE_COLOR', '')
++    expect(getColorEnabled()).toBe(false)
++  })
++
++  it('Should behave as before when FORCE_COLOR is unset', () => {
++    expect(getColorEnabled()).toBe(true)
++  })
++
++  it('Should mirror the override in getColorEnabledAsync outside Cloudflare', async () => {
++    vi.stubEnv('NO_COLOR', '1')
++    vi.stubEnv('FORCE_COLOR', '1')
++    expect(await getColorEnabledAsync()).toBe(true)
++  })
++})

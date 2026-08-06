@@ -1,0 +1,81 @@
+diff --git a/src/react.ts b/src/react.ts
+index 7b2b07b..a2cb78f 100644
+--- a/src/react.ts
++++ b/src/react.ts
+@@ -27,6 +27,19 @@ export function useStore<TState, StateSlice>(
+   api: ReadonlyStoreApi<TState>,
+   selector: (state: TState) => StateSlice = identity as any,
+ ) {
++  if (
++    !api ||
++    typeof api.subscribe !== 'function' ||
++    typeof api.getState !== 'function' ||
++    typeof api.getInitialState !== 'function'
++  ) {
++    throw new TypeError(
++      'useStore: the first argument must be a store api with subscribe, getState, and getInitialState',
++    )
++  }
++  if (typeof selector !== 'function') {
++    throw new TypeError('useStore: the selector must be a function')
++  }
+   const slice = React.useSyncExternalStore(
+     api.subscribe,
+     React.useCallback(() => selector(api.getState()), [api, selector]),
+diff --git a/tests/coord/use-store-arg-guard.test.tsx b/tests/coord/use-store-arg-guard.test.tsx
+new file mode 100644
+index 0000000..33b2f52
+--- /dev/null
++++ b/tests/coord/use-store-arg-guard.test.tsx
+@@ -0,0 +1,51 @@
++import { render, screen } from '@testing-library/react'
++import { afterEach, beforeEach, expect, it, vi } from 'vitest'
++import { useStore } from 'zustand'
++import { createStore } from 'zustand/vanilla'
++
++const consoleError = console.error
++
++beforeEach(() => {
++  console.error = vi.fn()
++})
++
++afterEach(() => {
++  console.error = consoleError
++})
++
++it('throws TypeError when the first argument is not a store api', () => {
++  const Component = () => {
++    useStore({} as any)
++    return null
++  }
++  expect(() => render(<Component />)).toThrow(TypeError)
++})
++
++it('throws TypeError when the selector is not a function', () => {
++  const store = createStore(() => ({ count: 0 }))
++  const Component = () => {
++    useStore(store, 42 as any)
++    return null
++  }
++  expect(() => render(<Component />)).toThrow(TypeError)
++})
++
++it('renders the selected slice for a valid store and selector', async () => {
++  const store = createStore(() => ({ count: 7 }))
++  const Component = () => {
++    const count = useStore(store, (s) => s.count)
++    return <div>count: {count}</div>
++  }
++  render(<Component />)
++  expect(await screen.findByText('count: 7')).toBeDefined()
++})
++
++it('renders the whole state without a selector', async () => {
++  const store = createStore(() => ({ label: 'whole' }))
++  const Component = () => {
++    const state = useStore(store)
++    return <div>label: {state.label}</div>
++  }
++  render(<Component />)
++  expect(await screen.findByText('label: whole')).toBeDefined()
++})

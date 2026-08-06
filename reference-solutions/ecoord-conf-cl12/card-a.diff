@@ -1,0 +1,61 @@
+diff --git a/src/click/_termui_impl.py b/src/click/_termui_impl.py
+index fadae94..b16e100 100644
+--- a/src/click/_termui_impl.py
++++ b/src/click/_termui_impl.py
+@@ -737,7 +737,12 @@ class Editor:
+             else:
+                 data = text.encode("utf-8")
+ 
+-        fd, name = tempfile.mkstemp(prefix="editor-", suffix=self.extension)
++        extension = self.extension
++
++        if extension and not extension.startswith("."):
++            extension = f".{extension}"
++
++        fd, name = tempfile.mkstemp(prefix="editor-", suffix=extension)
+         f: t.BinaryIO
+ 
+         try:
+diff --git a/tests/test_coord_editor_extension_dot.py b/tests/test_coord_editor_extension_dot.py
+new file mode 100644
+index 0000000..a550ad8
+--- /dev/null
++++ b/tests/test_coord_editor_extension_dot.py
+@@ -0,0 +1,37 @@
++from click._termui_impl import Editor
++
++
++def edit_capturing_filename(monkeypatch):
++    captured = {}
++
++    def fake_edit_files(self, filenames):
++        captured["name"] = next(iter(filenames))
++
++    monkeypatch.setattr(Editor, "edit_files", fake_edit_files)
++    return captured
++
++
++def test_dotless_extension_gains_a_dot(monkeypatch):
++    captured = edit_capturing_filename(monkeypatch)
++    Editor(extension="md", require_save=False).edit("hello")
++    assert captured["name"].endswith(".md")
++    assert not captured["name"].endswith("..md")
++
++
++def test_dotted_extension_unchanged(monkeypatch):
++    captured = edit_capturing_filename(monkeypatch)
++    Editor(extension=".txt", require_save=False).edit("hello")
++    assert captured["name"].endswith(".txt")
++
++
++def test_empty_extension_adds_no_suffix(monkeypatch):
++    captured = edit_capturing_filename(monkeypatch)
++    Editor(extension="", require_save=False).edit("hello")
++    name = captured["name"].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
++    assert "." not in name
++
++
++def test_round_trip_unchanged(monkeypatch):
++    edit_capturing_filename(monkeypatch)
++    result = Editor(extension="md", require_save=False).edit("hello")
++    assert result == "hello\n"

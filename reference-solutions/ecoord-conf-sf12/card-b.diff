@@ -1,0 +1,78 @@
+diff --git a/src/languages/singlestoredb/singlestoredb.functions.ts b/src/languages/singlestoredb/singlestoredb.functions.ts
+index 5f30b550..beaae6ea 100644
+--- a/src/languages/singlestoredb/singlestoredb.functions.ts
++++ b/src/languages/singlestoredb/singlestoredb.functions.ts
+@@ -139,9 +139,11 @@ export const functions: string[] = [
+   'JSON_ARRAY_CONTAINS_DOUBLE',
+   'JSON_ARRAY_CONTAINS_JSON',
+   'JSON_ARRAY_CONTAINS_STRING',
++  'JSON_ARRAY_PACK',
+   'JSON_ARRAY_PUSH_DOUBLE',
+   'JSON_ARRAY_PUSH_JSON',
+   'JSON_ARRAY_PUSH_STRING',
++  'JSON_ARRAY_UNPACK',
+   'JSON_DELETE_KEY',
+   'JSON_EXTRACT_DOUBLE',
+   'JSON_EXTRACT_JSON',
+diff --git a/test/coord-singlestore-vector-packing.test.ts b/test/coord-singlestore-vector-packing.test.ts
+new file mode 100644
+index 00000000..e471e09f
+--- /dev/null
++++ b/test/coord-singlestore-vector-packing.test.ts
+@@ -0,0 +1,56 @@
++import dedent from 'dedent-js';
++
++import { format as originalFormat, FormatFn } from '../src/sqlFormatter.js';
++
++describe('singlestoredb vector json packing functions', () => {
++  const format: FormatFn = (query, cfg = {}) =>
++    originalFormat(query, { ...cfg, language: 'singlestoredb' });
++
++  it('uppercases json_array_pack and json_array_unpack with functionCase: "upper"', () => {
++    const result = format('SELECT json_array_pack(a), json_array_unpack(b) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_ARRAY_PACK(a),
++        JSON_ARRAY_UNPACK(b)
++      FROM
++        t
++    `);
++  });
++
++  it('lowercases JSON_ARRAY_PACK and JSON_ARRAY_UNPACK with functionCase: "lower"', () => {
++    const result = format('SELECT JSON_ARRAY_PACK(a), JSON_ARRAY_UNPACK(b) FROM t', {
++      functionCase: 'lower',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        json_array_pack(a),
++        json_array_unpack(b)
++      FROM
++        t
++    `);
++  });
++
++  it('still uppercases the existing json_array_push_double function', () => {
++    const result = format('SELECT json_array_push_double(a, b) FROM t', {
++      functionCase: 'upper',
++    });
++    expect(result).toBe(dedent`
++      SELECT
++        JSON_ARRAY_PUSH_DOUBLE(a, b)
++      FROM
++        t
++    `);
++  });
++
++  it('leaves unrelated identifiers untouched by functionCase', () => {
++    const result = format('SELECT my_column FROM t', { functionCase: 'upper' });
++    expect(result).toBe(dedent`
++      SELECT
++        my_column
++      FROM
++        t
++    `);
++  });
++});

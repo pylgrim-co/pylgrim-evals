@@ -1,0 +1,114 @@
+diff --git a/src/click/shell_completion.py b/src/click/shell_completion.py
+index 5652214..f583195 100644
+--- a/src/click/shell_completion.py
++++ b/src/click/shell_completion.py
+@@ -207,6 +207,23 @@ complete --no-files --command %(prog_name)s --arguments \
+ """
+ 
+ 
++_SOURCE_NUSHELL = """\
++def "%(complete_func)s" [spans: list<string>] {
++    with-env {
++        %(complete_var)s: "nushell_complete",
++        COMP_WORDS: ($spans | str join " "),
++    } {
++        %(prog_name)s | lines | each { |line| $line | split row "\t" | first }
++    }
++}
++
++$env.config.completions.external = {
++    enable: true
++    completer: { |spans| %(complete_func)s $spans }
++}
++"""
++
++
+ class _SourceVarsDict(t.TypedDict):
+     complete_func: str
+     complete_var: str
+@@ -456,10 +473,37 @@ class FishComplete(ShellComplete):
+         return f"{item.type},{item.value}"
+ 
+ 
++class NushellComplete(ShellComplete):
++    """Shell completion for Nushell."""
++
++    name: t.ClassVar[str] = "nushell"
++    source_template: t.ClassVar[str] = _SOURCE_NUSHELL
++
++    def get_completion_args(self) -> tuple[list[str], str]:
++        cwords = split_arg_string(os.environ["COMP_WORDS"])
++        args = cwords[1:]
++
++        # Nushell passes the full span list; the last span is the
++        # (possibly empty) word being completed.
++        if args:
++            incomplete = args.pop()
++        else:
++            incomplete = ""
++
++        return args, incomplete
++
++    def format_completion(self, item: CompletionItem[str]) -> str:
++        if item.help:
++            return f"{item.value}\t{item.help}"
++
++        return item.value
++
++
+ _available_shells: t.Final[dict[str, type[ShellComplete]]] = {
+     "bash": BashComplete,
+     "fish": FishComplete,
+     "zsh": ZshComplete,
++    "nushell": NushellComplete,
+ }
+ 
+ _ShellCompleteT = t.TypeVar("_ShellCompleteT", bound="ShellComplete")
+diff --git a/tests/test_coord_nushell_completion.py b/tests/test_coord_nushell_completion.py
+new file mode 100644
+index 0000000..c7846e1
+--- /dev/null
++++ b/tests/test_coord_nushell_completion.py
+@@ -0,0 +1,42 @@
++import click
++from click.shell_completion import (
++    BashComplete,
++    CompletionItem,
++    FishComplete,
++    NushellComplete,
++    ZshComplete,
++    get_completion_class,
++)
++
++
++def _make(prog_name="mycli"):
++    cli = click.Command("mycli", params=[click.Option(["--name"])])
++    return NushellComplete(cli, {}, prog_name, "_MYCLI_COMPLETE")
++
++
++def test_nushell_is_registered():
++    cls = get_completion_class("nushell")
++    assert cls is NushellComplete
++    assert cls.name == "nushell"
++
++
++def test_source_renders_prog_and_complete_var():
++    complete = _make()
++    source = complete.source()
++    assert "mycli" in source
++    assert "_MYCLI_COMPLETE" in source
++    assert "nushell_complete" in source
++
++
++def test_format_completion_shapes():
++    complete = _make()
++    plain = CompletionItem("value")
++    assert complete.format_completion(plain) == "value"
++    described = CompletionItem("value", help="does a thing")
++    assert complete.format_completion(described) == "value\tdoes a thing"
++
++
++def test_existing_shells_still_resolve():
++    assert get_completion_class("bash") is BashComplete
++    assert get_completion_class("zsh") is ZshComplete
++    assert get_completion_class("fish") is FishComplete

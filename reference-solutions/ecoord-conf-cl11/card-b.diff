@@ -1,0 +1,73 @@
+diff --git a/src/click/_textwrap.py b/src/click/_textwrap.py
+index 82840f2..535424c 100644
+--- a/src/click/_textwrap.py
++++ b/src/click/_textwrap.py
+@@ -162,7 +162,10 @@ class TextWrapper(textwrap.TextWrapper):
+         return lines
+ 
+     @contextmanager
+-    def extra_indent(self, indent: str) -> cabc.Iterator[None]:
++    def extra_indent(self, indent: str | int) -> cabc.Iterator[None]:
++        if isinstance(indent, int):
++            indent = " " * indent
++
+         old_initial_indent = self.initial_indent
+         old_subsequent_indent = self.subsequent_indent
+         self.initial_indent += indent
+diff --git a/tests/test_coord_extra_indent_int.py b/tests/test_coord_extra_indent_int.py
+new file mode 100644
+index 0000000..865c2df
+--- /dev/null
++++ b/tests/test_coord_extra_indent_int.py
+@@ -0,0 +1,51 @@
++import pytest
++
++from click._textwrap import TextWrapper
++
++
++def make_wrapper():
++    wrapper = TextWrapper(width=20)
++    wrapper.initial_indent = ""
++    wrapper.subsequent_indent = ""
++    return wrapper
++
++
++def test_int_matches_equivalent_spaces():
++    text = "aaa bbb ccc ddd eee fff"
++
++    wrapper_int = make_wrapper()
++    with wrapper_int.extra_indent(4):
++        wrapped_int = wrapper_int.wrap(text)
++
++    wrapper_str = make_wrapper()
++    with wrapper_str.extra_indent(" " * 4):
++        wrapped_str = wrapper_str.wrap(text)
++
++    assert wrapped_int == wrapped_str
++
++
++def test_string_argument_unchanged():
++    wrapper = make_wrapper()
++    with wrapper.extra_indent(">>"):
++        assert wrapper.initial_indent == ">>"
++        assert wrapper.subsequent_indent == ">>"
++
++
++def test_indents_restored_after_exit():
++    wrapper = make_wrapper()
++    with wrapper.extra_indent(4):
++        assert wrapper.initial_indent == "    "
++
++    assert wrapper.initial_indent == ""
++    assert wrapper.subsequent_indent == ""
++
++
++def test_indents_restored_on_exception():
++    wrapper = make_wrapper()
++
++    with pytest.raises(RuntimeError):
++        with wrapper.extra_indent(4):
++            raise RuntimeError("boom")
++
++    assert wrapper.initial_indent == ""
++    assert wrapper.subsequent_indent == ""
